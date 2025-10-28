@@ -6,6 +6,7 @@
 """
 from typing import Optional, Dict, Any, List
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -13,6 +14,7 @@ from pydantic import BaseModel
 
 from hengline.generate_agent import generate_storyboard
 from hengline.logger import info, error, log_with_context
+from utils.log_utils import print_log_exception
 
 app = APIRouter()
 
@@ -27,7 +29,8 @@ class StoryboardRequest(BaseModel):
     duration_per_shot: int = 5
     prev_continuity_state: Optional[Dict[str, Any]] = None
     # 唯一请求ID，默认生成UUID
-    task_id: str = str(uuid.uuid4())
+    # task_id: str = str(uuid.uuid4())
+    task_id: str = "hengline-" + str(datetime.now().strftime("%Y%m%d-%H%M%S"))
 
 
 # 定义响应模型
@@ -113,6 +116,7 @@ def generate_storyboard_api(request: StoryboardRequest):
         return response
 
     except ValueError as e:
+        print_log_exception()
         error(f"参数错误: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

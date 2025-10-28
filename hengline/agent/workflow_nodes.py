@@ -10,6 +10,8 @@ from datetime import datetime
 from typing import Dict, List, Any
 
 from hengline.logger import debug, info, warning, error
+from utils.log_utils import print_log_exception
+from hengline.tools.result_storage_tool import create_result_storage
 from .workflow_states import StoryboardWorkflowState
 
 
@@ -46,6 +48,16 @@ class WorkflowNodes:
                 structured_script = self.script_parser.enhance_with_llm(structured_script)
 
             debug(f"剧本解析完成，场景数: {len(structured_script.get('scenes', []))}")
+
+            # 保存剧本解析结果
+            task_id = state.get("task_id", str(uuid.uuid4()))
+            try:
+                storage = create_result_storage()
+                storage.save_result(task_id, structured_script, "script_parser_result.json")
+                info(f"剧本解析结果已保存到: data/output/{task_id}/script_parser_result.json")
+            except Exception as save_error:
+                warning(f"保存剧本解析结果失败: {str(save_error)}")
+            
             return {
                 "structured_script": structured_script
             }
@@ -59,11 +71,28 @@ class WorkflowNodes:
         """规划时间线节点"""
         debug("规划时间线节点执行中")
         try:
+            # 进行时序规划
             segments = self.temporal_planner.plan_timeline(
                 state["structured_script"],
                 state["duration_per_shot"]
             )
+            
+            # 保存时序规划结果
+            task_id = state.get("task_id", str(uuid.uuid4()))
+            try:
+                storage = create_result_storage()
+                result_data = {
+                    "segments": segments,
+                    "structured_script": state["structured_script"],
+                    "duration_per_shot": state["duration_per_shot"]
+                }
+                storage.save_result(task_id, result_data, "temporal_planner_result.json")
+                info(f"时序规划结果已保存到: data/output/{task_id}/temporal_planner_result.json")
+            except Exception as save_error:
+                warning(f"保存时序规划结果失败: {str(save_error)}")
+            
             debug(f"时序规划完成，分段数: {len(segments)}")
+            
             return {
                 "segments": segments,
                 "current_segment_index": 0
@@ -127,7 +156,23 @@ class WorkflowNodes:
                     state["style"],
                     shot_id
                 )
+                
+                # 保存分镜生成结果
+                task_id = state.get("task_id", str(uuid.uuid4()))
+                try:
+                    storage = create_result_storage()
+                    storage.save_result(task_id, {
+                        "shot_id": shot_id,
+                        "segment": segment,
+                        "shot": shot,
+                        "continuity_constraints": continuity_constraints,
+                        "scene_context": scene_context
+                    }, f"generated_shot_{shot_id}.json")
+                    info(f"分镜{shot_id}生成结果已保存")
+                except Exception as save_error:
+                    warning(f"保存分镜生成结果失败: {str(save_error)}")
             except Exception as shot_e:
+                print_log_exception()
                 error(f"生成自定义分镜失败: {str(shot_e)}")
                 # 直接创建默认分镜
                 shot = self._create_default_shot(segment, shot_id, state["style"])
@@ -188,6 +233,21 @@ class WorkflowNodes:
             # 添加到qa_results列表
             qa_results = state["qa_results"].copy()
             qa_results.append(qa_result)
+
+            # 保存分镜审查结果
+            task_id = state.get("task_id", str(uuid.uuid4()))
+            try:
+                storage = create_result_storage()
+                shot_id = len(state.get("shots", [])) + 1
+                storage.save_result(task_id, {
+                    "shot_id": shot_id,
+                    "segment": segment,
+                    "shot": shot,
+                    "qa_result": qa_result
+                }, f"shot_review_{shot_id}.json")
+                info(f"分镜{shot_id}审查结果已保存")
+            except Exception as save_error:
+                warning(f"保存分镜审查结果失败: {str(save_error)}")
 
             return {
                 "qa_results": qa_results
@@ -265,6 +325,21 @@ class WorkflowNodes:
             continuity_anchor = self.continuity_guardian.extract_continuity_anchor(segment, shot)
             debug(f"分镜 {len(shots)} 生成并通过审查")
 
+            # 保存连续性信息
+            task_id = state.get("task_id", str(uuid.uuid4()))
+            try:
+                storage = create_result_storage()
+                shot_id = len(shots)
+                storage.save_result(task_id, {
+                    "shot_id": shot_id,
+                    "segment": segment,
+                    "shot": shot,
+                    "continuity_anchor": continuity_anchor
+                }, f"continuity_anchor_{shot_id}.json")
+                info(f"分镜{shot_id}连续性信息已保存")
+            except Exception as save_error:
+                warning(f"保存连续性信息失败: {str(save_error)}")
+
             # 移动到下一个分段
             current_segment_index = state["current_segment_index"] + 1
 
@@ -318,6 +393,18 @@ class WorkflowNodes:
                     info("分镜序列有警告但通过审查")
                     sequence_qa = {"has_continuity_issues": False, "warnings": warnings}
             
+            # 保存序列审查结果
+            task_id = state.get("task_id", str(uuid.uuid4()))
+            try:
+                storage = create_result_storage()
+                storage.save_result(task_id, {
+                    "shots": state["shots"],
+                    "sequence_qa": sequence_qa
+                }, "sequence_review.json")
+                info(f"序列审查结果已保存")
+            except Exception as save_error:
+                warning(f"保存序列审查结果失败: {str(save_error)}")
+            
             return {
                 "sequence_qa": sequence_qa
             }
@@ -333,7 +420,25 @@ class WorkflowNodes:
         debug("修复连续性问题节点执行中")
         try:
             warning("分镜序列存在连续性问题，尝试修正")
-            fixed_shots = self._fix_continuity_issues(state["shots"], state["sequence_qa"])
+            shots = state["shots"]
+            qa_result = state["sequence_qa"]
+            fixed_shots = self._fix_continuity_issues(shots, qa_result)
+            
+            # 保存连续性修复结果
+            task_id = state.get("task_id", str(uuid.uuid4()))
+            try:
+                storage = create_result_storage()
+                storage.save_result(task_id, {
+                    "original_shots": shots,
+                    "fixed_shots": fixed_shots,
+                    "qa_result": qa_result
+                }, f"continuity_fix_{len(fixed_shots)}.json")
+                info(f"连续性修复结果已保存")
+            except Exception as save_error:
+                warning(f"保存连续性修复结果失败: {str(save_error)}")
+                
+            debug(f"已修复连续性问题，共调整 {len(fixed_shots)} 个分镜")
+
             return {
                 "shots": fixed_shots,
                 "sequence_qa": {"has_continuity_issues": False, "issues": []}  # 假设修复成功
@@ -355,8 +460,47 @@ class WorkflowNodes:
                 state["duration_per_shot"],
                 state["sequence_qa"]
             )
+            
+            # 生成最终的分镜头剧本
+            # 从结果中提取所需信息
+            title = state.get("script_title", "分镜头剧本")
+            shots = state["shots"]
+            qa_results = state.get("qa_results", [])
+            
+            # 提取角色和场景位置信息
+            characters = set()
+            locations = set()
+            for shot in shots:
+                if shot.get("characters"):
+                    characters.update(shot["characters"])
+                scene_context = shot.get("scene_context", {})
+                if scene_context.get("location"):
+                    locations.add(scene_context["location"])
+            
+            final_storyboard = {
+                "title": title,
+                "scenes": shots,
+                "qa_results": qa_results,
+                "characters": list(characters),
+                "locations": list(locations)
+            }
+            
+            # 保存最终结果
+            task_id = state.get("task_id", str(uuid.uuid4()))
+            try:
+                storage = create_result_storage()
+                storage.save_result(task_id, result, "final_result.json")
+                info(f"最终结果已保存到: data/output/{task_id}/final_result.json")
+                
+                # 保存最终分镜头剧本
+                storage.save_result(task_id, final_storyboard, "final_storyboard.json")
+                info(f"最终分镜头剧本已保存到: data/output/{task_id}/final_storyboard.json")
+            except Exception as save_error:
+                warning(f"保存最终结果失败: {str(save_error)}")
+            
             return {
-                "result": result
+                "result": result,
+                "final_storyboard": final_storyboard
             }
         except Exception as e:
             error(f"生成最终结果失败: {str(e)}")

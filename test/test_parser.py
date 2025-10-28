@@ -34,9 +34,11 @@ def test_parser():
         print(f"   拆分后的动作数量: {len(actions)}")
         for i, action in enumerate(actions):
             if "action" in action:
-                print(f"   动作 {i+1}: {action['character']} - {action['action']} (情绪: {action['emotion']})")
+                emotion = action.get('emotion', '无')
+                print(f"   动作 {i+1}: {action['character']} - {action['action']} (情绪: {emotion})")
             elif "dialogue" in action:
-                print(f"   对话 {i+1}: {action['character']} - {action['dialogue']} (情绪: {action['emotion']})")
+                emotion = action.get('emotion', '无')
+                print(f"   对话 {i+1}: {action['character']} - {action['dialogue']} (情绪: {emotion})")
     
     # 检查2: 角色行为耦合
     print("\n2. 检查角色行为耦合:")
@@ -62,8 +64,8 @@ def test_parser():
     # 检查4: 情绪描述
     print("\n4. 检查情绪描述:")
     for action in actions:
-        emotion = action.get("emotion", "")
-        if len(emotion) > 4:
+        emotion = action.get("emotion", "无")
+        if len(emotion) > 8:
             print(f"   警告: 情绪描述可能过于文学化: {emotion}")
         else:
             print(f"   ✓ 简洁情绪标签: {emotion}")
@@ -77,7 +79,27 @@ def test_parser():
         print(f"   场景氛围: {scene.get('atmosphere')}")
         print(f"   角色数量: {len(scene.get('characters', []))}")
         for char in scene.get('characters', []):
-            print(f"     角色: {char.get('name')}, 外观: {char.get('appearance')}")
+            print(f"     角色: {char.get('name')}")
+            # 检查是否存在actions字段及其是否为空（避免重复）
+            has_actions = 'actions' in char and len(char.get('actions', [])) > 0
+            print(f"     角色是否包含actions字段: {'✓ 包含' if 'actions' in char else '✗ 不包含'}")
+            print(f"     actions字段是否为空: {'✓ 为空' if 'actions' in char and len(char.get('actions', [])) == 0 else '✗ 不为空'}")
+    
+    # 检查6: 动作的独特性和具体性
+    print("\n6. 检查动作的独特性和具体性:")
+    action_texts = []
+    for action in actions:
+        action_text = action.get('action', '')
+        action_texts.append(action_text)
+        print(f"   动作文本: '{action_text}'")
+        print(f"     长度: {len(action_text)} 字符")
+        print(f"     是否包含具体身体动作: {'✓ 是' if any(keyword in action_text for keyword in ['手指', '双手', '身体', '坐姿', '前倾', '转身']) else '✗ 否'}")
+    
+    # 检查动作是否重复
+    if len(action_texts) != len(set(action_texts)):
+        print("   ✗ 警告: 发现重复的动作描述")
+    else:
+        print("   ✓ 通过: 所有动作描述都是唯一的")
 
 if __name__ == "__main__":
     test_parser()

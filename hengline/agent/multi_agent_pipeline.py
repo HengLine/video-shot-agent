@@ -74,7 +74,7 @@ class MultiAgentPipeline:
         workflow.add_node("fix_continuity", self.workflow_nodes.fix_continuity_node)
         workflow.add_node("generate_result", self.workflow_nodes.generate_result_node)
 
-        # 定义条件边
+        # 定义条件边，根据解析结果是否有效继续流程（工作流执行流程）
         workflow.add_conditional_edges(
             "parse_script",
             lambda state: "continue",  # 始终继续到下一步

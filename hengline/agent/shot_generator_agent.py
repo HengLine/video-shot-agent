@@ -273,40 +273,69 @@ class ShotGeneratorAgent:
         return "\n".join(lines)
 
     def _format_continuity_constraints(self, constraints: Dict[str, Any]) -> str:
-        """格式化连续性约束"""
+        """
+        格式化连续性约束
+        
+        Args:
+            constraints: 连续性约束字典
+            
+        Returns:
+            格式化后的约束文本
+        """
         lines = []
 
         # 添加角色约束
         characters = constraints.get("characters", {})
-        # 先处理主要角色（不在电话那头的）
-        main_characters = {k: v for k, v in characters.items() if "电话那头" not in k and "off-screen" not in k}
-        # 处理电话那头的角色
-        phone_characters = {k: v for k, v in characters.items() if "电话那头" in k or "off-screen" in k}
         
-        # 添加主要角色约束
-        for character_name, char_constraints in main_characters.items():
-            lines.append(f"角色 {character_name} 的约束：")
-            for key, value in char_constraints.items():
-                if key.startswith("must_start_with_"):
-                    constraint_name = key.replace("must_start_with_", "")
-                    lines.append(f"  - 必须以 {constraint_name}: {value} 开始")
-                elif key == "character_description":
-                    lines.append(f"  - 描述: {value}")
-        
-        # 添加电话那头角色的特殊约束
-        for character_name, char_constraints in phone_characters.items():
-            lines.append(f"角色 {character_name} 的约束（不在画面中）：")
-            lines.append(f"  - 位置: off-screen")
-            lines.append(f"  - 仅通过声音参与场景")
+        # 确保characters是字典类型
+        if isinstance(characters, dict):
+            # 先处理主要角色（不在电话那头的）
+            main_characters = {k: v for k, v in characters.items() if "电话那头" not in k and "off-screen" not in k}
+            # 处理电话那头的角色
+            phone_characters = {k: v for k, v in characters.items() if "电话那头" in k or "off-screen" in k}
+            
+            # 添加主要角色约束
+            for character_name, char_constraints in main_characters.items():
+                lines.append(f"角色 {character_name} 的约束：")
+                for key, value in char_constraints.items():
+                    if key.startswith("must_start_with_"):
+                        constraint_name = key.replace("must_start_with_", "")
+                        lines.append(f"  - 必须以 {constraint_name}: {value} 开始")
+                    elif key == "character_description":
+                        lines.append(f"  - 描述: {value}")
+            
+            # 添加电话那头角色的特殊约束
+            for character_name, char_constraints in phone_characters.items():
+                lines.append(f"角色 {character_name} 的约束（不在画面中）：")
+                lines.append(f"  - 位置: off-screen")
+                lines.append(f"  - 仅通过声音参与场景")
+        elif isinstance(characters, list):
+            # 如果是列表，进行适当处理
+            debug(f"连续性约束中的characters是列表类型，包含{len(characters)}个元素")
+            for idx, character_info in enumerate(characters):
+                character_name = character_info.get("character_name", f"角色{idx+1}")
+                lines.append(f"角色 {character_name} 的约束：")
+                if isinstance(character_info, dict):
+                    for key, value in character_info.items():
+                        if key != "character_name":
+                            lines.append(f"  - {key}: {value}")
+        else:
+            debug(f"连续性约束中的characters类型未知: {type(characters).__name__}")
 
         # 添加相机约束
         if "camera" in constraints:
             lines.append("相机约束：")
             camera_constraints = constraints["camera"]
-            if "recommended_shot_type" in camera_constraints:
-                lines.append(f"  - 推荐镜头类型: {camera_constraints['recommended_shot_type']}")
-            if "recommended_angle" in camera_constraints:
-                lines.append(f"  - 推荐角度: {camera_constraints['recommended_angle']}")
+            # 确保camera_constraints是字典类型
+            if isinstance(camera_constraints, dict):
+                if "recommended_shot_type" in camera_constraints:
+                    lines.append(f"  - 推荐镜头类型: {camera_constraints['recommended_shot_type']}")
+                if "recommended_angle" in camera_constraints:
+                    lines.append(f"  - 推荐角度: {camera_constraints['recommended_angle']}")
+            elif isinstance(camera_constraints, list):
+                debug(f"连续性约束中的camera是列表类型，包含{len(camera_constraints)}个元素")
+            else:
+                debug(f"连续性约束中的camera类型未知: {type(camera_constraints).__name__}")
 
         return "\n".join(lines)
 

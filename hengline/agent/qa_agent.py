@@ -119,7 +119,9 @@ class QAAgent:
 
             # 检查角色连续性
             character_continuity = self._check_character_continuity(prev_shot, current_shot)
-            continuity_issues.extend(character_continuity["issues"])
+            # 合并critical_issues和warnings作为连续性问题
+            continuity_issues.extend(character_continuity["critical_issues"])
+            continuity_issues.extend(character_continuity["warnings"])
             continuity_suggestions.extend(character_continuity["suggestions"])
 
             # 检查场景连续性
@@ -130,7 +132,9 @@ class QAAgent:
 
         # 检查整体叙事连贯性
         narrative_check = self._check_narrative_coherence(shots)
-        continuity_issues.extend(narrative_check["issues"])
+        # 合并critical_issues和warnings作为连续性问题
+        continuity_issues.extend(narrative_check["critical_issues"])
+        continuity_issues.extend(narrative_check["warnings"])
         continuity_suggestions.extend(narrative_check["suggestions"])
 
         result = {
@@ -428,13 +432,14 @@ class QAAgent:
 
     def _check_narrative_coherence(self, shots: List[Dict[str, Any]]) -> Dict[str, Any]:
         """检查叙事连贯性"""
-        issues = []
+        critical_issues = []
+        warnings = []
         suggestions = []
 
         # 简单的叙事连贯性检查
         total_duration = len(shots) * 5
         if total_duration > 300:  # 超过5分钟
-            issues.append("视频总时长过长，可能影响叙事连贯性")
+            warnings.append("视频总时长过长，可能影响叙事连贯性")
             suggestions.append("考虑精简内容或分章节制作")
 
         # 检查角色出现频率
@@ -452,10 +457,10 @@ class QAAgent:
             for character in disappeared_characters:
                 # 如果角色出现过多次但突然消失，可能是问题
                 if character_counts.get(character, 0) > 2:
-                    issues.append(f"角色 {character} 突然消失")
+                    warnings.append(f"角色 {character} 突然消失")
                     suggestions.append(f"请添加 {character} 的离开场景")
 
-        return {"issues": issues, "suggestions": suggestions}
+        return {"critical_issues": critical_issues, "warnings": warnings, "suggestions": suggestions}
 
     def _is_valid_emotion_transition(self, prev_emotion: str, current_emotion: str) -> bool:
         """检查情绪过渡是否合理"""

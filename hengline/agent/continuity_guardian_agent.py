@@ -70,11 +70,21 @@ class ContinuityGuardianAgent:
 
         # 如果有上一段状态，使用它作为约束
         if prev_continuity_state:
-            for character_name, state in prev_continuity_state.items():
-                # 确保这个角色在当前分段中
-                if character_name in character_names:
-                    constraints = self._generate_character_constraints(character_name, state)
-                    continuity_constraints["characters"][character_name] = constraints
+            # 处理列表类型的连续性状态（从extract_continuity_anchor返回）
+            if isinstance(prev_continuity_state, list):
+                for state in prev_continuity_state:
+                    character_name = state.get("character_name")
+                    # 确保这个角色在当前分段中
+                    if character_name and character_name in character_names:
+                        constraints = self._generate_character_constraints(character_name, state)
+                        continuity_constraints["characters"][character_name] = constraints
+            # 向后兼容：处理字典类型的连续性状态
+            elif isinstance(prev_continuity_state, dict):
+                for character_name, state in prev_continuity_state.items():
+                    # 确保这个角色在当前分段中
+                    if character_name in character_names:
+                        constraints = self._generate_character_constraints(character_name, state)
+                        continuity_constraints["characters"][character_name] = constraints
         else:
             # 为每个角色生成初始约束
             for character_name in character_names:
