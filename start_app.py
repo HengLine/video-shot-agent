@@ -16,6 +16,7 @@
 """
 import signal
 import sys
+import argparse
 
 import uvicorn
 
@@ -51,13 +52,19 @@ class HengLineApp(AppBaseEnv):
         signal.signal(signal.SIGTERM, signal_handler)  # 处理终止信号
 
         try:
+            # 解析命令行参数
+            parser = argparse.ArgumentParser(description='HengLine应用启动脚本')
+            parser.add_argument('--host', type=str, help='服务器监听地址')
+            parser.add_argument('--port', type=int, help='服务器监听端口')
+            args = parser.parse_args()
+            
             # 获取配置
             config = get_settings_config()
 
             # 从配置中获取API服务器参数，设置合理的默认值
             api_config = config.get("api", {})
-            host = api_config.get("host", "0.0.0.0")  # 默认监听所有网络接口
-            port = api_config.get("port", 8000)  # 默认端口8000
+            host = args.host if args.host else api_config.get("host", "0.0.0.0")  # 默认监听所有网络接口
+            port = args.port if args.port else api_config.get("port", 8000)  # 默认端口8000
             reload = is_debug_mode()  # 调试模式下启用热重载
             workers = api_config.get("workers", 1)  # 默认1个工作进程
             log_level = config.get("logging", {}).get("level", "INFO").lower()

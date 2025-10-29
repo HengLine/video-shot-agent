@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from llama_index.core.schema import Document
 
 from hengline.logger import debug, info, error
+from utils.log_utils import print_log_exception
 
 
 @dataclass
@@ -311,6 +312,7 @@ class ScriptParser:
             }
 
         except Exception as e:
+            print_log_exception()
             error(f"剧本解析失败: {str(e)}")
             raise
 

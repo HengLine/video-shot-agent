@@ -13,6 +13,7 @@ from typing import Dict, List, Any
 from langchain_core.prompts import ChatPromptTemplate
 
 from hengline.logger import debug, error, warning
+from utils.log_utils import print_log_exception
 from hengline.prompts.prompts_manager import PromptManager
 
 
@@ -226,6 +227,7 @@ class ShotGeneratorAgent:
             return shot
 
         except Exception as e:
+            print_log_exception()
             error(f"分镜生成失败: {str(e)}")
             # 返回默认分镜
             default_shot = self._get_default_shot(segment, scene_context, style, shot_id)

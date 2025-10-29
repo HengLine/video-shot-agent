@@ -120,5 +120,6 @@ def generate_storyboard_api(request: StoryboardRequest):
         error(f"参数错误: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        print_log_exception()
         error(f"分镜生成失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")

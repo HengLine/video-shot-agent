@@ -62,6 +62,7 @@ class WorkflowNodes:
                 "structured_script": structured_script
             }
         except Exception as e:
+            print_log_exception()
             error(f"剧本解析失败: {str(e)}")
             return {
                 "error": str(e)
