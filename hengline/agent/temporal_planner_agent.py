@@ -48,7 +48,7 @@ class TemporalPlannerAgent:
 
         # 获取提示词模板（供后续扩展使用）
         try:
-            self.timeline_planning_template = self.prompt_manager.get_prompt("temporal_planner")
+            self.timeline_planning_template = self.prompt_manager.get_prompt("temporal_planner_prompt")
         except Exception as e:
             debug(f"未找到时序规划提示词模板: {e}")
             # 使用默认处理逻辑
@@ -169,7 +169,7 @@ class TemporalPlannerAgent:
         
         # 确保不小于最小动作时长
         duration = max(duration, self.config.min_action_duration)
-        debug(f"使用ActionDurationEstimator估算{action_text}动作时长: {duration:.2f}s")
+        debug(f"使用ActionDurationEstimator估算({action_text})的动作时长: {duration:.2f}s")
         return duration
     
     # 以下方法已被ActionDurationEstimator替代

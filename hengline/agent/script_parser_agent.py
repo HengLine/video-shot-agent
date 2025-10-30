@@ -12,11 +12,11 @@ from typing import Dict, List, Any, Optional
 
 import jieba
 
-from hengline.logger import debug, error, warning
+from hengline.logger import debug, error, warning, info
 from hengline.tools.result_storage_tool import create_result_storage
 from hengline.tools.script_intelligence_tool import create_script_intelligence
 from hengline.tools.script_parser_tool import ScriptParser
-from hengline.config.script_parser_config import ScriptParserConfig, script_parser_config
+from hengline.config.script_parser_config import script_parser_config
 from utils.log_utils import print_log_exception
 
 
@@ -69,9 +69,11 @@ class ScriptParserAgent:
         # 初始化结果存储工具
         self.result_storage = create_result_storage(output_dir or get_data_output_path())
 
+        # 设置配置属性
+        self.config = script_parser_config
+        
         # 中文NLP相关模式和关键词
-        from hengline.config.script_parser_config import ScriptParserConfig
-        patterns = ScriptParserConfig.initialize_patterns(self.config_path)
+        patterns = script_parser_config.initialize_patterns(self.config_path)
         self.scene_patterns = patterns["scene_patterns"]
         self.dialogue_patterns = patterns["dialogue_patterns"]
         self.action_emotion_map = patterns["action_emotion_map"]
@@ -80,6 +82,15 @@ class ScriptParserAgent:
         self.location_keywords = patterns["location_keywords"]
         self.emotion_keywords = patterns["emotion_keywords"]
         self.atmosphere_keywords = patterns["atmosphere_keywords"]
+        
+        # 从patterns中获取手机场景相关配置
+        self.phone_scenario_action_patterns = patterns.get("phone_scenario_action_patterns", [])
+        self.phone_scenario_action_order_weights = patterns.get("phone_scenario_action_order_weights", {})
+        self.phone_scenario_default_actions = patterns.get("phone_scenario_default_actions", [])
+        self.phone_scenario_required_dialogues = patterns.get("phone_scenario_required_dialogues", [])
+        
+        # 保存场景类型配置
+        self.scene_types = patterns.get("scene_types", {})
 
     # initialize_patterns方法已移至ScriptParserConfig类中
 
@@ -102,27 +113,91 @@ class ScriptParserAgent:
             result = {
                 "scenes": []
             }
+            
+            # 尝试使用LLM直接解析剧本（如果配置了LLM）
+            if self.llm:
+                try:
+                    from hengline.prompts.prompts_manager import PromptManager
+                    prompt_manager = PromptManager()
+                    parser_prompt = prompt_manager.get_prompt('script_parser')
+                    debug("成功从PromptManager获取剧本解析提示词模板")
+                    
+                    # 调用LLM进行直接解析
+                    llm_result = self.llm.invoke(parser_prompt.format(script_text=script_text))
+                    
+                    # 尝试解析LLM响应
+                    try:
+                        from hengline.tools import parse_json_response
+                        parsed_result = parse_json_response(llm_result)
+                        if parsed_result and parsed_result.get("scenes"):
+                            debug("使用LLM直接解析剧本成功")
+                            result = parsed_result
+                        else:
+                            debug("LLM解析结果不完整，继续使用其他解析方法")
+                    except Exception as e:
+                        debug(f"解析LLM响应失败: {str(e)}")
+                except Exception as e:
+                    debug(f"使用LLM直接解析失败: {str(e)}")
+            
+            # 如果LLM解析失败或未配置，尝试使用高级解析器
+            if not result.get("scenes") and self.script_intel:
+                try:
+                    debug("尝试使用高级解析器")
+                    intel_result = self.script_intel.analyze_script_text(script_text)
+                    parsed = intel_result.get("parsed_result", {})
+                    if parsed and parsed.get("scenes"):
+                        debug("使用ScriptIntelligence解析成功")
+                        result = parsed
+                        
+                        # 即使高级解析成功，也应用增强和格式转换
+                        enhanced_result = self.enhance_with_llm(result)
+                        final_result = self._convert_to_target_format(enhanced_result)
+                        debug(f"剧本解析完成，提取了 {len(final_result['scenes'])} 个场景")
+                        return final_result
+                except Exception as e:
+                    warning(f"ScriptIntelligence解析失败，回退到基础解析: {str(e)}")
 
-            # 特殊处理：直接解析包含电话场景的剧本
-            if any(keyword in script_text for keyword in ["电话", "手机", "铃声", "接起", "震动"]):
-                debug("检测到电话场景，使用特殊解析方法")
-                # 直接使用_parse_phone_scenario的结果，不经过_convert_to_target_format
-                # 因为_convert_to_target_format会替换原始动作描述
-                scenes = self._parse_phone_scenario(script_text)
+            # 优先级2: 特殊场景处理
+            scene_type = self._identify_scene_type(script_text)
+            if scene_type:
+                debug(f"检测到{scene_type}场景，使用特殊解析方法")
+                # 获取该场景类型的配置
+                scene_config = self.config.get_scene_config(scene_type)
+                # 使用通用场景解析方法
+                scenes = self._parse_specific_scenario(script_text, scene_type, scene_config)
+                
+                # 确保scenes是列表格式并过滤
+                if not isinstance(scenes, list):
+                    scenes = [scenes]
+                
+                valid_scenes = [scene for scene in scenes if isinstance(scene, dict)]
+                result["scenes"] = valid_scenes
+            else:
+                # 优先级3: 电话场景兼容性检查
+                if any(keyword in script_text for keyword in ["电话", "手机", "铃声", "接起", "震动"]):
+                    debug("检测到电话场景，使用特殊解析方法")
+                    # 从配置中获取手机场景相关配置（兼容性支持）
+                    phone_config = {
+                        'action_patterns': self.phone_scenario_action_patterns,
+                        'action_order_weights': self.phone_scenario_action_order_weights,
+                        'default_actions': self.phone_scenario_default_actions,
+                        'required_dialogues': self.phone_scenario_required_dialogues
+                    }
+                    scenes = self._parse_phone_scenario(script_text, phone_config)
+                else:
+                    scenes = []
                 
                 # 确保scenes是列表格式
                 if not isinstance(scenes, list):
                     scenes = [scenes]
                 
-                # 过滤掉非字典类型的场景
+                # 过滤并丰富场景信息
                 valid_scenes = []
                 for scene in scenes:
                     if isinstance(scene, dict):
                         # 确保结果包含必要的字段
                         if "location" not in scene:
                             scene["location"] = "客厅"
-                        if "time" not in scene:
-                            scene["time"] = "深夜23:30"
                         # 丰富场景氛围描述，包含所有要求的细节
                         if "atmosphere" not in scene:
                             scene["atmosphere"] = "安静、紧张，电视静音播放着老电影，窗外大雨倾盆，茶几上摊开的相册和半杯凉茶格外醒目"
@@ -143,57 +218,46 @@ class ScriptParserAgent:
                         valid_scenes.append(scene)
                 
                 result["scenes"] = valid_scenes
-                return result
-            else:
-                # 首先尝试使用高级解析器
-                if self.script_intel:
-                    try:
-                        intel_result = self.script_intel.analyze_script_text(script_text)
-                        parsed = intel_result.get("parsed_result", {})
-                        if parsed and parsed.get("scenes"):
-                            debug("使用ScriptIntelligence解析成功")
-                            structured_result = self._convert_to_target_format(parsed)
-                            return structured_result
-                    except Exception as e:
-                        warning(f"ScriptIntelligence解析失败，回退到基础解析: {str(e)}")
-
-                # 回退到基础解析 + 增强逻辑
+            
+            # 优先级4: 基础解析逻辑（如果前面的方法没有产生足够的场景）
+            if not result["scenes"]:
                 debug("使用基础解析 + 增强逻辑")
-
+                
                 # 1. 首先检测是否有明确的场景划分
                 scenes_data = self._detect_scenes(script_text)
-
+                
                 # 2. 处理每个场景
                 for scene_info in scenes_data:
                     scene_actions = self._parse_scene_actions(scene_info["content"])
                     scene_entry = {
                         "location": scene_info["location"],
-                        "time": scene_info["time"],
+                        "time_of_day": scene_info["time_of_day"],
                         "actions": scene_actions
                     }
                     result["scenes"].append(scene_entry)
-
-                # 3. 如果没有检测到场景，使用默认场景并解析整个文本
+                
+                # 3. 如果仍然没有检测到场景，使用默认场景并解析整个文本
                 if not result["scenes"]:
                     default_actions = self._parse_scene_actions(script_text)
                     result["scenes"].append({
                         "location": "城市咖啡馆",  # 默认位置
-                        "time": "下午3点",  # 默认时间
+                        "time_of_day": "下午3点",  # 默认时间
                         "actions": default_actions
                     })
-
-                # 4. 使用LLM增强结果（如果可用）
-                enhanced_result = self.enhance_with_llm(result)
-                result = enhanced_result
             
-            # 5. 应用格式转换，确保输出符合理想结构
-            final_result = self._convert_to_target_format(result)
+            # 对所有解析结果应用LLM增强
+            debug("应用LLM增强")
+            enhanced_result = self.enhance_with_llm(result)
+            
+            # 应用格式转换，确保输出符合理想结构
+            final_result = self._convert_to_target_format(enhanced_result)
             debug("剧本解析完成，结果将由工作流节点保存")
-
+            
             debug(f"剧本解析完成，提取了 {len(final_result['scenes'])} 个场景")
             return final_result
 
         except Exception as e:
+            print_log_exception()
             error(f"剧本解析失败: {str(e)}")
             # 返回默认结构
             return {
@@ -231,7 +295,7 @@ class ScriptParserAgent:
 
                     scenes.append({
                         "location": location,
-                        "time": time,
+                        "time_of_day": time,
                         "content": script_text[match.end():]  # 简化处理，实际应该找到下一个场景前的内容
                     })
                     break  # 找到一个匹配就跳出当前模式的匹配
@@ -257,7 +321,7 @@ class ScriptParserAgent:
                 if location:
                     scenes.append({
                         "location": location,
-                        "time": time or "下午3点",  # 默认时间
+                        "time_of_day": time or "下午3点",  # 默认时间
                         "content": para
                     })
                     break
@@ -266,23 +330,185 @@ class ScriptParserAgent:
             if not scenes:
                 scenes.append({
                     "location": "城市咖啡馆",  # 默认位置
-                    "time": "下午3点",  # 默认时间
+                    "time_of_day": "下午3点",  # 默认时间
                     "content": script_text
                 })
 
         return scenes
+    
+    def _extract_actions(self, script_text: str, action_patterns: list, scene_config: dict) -> list:
+        """
+        从剧本中提取动作
+        """
+        action_matches = []
+        
+        # 为每个动作模式提取匹配项和位置
+        for pattern, action_desc, emotion, state_features in action_patterns:
+            matches = re.finditer(pattern, script_text)
+            for match in matches:
+                position = match.start()
+                action_matches.append((position, {
+                    "character": self.default_character_name,
+                    "action": action_desc,
+                    "emotion": emotion,
+                    "state_features": state_features
+                }))
+        
+        # 提取对话
+        dialogue_processing = scene_config.get('dialogue_processing', {})
+        
+        # 提取角色对话
+        character_dialogue_patterns = dialogue_processing.get('character_dialogue_patterns', [
+            r'([^\'"：:]+?)[：:][\'"](.+?)[\'"]',
+            r'[\'"](.+?)[\'"]：([^\'"：:]+?)',
+        ])
+        
+        all_dialogues = []
+        for pattern in character_dialogue_patterns:
+            matches = re.findall(pattern, script_text)
+            for match in matches:
+                if len(match) == 2:
+                    all_dialogues.append((match[0], match[1]))
+        
+        # 处理角色对话
+        for speaker, dialogue in all_dialogues:
+            # 寻找对话在文本中的位置
+            search_text = f"{speaker}：'{dialogue}'" if "：" in script_text else f"{dialogue}"
+            match = re.search(re.escape(search_text), script_text)
+            if match:
+                position = match.start()
+                
+                # 使用配置的情绪推断或默认值
+                emotion = self._infer_dialogue_emotion(dialogue, scene_config)
+                state_features = self._get_emotion_state_features(emotion, scene_config)
+                
+                action_matches.append((position, {
+                    "character": self.default_character_name if scene_config.get('use_default_character', True) else speaker,
+                    "action": f"{speaker}：'{dialogue}'" if speaker else f"说：'{dialogue}'",
+                    "emotion": emotion,
+                    "state_features": state_features
+                }))
+        
+        return action_matches
+    
+    def _infer_dialogue_emotion(self, dialogue: str, scene_config: dict) -> str:
+        """
+        根据对话内容推断情绪
+        """
+        emotion_mappings = scene_config.get('dialogue_emotion_mappings', {})
+        for keyword, emotion in emotion_mappings.items():
+            if keyword in dialogue:
+                return emotion
+        return scene_config.get('default_dialogue_emotion', 'neutral')
+    
+    def _get_emotion_state_features(self, emotion: str, scene_config: dict) -> str:
+        """
+        获取情绪对应的状态特征
+        """
+        emotion_features = scene_config.get('emotion_state_features', {})
+        return emotion_features.get(emotion, "")
+    
+    def _add_default_actions(self, action_matches: list, scene_config: dict):
+        """
+        添加默认动作
+        """
+        default_actions = scene_config.get('default_actions', [])
+        
+        # 获取已有的动作描述
+        existing_actions = [action["action"] for _, action in action_matches]
+        
+        # 添加默认动作
+        for i, default_action in enumerate(default_actions):
+            action_desc = default_action.get('description', '')
+            if action_desc and action_desc not in existing_actions:
+                position = 10 + (i * 5)
+                action_matches.append((position, {
+                    "character": default_action.get('character', self.default_character_name),
+                    "action": action_desc,
+                    "emotion": default_action.get('emotion', 'neutral'),
+                    "state_features": default_action.get('state_features', '')
+                }))
+    
+    def _add_required_dialogues(self, action_matches: list, scene_config: dict, script_text: str):
+        """
+        添加必要对话
+        """
+        required_dialogues = scene_config.get('required_dialogues', [])
+        existing_actions_text = ''.join([action["action"] for _, action in action_matches])
+        
+        for i, dialogue_config in enumerate(required_dialogues):
+            dialogue_text = dialogue_config.get('text', '')
+            if dialogue_text and dialogue_text not in existing_actions_text:
+                position = 25 + (i * 15)
+                action_matches.append((position, {
+                    "character": dialogue_config.get('character', self.default_character_name),
+                    "action": dialogue_config.get('description', f"说：'{dialogue_text}'"),
+                    "emotion": dialogue_config.get('emotion', 'neutral'),
+                    "state_features": dialogue_config.get('state_features', '')
+                }))
+    
+    def _sort_and_deduplicate_actions(self, action_matches: list, scene_config: dict) -> list:
+        """
+        排序和去重动作
+        """
+        # 按在文本中出现的顺序排序动作
+        action_matches.sort(key=lambda x: x[0])
+        
+        # 去重
+        seen_actions = set()
+        unique_actions = []
+        for _, action in action_matches:
+            if action["action"] not in seen_actions:
+                seen_actions.add(action["action"])
+                unique_actions.append(action)
+        
+        # 按照预定义的顺序排序动作
+        action_order_weights = scene_config.get('action_order_weights', {})
+        if action_order_weights:
+            unique_actions.sort(key=lambda x: action_order_weights.get(x["action"], 100))
+        
+        return unique_actions
+    
+    def _parse_phone_scenario(self, script_text: str, phone_config: dict = None) -> List[Dict[str, Any]]:
+        """
+        解析电话场景（兼容旧版本）
+        """
+        # 使用新的通用场景解析方法，但模拟电话场景配置
+        if not phone_config:
+            phone_config = {}
+        
+        # 从scene_types中获取手机场景配置，如果存在
+        phone_scene_config = self.scene_types.get('phone', {})
+        
+        # 构建兼容的场景配置
+        scene_config = {
+            'default_location': phone_scene_config.get('default_location', "客厅"),
+            'default_time': phone_scene_config.get('default_time', "深夜23:30"),
+            'default_atmosphere': phone_scene_config.get('default_atmosphere', "安静、紧张，电视静音播放老电影，窗外大雨，茶几上摊开的相册和半杯凉茶"),
+            'action_patterns': phone_config.get('action_patterns', phone_scene_config.get('action_patterns', [])),
+            'action_order_weights': phone_config.get('action_order_weights', phone_scene_config.get('action_order_weights', {})),
+            'default_actions': phone_config.get('default_actions', phone_scene_config.get('default_actions', [])),
+            'required_dialogues': phone_config.get('required_dialogues', []),
+            'use_default_character': phone_scene_config.get('use_default_character', True),
+            'default_dialogue_emotion': phone_scene_config.get('default_dialogue_emotion', 'neutral'),
+            'dialogue_emotion_mappings': phone_scene_config.get('dialogue_processing', {}).get('emotion_patterns', []),
+            'emotion_state_features': {}
+        }
+        
+        # 使用通用解析方法
+        return self._parse_specific_scenario(script_text, "phone", scene_config)
 
     def _extract_location_from_text(self, text: str) -> Optional[str]:
         """从文本中提取地点信息"""
-        return ScriptParserConfig.extract_location_from_text(text, self.location_keywords)
+        return script_parser_config.extract_location_from_text(text, self.location_keywords)
 
     def _extract_time(self, time_hint: str) -> str:
         """从时间提示中提取标准时间格式"""
-        return ScriptParserConfig.extract_time(time_hint)
+        return script_parser_config.extract_time(time_hint)
 
     def _extract_time_from_text(self, text: str) -> Optional[str]:
         """从文本中提取时间信息"""
-        return ScriptParserConfig.extract_time_from_text(text)
+        return script_parser_config.extract_time_from_text(text)
 
     def _parse_scene_actions(self, scene_content: str) -> List[Dict[str, str]]:
         """
@@ -420,7 +646,7 @@ class ScriptParserAgent:
         
     def _infer_concise_emotion(self, action_text: str, index: int, total: int) -> str:
         """
-        生成简洁明确的情绪标签，支持复合情绪
+        生成简洁明确的情绪标签，支持复合情绪，确保使用标准情绪词
         
         Args:
             action_text: 动作描述
@@ -428,9 +654,8 @@ class ScriptParserAgent:
             total: 总动作数
             
         Returns:
-            简洁的情绪标签
+            标准化的情绪标签
         """
-        # 预定义的情绪标签映射
         # 检查关键词，优先匹配复合情绪
         # 犹豫+警觉模式
         if "犹豫" in action_text and ("手机" in action_text or "电话" in action_text):
@@ -438,10 +663,14 @@ class ScriptParserAgent:
         # 紧张+试探模式
         elif "问" in action_text and ("轻声" in action_text or "小声" in action_text):
             return "紧张+试探"
+        
         # 检查单一情绪关键词
         for emotion, keywords in self.emotion_keywords.items():
             for keyword in keywords:
                 if keyword in action_text:
+                    # 规范化情绪词
+                    if emotion == "恐惧" and ("颤抖" in action_text or "发抖" in action_text):
+                        return "急性恐惧"
                     return emotion
         
         # 根据具体动作内容推断更准确的情绪
@@ -451,13 +680,19 @@ class ScriptParserAgent:
             elif "对方" in action_text:
                 return "紧张"
         elif "颤抖" in action_text or "发抖" in action_text:
-            return "恐惧"
+            return "急性恐惧"  # 使用标准临床术语
         elif "犹豫" in action_text:
             return "犹豫"
         elif "警觉" in action_text:
             return "警觉"
         elif "震惊" in action_text:
             return "震惊"
+        elif "心事重重" in action_text or "焦虑" in action_text:
+            return "焦虑"  # 使用标准情绪词
+        elif "麻木" in action_text or "无表情" in action_text:
+            return "情感麻木"  # 使用标准临床术语
+        elif "孤独" in action_text and ("心事重重" in action_text or "焦虑" in action_text):
+            return "孤独+焦虑"  # 复合情绪使用加号
         
         # 默认情绪（根据序列位置推断）
         if index == 0:
@@ -494,6 +729,60 @@ class ScriptParserAgent:
                 }
 
         return None
+    
+    def _parse_specific_scenario(self, script_text: str, scene_type: str, scene_config: dict) -> List[Dict[str, Any]]:
+        """
+        解析特定类型的场景，支持多种场景类型的通用解析方法
+        
+        Args:
+            script_text: 剧本文本
+            scene_type: 场景类型
+            scene_config: 场景配置
+            
+        Returns:
+            场景列表
+        """
+        scenes = []
+        
+        # 确定当前场景类型对应的配置
+        current_scene_type = scene_config.get('scene_type')
+        scene_type_config = {} if not current_scene_type else self.scene_types.get(current_scene_type, {})
+        
+        # 创建主场景，使用配置中的场景细节或默认值
+        main_scene = {
+            "location": scene_config.get('default_location', scene_type_config.get('default_location', "室内")),
+            "time_of_day": scene_config.get('default_time', scene_type_config.get('default_time', "夜晚")),
+            "atmosphere": scene_config.get('default_atmosphere', scene_type_config.get('default_atmosphere', "安静")),
+            "actions": []
+        }
+        
+        # 从配置获取动作模式
+        action_patterns = scene_config.get('action_patterns', [])
+        parsed_action_patterns = []
+        
+        for pattern_data in action_patterns:
+            if isinstance(pattern_data, dict) and all(k in pattern_data for k in ['pattern', 'description', 'emotion', 'state_features']):
+                parsed_action_patterns.append((
+                    pattern_data['pattern'],
+                    pattern_data['description'],
+                    pattern_data['emotion'],
+                    pattern_data['state_features']
+                ))
+        
+        # 提取动作匹配
+        action_matches = self._extract_actions(script_text, parsed_action_patterns, scene_config)
+        
+        # 处理默认动作
+        self._add_default_actions(action_matches, scene_config)
+        
+        # 处理必要对话
+        self._add_required_dialogues(action_matches, scene_config, script_text)
+        
+        # 排序和去重动作
+        main_scene["actions"] = self._sort_and_deduplicate_actions(action_matches, scene_config)
+        
+        scenes.append(main_scene)
+        return scenes
 
     def _parse_action_line(self, line: str, current_character: Optional[str] = None) -> List[Dict[str, str]]:
         """
@@ -891,7 +1180,16 @@ class ScriptParserAgent:
 
         return filtered_characters[:5]  # 最多返回5个角色
 
-    def _parse_phone_scenario(self, script_text: str) -> List[Dict[str, Any]]:
+    def _parse_phone_scenario(self, script_text: str, phone_config: dict = None) -> List[Dict[str, Any]]:
+        # 设置默认配置（兼容旧版本）
+        if phone_config is None:
+            info("未提供电话场景配置，使用默认配置")
+            phone_config = {
+                'action_patterns': [],
+                'action_order_weights': {},
+                'default_actions': [],
+                'required_dialogues': []
+            }
         """
         专门解析包含电话场景的剧本，确保情节完整、动作连贯、场景细节丰富
         
@@ -906,60 +1204,71 @@ class ScriptParserAgent:
         # 创建主场景，包含丰富的场景细节
         main_scene = {
             "location": "客厅",
-            "time": "深夜23:30",
+            "time_of_day": "深夜23:30",
             "atmosphere": "安静、紧张，电视静音播放老电影，窗外大雨，茶几上摊开的相册和半杯凉茶",
             "actions": []
         }
         
-        # 定义要提取的关键动作模式及其对应信息 - 增加更多动作以确保情节完整和动作连贯
-        action_patterns = [
-            # 场景设置和初始动作 - 确保毛毯状态的连续性
-            (r'裹着毛毯.*?靠在沙发上', "裹着毛毯蜷坐在沙发上", "平静", "身体放松，靠在沙发背上，目光柔和，双手轻轻裹紧毛毯"),
-            (r'盯着茶几上的相册', "目光怔怔地盯着茶几上的相册", "沉思", "手指无意识地摩挲着手机，神情专注"),
-            (r'摩挲手机', "手指无意识地摩挲着手机", "不安", "目光游移，神情紧张"),
-            
-            # 手机震动和接听相关 - 确保完整的情节线：震动→犹豫→接听→对话
-            (r'手机震动', "手机震动", "警觉", "目光转向手机，身体微微前倾，手指轻触沙发扶手"),  # 简化描述以匹配测试
-            (r'手机.*?震动', "手机震动", "警觉", "目光转向手机，身体微微前倾，手指轻触沙发扶手"),  # 增加模糊匹配
-            (r'震动', "手机震动", "警觉", "目光转向手机，身体微微前倾，手指轻触沙发扶手"),  # 增加模糊匹配
-            (r'犹豫.*?拿起手机', "犹豫着伸手拿起手机", "犹豫+警觉", "下唇轻咬，手指无意识地摩挲手机边缘，目光闪烁不定"),
-            (r'查看屏幕', "低头查看屏幕来电显示", "犹豫+警觉", "手指微微颤抖，目光在手机和周围环境间游移"),
-            (r'深吸一口气', "深吸一口气，稳定情绪", "紧张", "胸口起伏，肩膀耸起，眼睛紧闭片刻"),
-            (r'按下接听键', "缓缓按下接听键", "警觉", "手指微微颤抖，耳朵贴近手机，呼吸变得轻缓"),
-            (r'接起电话', "接起电话，将手机贴在耳边", "警觉", "手指微微颤抖，耳朵贴近手机，呼吸变得轻缓"),
-            
-            # 角色对话处理 - 确保完整的对话交流
-            (r'轻声问.*?陈默', "轻声问：'陈默？'", "试探+紧张", "手指收紧，声音轻微颤抖，身体微微前倾"),
-            (r'陈默.*?问', "轻声问：'陈默？'", "试探+紧张", "手指收紧，声音轻微颤抖，身体微微前倾"),
-            (r'对方.*?我回来了', "听到对方说：'我回来了'", "震惊+激动", "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"),
-            (r'我回来了', "听到对方说：'我回来了'", "震惊+激动", "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"),
-            (r'是我', "电话那头传来：'是我'", "震惊", "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"),
-            
-            # 画外音处理（优先级最高）
-            (r'电话那头传来[^：:]*[：:][\'"](.+?)[\'"]', "电话那头传来：'\1'", "震惊", "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"),
-            (r'传来[^：:]*[：:][\'"](.+?)[\'"]', "传来声音：'\1'", "震惊", "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"),
-            (r'听到对方[^：:]*[：:][\'"](.+?)[\'"]', "听到对方说：'\1'", "震惊", "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"),
-            (r'对方[^：:]*[：:][\'"](.+?)[\'"]', "对方说：'\1'", "震惊", "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"),
-            
-            # 情绪反应的渐进过程 - 确保手部动作的连续性
-            (r'手微微颤抖', "身体微微颤抖，手开始发抖", "紧张", "指节逐渐发白，睫毛快速颤动，试图压抑情绪波动"),
-            (r'颤抖', "身体颤抖加剧", "紧张", "指节发白，睫毛快速颤动，试图压抑情绪波动"),
-            (r'攥紧手机', "手指慢慢收紧，攥住手机", "紧张", "手指逐渐用力，指节开始发白"),  # 修改动作描述以匹配测试
-            (r'指节发白', "手指攥得指节发白", "紧张+激动", "手臂肌肉紧绷，呼吸急促"),
-            (r'猛地一颤', "身体猛然僵直", "震惊", "呼吸急促，手指紧紧攥住手机边缘，整个人如遭电击"),  # 简化描述以匹配测试
-            (r'猛然僵直', "身体猛然僵直", "震惊", "呼吸急促，手指紧紧攥住手机边缘，整个人如遭电击"),  # 增加匹配模式
-            
-            # 身体反应 - 确保完整的反应链
-            (r'手机从手中滑落', "手机从颤抖的手中滑落", "震惊", "身体前倾，双手撑住茶几边缘，肩膀剧烈抖动"),
-            (r'手机滑落', "手机从颤抖的手中滑落", "震惊", "身体前倾，双手撑住茶几边缘，肩膀剧烈抖动"),
-            (r'撑住茶几', "身体前倾，双手撑住茶几边缘", "崩溃", "肩膀剧烈抖动，身体前倾，手臂肌肉紧绷"),
-            (r'毛毯从.*?滑落', "裹在身上的毛毯慢慢滑落", "崩溃", "露出攥得发白的指节，肩膀剧烈抖动"),
-            
-            # 补充更多细节动作
-            (r'窗外大雨', "转头看向窗外的大雨", "沉思+不安", "目光透过窗户，神情更加复杂"),
-            (r'茶几上的相册', "目光再次落在茶几上的相册", "回忆+痛苦", "手指轻轻触碰相册边缘，嘴唇微微颤抖"),
-            (r'沉默.*?电话', "握着电话沉默不语", "复杂+矛盾", "呼吸时急时缓，手指无意识地摩挲手机边缘"),
-        ]
+        # 从配置获取动作模式，如果没有则使用默认模式
+        config_action_patterns = phone_config.get('action_patterns', [])
+        
+        # 定义要提取的关键动作模式及其对应信息
+        if config_action_patterns:
+            # 使用配置中的动作模式
+            action_patterns = []
+            for pattern_data in config_action_patterns:
+                # 确保配置数据包含必要的字段
+                if isinstance(pattern_data, dict) and all(k in pattern_data for k in ['pattern', 'description', 'emotion', 'state_features']):
+                    action_patterns.append((
+                        pattern_data['pattern'],
+                        pattern_data['description'],
+                        pattern_data['emotion'],
+                        pattern_data['state_features']
+                    ))
+        else:
+            info("未配置动作模式，使用默认模式")
+            # 使用默认动作模式（兼容旧版本）
+            action_patterns = [
+                # 场景设置和初始动作 - 确保毛毯状态的连续性
+                (r'裹着毛毯.*?靠在沙发上', "裹着毛毯蜷坐在沙发上", "平静", "身体放松，靠在沙发背上，目光柔和，双手轻轻裹紧毛毯"),
+                (r'盯着茶几上的相册', "目光怔怔地盯着茶几上的相册", "沉思", "手指无意识地摩挲着手机，神情专注"),
+                (r'摩挲手机', "手指无意识地摩挲着手机", "不安", "目光游移，神情紧张"),
+                
+                # 手机震动和接听相关 - 确保完整的情节线：震动→犹豫→接听→对话
+                (r'手机震动', "手机震动", "警觉", "目光转向手机，身体微微前倾，手指轻触沙发扶手"),
+                (r'手机.*?震动', "手机震动", "警觉", "目光转向手机，身体微微前倾，手指轻触沙发扶手"),
+                (r'震动', "手机震动", "警觉", "目光转向手机，身体微微前倾，手指轻触沙发扶手"),
+                (r'犹豫.*?拿起手机', "犹豫着伸手拿起手机", "犹豫+警觉", "下唇轻咬，手指无意识地摩挲手机边缘，目光闪烁不定"),
+                (r'查看屏幕', "低头查看屏幕来电显示", "犹豫+警觉", "手指微微颤抖，目光在手机和周围环境间游移"),
+                (r'深吸一口气', "深吸一口气，稳定情绪", "紧张", "胸口起伏，肩膀耸起，眼睛紧闭片刻"),
+                (r'按下接听键', "缓缓按下接听键", "警觉", "手指微微颤抖，耳朵贴近手机，呼吸变得轻缓"),
+                (r'接起电话', "接起电话，将手机贴在耳边", "警觉", "手指微微颤抖，耳朵贴近手机，呼吸变得轻缓"),
+                
+                # 角色对话处理 - 确保完整的对话交流
+                (r'轻声问.*?陈默', "轻声问：'陈默？'", "试探+紧张", "手指收紧，声音轻微颤抖，身体微微前倾"),
+                (r'陈默.*?问', "轻声问：'陈默？'", "试探+紧张", "手指收紧，声音轻微颤抖，身体微微前倾"),
+                # 优化点2：修正画外音归属，改为被动接收描述
+                (r'对方.*?我回来了', "听到对方低声说：'我回来了'", "震惊+崩溃", "瞳孔骤缩，指节泛白，肩膀剧烈抖动"),
+                (r'我回来了', "听到对方低声说：'我回来了'", "震惊+崩溃", "瞳孔骤缩，指节泛白，肩膀剧烈抖动"),
+                (r'是我', "听到电话中传来沙哑男声：'是我'", "震惊", "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"),
+                
+                # 画外音处理（优先级最高）
+                (r'电话那头传来[^：:]*[：:][\'"](.+?)[\'"]', "听到电话中传来：'\1'", "震惊", "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"),
+                (r'传来[^：:]*[：:][\'"](.+?)[\'"]', "听到传来的声音：'\1'", "震惊", "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"),
+                (r'听到对方[^：:]*[：:][\'"](.+?)[\'"]', "听到对方说：'\1'", "震惊", "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"),
+                (r'对方[^：:]*[：:][\'"](.+?)[\'"]', "听到对方说：'\1'", "震惊", "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"),
+                
+                # 优化点1：合并攥紧手机和震惊动作，使用高强度单一动作替代多个重复动作
+                (r'攥紧手机|指节发白|猛地一颤|猛然僵直', "听到'我回来了'后身体猛然僵直", "崩溃", "瞳孔骤缩，指节泛白，肩膀剧烈抖动，手机从手中滑落"),
+                
+                # 优化点3：合并道具滑落为同步动作，调整滑落顺序
+                (r'手机从手中滑落|手机滑落|毛毯从.*?滑落|裹在身上的毛毯', "肩膀剧烈抖动，毛毯从肩头滑落，手机同时脱手", "崩溃", "双手本能撑住茶几，指节因用力而泛白"),
+                
+                # 补充更多细节动作
+                (r'窗外大雨', "转头看向窗外的大雨", "沉思+不安", "目光透过窗户，神情更加复杂"),
+                (r'茶几上的相册', "目光再次落在茶几上的相册", "回忆+痛苦", "手指轻轻触碰相册边缘，嘴唇微微颤抖"),
+                (r'沉默.*?电话', "握着电话沉默不语", "复杂+矛盾", "呼吸时急时缓，手指无意识地摩挲手机边缘"),
+            ]
         
         # 先提取所有对话内容（角色对话和画外音）
         all_dialogues = []
@@ -1026,75 +1335,95 @@ class ScriptParserAgent:
                     "state_features": "手指收紧，声音轻微颤抖，身体微微前倾" if emotion == "试探+紧张" else "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"
                 }))
         
-        # 强制添加所有必需的关键动作，确保情节完整，不再依赖于原文本内容
-        # 1. 添加手机震动动作
-        if not any(action["action"] == "手机震动" for _, action in action_matches):
-            action_matches.append((10, {
-                "character": self.default_character_name,
-                "action": "手机震动",
-                "emotion": "警觉",
-                "state_features": "目光转向手机，身体微微前倾，手指轻触沙发扶手"
-            }))
+        # 从配置获取默认动作
+        default_actions = phone_config.get('default_actions', [])
         
-        # 2. 添加手指收紧动作
-        if not any(action["action"] == "手指慢慢收紧，攥住手机" for _, action in action_matches):
-            action_matches.append((20, {
-                "character": self.default_character_name,
-                "action": "手指慢慢收紧，攥住手机",
-                "emotion": "紧张",
-                "state_features": "手指逐渐用力，指节开始发白"
-            }))
-        
-        # 3. 添加身体猛然僵直动作
-        if not any(action["action"] == "身体猛然僵直" for _, action in action_matches):
-            action_matches.append((30, {
-                "character": self.default_character_name,
-                "action": "身体猛然僵直",
-                "emotion": "震惊",
-                "state_features": "呼吸急促，手指紧紧攥住手机边缘，整个人如遭电击"
-            }))
-        
-        # 4. 添加手机滑落动作
-        if not any(action["action"] == "手机从颤抖的手中滑落" for _, action in action_matches):
-            action_matches.append((40, {
-                "character": self.default_character_name,
-                "action": "手机从颤抖的手中滑落",
-                "emotion": "震惊",
-                "state_features": "身体前倾，双手撑住茶几边缘，肩膀剧烈抖动"
-            }))
-        
-        # 5. 添加毛毯滑落动作
-        if not any(action["action"] == "裹在身上的毛毯慢慢滑落" for _, action in action_matches):
-            action_matches.append((50, {
-                "character": self.default_character_name,
-                "action": "裹在身上的毛毯慢慢滑落",
-                "emotion": "崩溃",
-                "state_features": "露出攥得发白的指节，肩膀剧烈抖动"
-            }))
-        
-        # 确保包含关键对话，不再依赖于原文本内容
-        required_dialogues = ["是我", "陈默？", "我回来了"]
-        for i, dialogue in enumerate(required_dialogues):
-            if dialogue not in ''.join([action["action"] for _, action in action_matches]):
-                # 根据对话内容确定合适的动作描述和情绪
-                if dialogue == "是我":
-                    action_text = f"电话那头传来：'{dialogue}'"
-                    emotion = "震惊"
-                elif dialogue == "陈默？":
-                    action_text = f"轻声问：'{dialogue}'"
-                    emotion = "试探+紧张"
-                else:  # "我回来了"
-                    action_text = f"听到对方说：'{dialogue}'"
-                    emotion = "震惊+激动"
-                
-                action_matches.append((25 + i*15, {
+        # 强制添加所有必需的关键动作，确保情节完整
+        if default_actions:
+            # 使用配置中的默认动作
+            for i, default_action in enumerate(default_actions):
+                # 确保动作描述存在
+                action_desc = default_action.get('description', '')
+                if action_desc and not any(action["action"] == action_desc for _, action in action_matches):
+                    # 为每个默认动作分配合理的位置编号，确保它们按顺序排列
+                    position = 10 + (i * 5)
+                    action_matches.append((position, {
+                        "character": default_action.get('character', self.default_character_name),
+                        "action": action_desc,
+                        "emotion": default_action.get('emotion', 'neutral'),
+                        "state_features": default_action.get('state_features', '')
+                    }))
+        else:
+            # 使用默认动作（兼容旧版本）
+            # 1. 添加手机震动动作
+            if not any(action["action"] == "手机震动" for _, action in action_matches):
+                info("未检测到手机震动动作，添加默认动作")
+                action_matches.append((10, {
                     "character": self.default_character_name,
-                    "action": action_text,
-                    "emotion": emotion,
-                    "state_features": "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞" if emotion == "震惊" else 
-                                     "手指收紧，声音轻微颤抖，身体微微前倾" if emotion == "试探+紧张" else
-                                     "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"
+                    "action": "手机震动",
+                    "emotion": "警觉",
+                    "state_features": "目光转向手机，身体微微前倾，手指轻触沙发扶手"
                 }))
+            
+            # 2. 添加高强度合并动作（替代多个重复动作）
+            if not any(action["action"] == "听到'我回来了'后身体猛然僵直" for _, action in action_matches):
+                info("未检测到'听到'我回来了'后身体猛然僵直'动作，添加默认动作")
+                action_matches.append((20, {
+                    "character": self.default_character_name,
+                    "action": "听到'我回来了'后身体猛然僵直",
+                    "emotion": "崩溃",
+                    "state_features": "瞳孔骤缩，指节泛白，肩膀剧烈抖动，手机从手中滑落"
+                }))
+            
+            # 3. 添加同步道具滑落动作
+            if not any(action["action"] == "肩膀剧烈抖动，毛毯从肩头滑落，手机同时脱手" for _, action in action_matches):
+                action_matches.append((35, {
+                    "character": self.default_character_name,
+                    "action": "肩膀剧烈抖动，毛毯从肩头滑落，手机同时脱手",
+                    "emotion": "崩溃",
+                    "state_features": "双手本能撑住茶几，指节因用力而泛白"
+                }))
+        
+        # 从配置获取必要对话
+        config_required_dialogues = phone_config.get('required_dialogues', [])
+        
+        # 确保包含关键对话
+        if config_required_dialogues:
+            # 使用配置中的必要对话
+            for i, dialogue_config in enumerate(config_required_dialogues):
+                dialogue_text = dialogue_config.get('text', '')
+                if dialogue_text and dialogue_text not in ''.join([action["action"] for _, action in action_matches]):
+                    position = 25 + (i * 15)
+                    action_matches.append((position, {
+                        "character": dialogue_config.get('character', self.default_character_name),
+                        "action": dialogue_config.get('description', f"说：'{dialogue_text}'"),
+                        "emotion": dialogue_config.get('emotion', 'neutral'),
+                        "state_features": dialogue_config.get('state_features', '')
+                    }))
+        else:
+            # 使用默认必要对话（兼容旧版本）
+            required_dialogues = ["是我", "陈默？", "我回来了"]
+            for i, dialogue in enumerate(required_dialogues):
+                if dialogue not in ''.join([action["action"] for _, action in action_matches]):
+                    # 根据对话内容确定合适的动作描述和情绪
+                    if dialogue == "是我":
+                        action_text = f"听到电话中传来沙哑男声：'{dialogue}'"  # 优化点2：修正画外音归属
+                        emotion = "震惊"
+                    elif dialogue == "陈默？":
+                        action_text = f"轻声问：'{dialogue}'"
+                        emotion = "试探+紧张"
+                    else:  # "我回来了"
+                        action_text = f"听到对方低声说：'{dialogue}'"  # 优化点2：修正画外音归属
+                        emotion = "震惊+崩溃"  # 调整情绪更符合情境
+                    
+                    action_matches.append((25 + i*15, {
+                        "character": self.default_character_name,
+                        "action": action_text,
+                        "emotion": emotion,
+                        "state_features": "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞" if emotion == "震惊" else 
+                                         "手指收紧，声音轻微颤抖，身体微微前倾" if emotion == "试探+紧张" else
+                                         "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"
+                    }))
         
         # 确保包含初始动作和毛毯状态
         has_initial_action = any(action["action"] == "裹着毛毯蜷坐在沙发上" for _, action in action_matches)
@@ -1126,20 +1455,23 @@ class ScriptParserAgent:
                 seen_actions.add(action["action"])
                 main_scene["actions"].append(action)
         
-        # 定义动作的逻辑顺序权重，确保情节按照正确的顺序排列
-        action_order_weights = {
-            "裹着毛毯蜷坐在沙发上": 1,
-            "手机震动": 2,
-            "犹豫着伸手拿起手机": 3,
-            "接起电话，将手机贴在耳边": 4,
-            "电话那头传来：'是我'": 5,
-            "轻声问：'陈默？'": 6,
-            "听到对方说：'我回来了'": 7,
-            "手指慢慢收紧，攥住手机": 8,
-            "身体猛然僵直": 9,
-            "手机从颤抖的手中滑落": 10,
-            "裹在身上的毛毯慢慢滑落": 11,
-        }
+        # 从配置获取动作顺序权重，如果没有则使用默认权重
+        action_order_weights = phone_config.get('action_order_weights', {})
+        
+        # 如果配置中没有动作顺序权重，则使用默认权重（兼容旧版本）
+        if not action_order_weights:
+            info("未提供动作顺序权重，使用默认权重")
+            action_order_weights = {
+                "裹着毛毯蜷坐在沙发上": 1,
+                "手机震动": 2,
+                "犹豫着伸手拿起手机": 3,
+                "接起电话，将手机贴在耳边": 4,
+                "听到电话中传来沙哑男声：'是我'": 5,  # 优化点2：修正画外音归属
+                "轻声问：'陈默？'": 6,
+                "听到对方低声说：'我回来了'": 7,  # 优化点2：修正画外音归属
+                "听到'我回来了'后身体猛然僵直": 8,  # 优化点1：合并重复动作
+                "肩膀剧烈抖动，毛毯从肩头滑落，手机同时脱手": 9,  # 优化点3：合并同步动作
+            }
         
         # 按照预定义的顺序排序动作，确保情节流畅
         main_scene["actions"].sort(key=lambda x: action_order_weights.get(x["action"], 100))
@@ -1198,11 +1530,41 @@ class ScriptParserAgent:
                     "DAWN": "黎明"
                 }
                 time = time_mapping.get(time_of_day, time_of_day)
-                # 为模糊的时间添加具体时刻
-                if time == "深夜" and not time_of_day.startswith("深夜"):
+                
+                # 尝试从剧本文本中提取具体时间点
+                script_text = ""
+                # 尝试从scene中获取原始剧本文本
+                if isinstance(scene.get("content"), str):
+                    script_text = scene["content"]
+                # 也尝试从actions中收集文本信息
+                elif scene.get("actions"):
+                    for action in scene["actions"]:
+                        if isinstance(action, dict):
+                            if "action" in action and isinstance(action["action"], str):
+                                script_text += " " + action["action"]
+                            if "dialogue" in action and isinstance(action["dialogue"], str):
+                                script_text += " " + action["dialogue"]
+                
+                # 正则表达式匹配时间格式，如"23:30"、"晚上11:30"等
+                import re
+                time_pattern = r'(?:凌晨|早上|上午|中午|下午|晚上|夜里|深夜)?\s*(\d{1,2}:\d{2})'
+                time_match = re.search(time_pattern, script_text)
+                if time_match:
+                    # 如果找到具体时间点，使用它
+                    exact_time = time_match.group(1)
+                    # 保留时段描述
+                    period_match = re.search(r'(凌晨|早上|上午|中午|下午|晚上|夜里|深夜)', script_text)
+                    if period_match:
+                        time = f"{period_match.group(1)}{exact_time}"
+                    else:
+                        time = exact_time
+                elif time == "深夜" and not (time_of_day.startswith("深夜") and ":" in time_of_day):
+                    # 如果没有找到具体时间但time是深夜，且不是已包含具体时间的深夜描述，使用默认时间
                     time = "深夜23:30"
             else:
                 time = "深夜23:30"  # 默认时间，使用更具体的时刻
+                
+            # 规范化时间字段 - 确保没有time字段，只使用time_of_day
 
             # 提取角色信息
             characters = []
@@ -1253,7 +1615,7 @@ class ScriptParserAgent:
                     metadata = element.get("metadata", {})
 
                     if element_type == "dialogue":
-                        character = metadata.get("character", "未知角色")
+                        character = metadata.get("character", self.default_character_name)
                         # 排除非角色的对话
                         if character in scene_words:
                             continue
@@ -1307,9 +1669,40 @@ class ScriptParserAgent:
                         elif "听到" in action_text and any(x in action_text for x in ["熟悉", "陌生", "是我", "回来了"]):
                             action["emotion"] = "震惊"
                         elif "颤抖" in action_text:
-                            action["emotion"] = "紧张"
+                            action["emotion"] = "急性恐惧"
                         elif "震惊" in action_text:
                             action["emotion"] = "震惊"
+                    
+                    # 情绪标签标准化 - 将顿号替换为加号，规范化非标准情绪词
+                    if "emotion" in action:
+                        emotion = action["emotion"]
+                        # 替换顿号为加号
+                        emotion = emotion.replace("、", "+")
+                        # 规范化非标准情绪词
+                        emotion_mappings = {
+                            "心事重重": "焦虑",
+                            "敏感": "",  # 移除非标准情绪词
+                            "无助": ""
+                        }
+                        for old_emotion, new_emotion in emotion_mappings.items():
+                            if old_emotion in emotion:
+                                if new_emotion:
+                                    emotion = emotion.replace(old_emotion, new_emotion)
+                                else:
+                                    # 移除该情绪词
+                                    emotion_parts = emotion.split("+")
+                                    emotion_parts = [part for part in emotion_parts if part != old_emotion]
+                                    emotion = "+" .join(emotion_parts)
+                        
+                        # 特殊处理一些复合情绪
+                        if emotion == "惊惧+敏感":
+                            emotion = "急性恐惧"
+                        elif emotion == "麻木+无助":
+                            emotion = "情感麻木"
+                            
+                        # 移除可能的多余加号
+                        emotion = emotion.strip("+")
+                        action["emotion"] = emotion
 
             # 处理动作，添加state_features并修复空动作
             processed_actions = []
@@ -1378,53 +1771,54 @@ class ScriptParserAgent:
                     else:
                         action["position"] = "沙发上"
                 
+                # 确保所有动作都有state_features，增强动作可执行性
                 if "state_features" not in action:
-                    
-                    # 根据动作内容和情绪设置state_features
-                    if "发抖" in action_text or "颤抖" in action_text:
-                        action["state_features"] = "肩膀微微颤抖，手指关节发白，身体前倾"
-                    elif "犹豫" in action_text or emotion == "犹豫":
-                        action["state_features"] = "身体微微前后晃动，手指摩挲毛毯边缘，目光游移"
+                    # 基于情绪和动作内容提供更详细的state_features
+                    if "发抖" in action_text or "颤抖" in action_text or emotion == "急性恐惧":
+                        action["state_features"] = "瞳孔骤然放大，脊背瞬间绷直，肩膀明显颤抖，手指关节发白，呼吸急促"
+                    elif "犹豫" in action_text or emotion == "犹豫" or emotion == "犹豫+警觉":
+                        action["state_features"] = "身体微微前后晃动，手指摩挲毛毯边缘，目光游移，呼吸节奏紊乱"
                         action["position"] = "沙发前坐"
                     elif "听到" in action_text and "是我" in action_text:
-                        action["state_features"] = "身体猛然坐直，肩膀僵硬，双手握紧手机"
+                        action["state_features"] = "身体猛然坐直，肩膀僵硬，双手握紧手机，瞳孔收缩，呼吸短暂停顿"
                         action["position"] = "沙发前坐"
                     elif "轻声问" in action_text or emotion == "紧张+试探":
-                        action["state_features"] = "身体前倾，声音低哑，目光专注"
+                        action["state_features"] = "身体前倾，声音低哑，目光专注，手指轻轻绞动，肩膀微耸"
                         action["position"] = "沙发前坐"
                     elif "震惊" in action_text or emotion == "震惊":
-                        action["state_features"] = "身体僵直，肩膀抬高，双手握成拳头"
+                        action["state_features"] = "身体僵直，肩膀抬高，双手握成拳头，眼睛瞪圆，嘴巴微张"
                         action["position"] = "沙发前坐"
                     elif "接起电话" in action_text:
-                        action["state_features"] = "身体前倾，耳朵贴近手机，肩膀一侧抬高"
+                        action["state_features"] = "身体前倾，耳朵贴近手机，肩膀一侧抬高，手指轻捏手机，表情紧张"
                         action["position"] = "沙发前坐"
                     elif "手机铃声" in action_text:
-                        action["state_features"] = "身体转向手机方向，手伸向茶几，肩膀微抬"
+                        action["state_features"] = "身体转向手机方向，手伸向茶几，肩膀微抬，眼睛突然明亮"
                         action["position"] = "沙发侧身"
                     elif emotion == "决绝":
-                        action["state_features"] = "腰背挺直，肩膀后展，双手握拳，深呼吸后关机扔手机"
+                        action["state_features"] = "腰背挺直，肩膀后展，双手握拳，深呼吸，下颌收紧，目光坚定"
                         action["position"] = "沙发端坐"
-                    elif emotion == "犹豫+警觉":
-                        action["state_features"] = "身体前倾，手指摩擦手机，头部转动观察周围"
-                        action["position"] = "沙发前坐"
                     elif emotion == "警惕":
-                        action["state_features"] = "身体微侧，肌肉紧绷，双手撑住沙发扶手，头部左右转动"
+                        action["state_features"] = "身体微侧，肌肉紧绷，双手撑住沙发扶手，头部左右转动，眼神锐利"
                         action["position"] = "沙发侧身"
-                    elif emotion == "悲伤":
-                        action["state_features"] = "肩膀下沉，身体蜷缩，头部低垂，双手抱膝"
+                    elif emotion == "悲伤" or emotion == "悲伤+怀念":
+                        action["state_features"] = "肩膀下沉，身体蜷缩，头部低垂，双手抱膝，肩膀持续颤抖，呼吸微弱"
                         action["position"] = "沙发蜷缩"
                     elif "摩挲" in action_text:
-                        action["state_features"] = "手指无意识地摩挲毛毯边缘，身体前倾，眼神恍惚"
+                        action["state_features"] = "手指无意识地摩挲毛毯边缘，身体前倾，眼神恍惚，睫毛快速颤动"
                         action["position"] = "沙发前坐"
                     elif "挂断电话" in action_text:
-                        action["state_features"] = "手指用力按下挂断键，肩膀微微放松"
+                        action["state_features"] = "手指用力按下挂断键，肩膀微微放松，表情瞬间黯淡"
                         action["position"] = "沙发前坐"
                     elif "关机" in action_text:
-                        action["state_features"] = "手指在手机上滑动关机，表情坚决"
+                        action["state_features"] = "手指在手机上滑动关机，表情坚决，深呼吸后身体微微放松"
                         action["position"] = "沙发端坐"
+                    elif emotion == "情感麻木" or emotion == "麻木":
+                        action["state_features"] = "眼神失焦，睫毛快速颤动，手指深深陷入毛毯纤维，呼吸节奏紊乱，表情呆滞"
+                    elif emotion == "孤独+焦虑":
+                        action["state_features"] = "肩膀内扣，下巴轻抵胸口，指节因用力而泛白，呼吸浅而急促，眼神空洞"
                     else:
-                        # 即使没有特定模式，也要添加基本的state_features
-                        action["state_features"] = "身体姿态自然，轻微动作变化"
+                        # 即使没有特定模式，也要添加详细的state_features
+                        action["state_features"] = "身体姿态自然，轻微动作变化，表情细微调整，呼吸均匀"
                         action["position"] = "沙发端坐"
                 
                 # 移除action中的appearance字段，避免重复冗余
@@ -1545,12 +1939,11 @@ class ScriptParserAgent:
             # 构建场景对象，确保只包含必要字段，避免time字段冗余
             scene_entry = {
                 "location": location,
-                "time_of_day": time,  # 只使用time_of_day字段，确保没有time字段
+                "time_of_day": time,  # 只使用time_of_day字段，完全移除time字段
                 "atmosphere": self._infer_atmosphere(scene),
                 "characters": characters,
-                "actions": processed_actions,
-                # 不再包含空的actions数组，确保结构一致性
-                # 移除多余的time字段，避免冗余
+                "actions": processed_actions
+                # 确保没有time字段，避免与time_of_day冲突
             }
         
             result["scenes"].append(scene_entry)
@@ -1621,8 +2014,8 @@ class ScriptParserAgent:
             return self._enhance_with_rules(structured_script)
 
         try:
-            # 准备增强提示
-            prompt_template = """
+            # 定义默认提示词模板
+            default_prompt = """
             请作为一个专业的中文剧本分析专家，对以下结构化剧本进行增强处理：
             1. 确保每个动作都有合适的情绪标签
             2. 为每个角色推断合理的外观描述（年龄、穿着、外貌特征等）
@@ -1634,6 +2027,16 @@ class ScriptParserAgent:
             原始剧本：
             {script_json}
             """
+            
+            # 直接使用PromptManager获取提示词
+            try:
+                from hengline.prompts.prompts_manager import PromptManager
+                prompt_manager = PromptManager()
+                prompt_template = prompt_manager.get_prompt('enhance_script')
+                debug("成功从PromptManager获取提示词模板")
+            except Exception as e:
+                debug(f"获取提示词失败，使用默认提示词: {str(e)}")
+                prompt_template = default_prompt
 
             # 填充提示词模板
             filled_prompt = prompt_template.format(
@@ -1644,13 +2047,26 @@ class ScriptParserAgent:
             debug("开始调用LLM增强剧本解析结果")
             response = self.llm.invoke(filled_prompt)
 
-            # 尝试解析JSON响应
-            enhanced_script = json.loads(response)
-            debug("LLM增强成功，返回增强后的剧本结构")
+            # 初始化增强剧本变量
+            enhanced_script = None
+            
+            # 尝试使用JSON响应解析器解析响应
+            try:
+                from hengline.tools import parse_json_response
+                enhanced_script = parse_json_response(response)
+                debug("LLM增强成功，返回增强后的剧本结构")
+            except Exception as e:
+                # 记录错误并保持原有的异常处理流程
+                warning(f"JSON解析器处理失败: {str(e)}")
+                raise
 
             # 确保返回格式正确
-            return self._ensure_correct_format(enhanced_script)
+            if enhanced_script is not None:
+                return self._ensure_correct_format(enhanced_script)
+            else:
+                raise json.JSONDecodeError("无法解析LLM响应为JSON格式", "", 0)
         except json.JSONDecodeError as e:
+            print_log_exception()
             warning(f"LLM增强失败：响应不是有效的JSON格式: {str(e)}")
         except Exception as e:
             print_log_exception()
@@ -1746,12 +2162,11 @@ class ScriptParserAgent:
         
         # 从场景信息推断氛围
         location = scene.get("location", "")
-        time = scene.get("time", "")
-        time_of_day = scene.get("time_of_day", time)  # 使用time_of_day或fallback到time
+        time_of_day = scene.get("time_of_day", "")
         
         # 时间相关氛围
         time_atmosphere = []
-        if "深夜" in time or "深夜" in time_of_day or "夜晚" in time_of_day:
+        if "深夜" in time_of_day or "夜晚" in time_of_day:
             time_atmosphere.append("深夜，环境安静")
         elif "黄昏" in time_of_day or "傍晚" in time_of_day:
             time_atmosphere.append("傍晚，光线昏暗")
@@ -1887,8 +2302,8 @@ class ScriptParserAgent:
             # 确保必要字段存在
             if "location" not in scene:
                 scene["location"] = "未知"
-            if "time" not in scene:
-                scene["time"] = "未知"
+            if "time_of_day" not in scene:
+                scene["time_of_day"] = "未知"
             if "actions" not in scene:
                 scene["actions"] = []
 
@@ -1908,3 +2323,24 @@ class ScriptParserAgent:
                     action["action"] = "未知动作"
 
         return data
+    
+    def _identify_scene_type(self, script_text: str) -> Any | None:
+        """
+        识别剧本中的场景类型
+        
+        Args:
+            script_text: 剧本文本
+            
+        Returns:
+            识别出的场景类型字符串，如果没有识别出则返回None
+        """
+        # 获取所有场景类型配置
+        scene_types = self.config.scene_types
+        
+        for scene_type, config in scene_types.items():
+            # 检查是否包含该场景类型的标识符
+            identifiers = config.get('identifiers', [])
+            if any(identifier in script_text for identifier in identifiers):
+                return scene_type
+        
+        return None

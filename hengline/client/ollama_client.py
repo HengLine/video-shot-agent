@@ -247,7 +247,7 @@ class OllamaClient(BaseAIClient):
                 'base_url': base_url,
                 'timeout': timeout * 2,
                 'repeat_penalty': 1.1,        # 重复惩罚
-                'format': 'json',           # 关键参数：强制返回 JSON
+                # 'format': 'json',           # 关键参数：强制返回 JSON
                 # 'num_ctx': 2048,              # 上下文长度，根据模型调整
                 'num_thread': 4,              # 线程数，根据CPU核心数调整
                 'stream': False,               # 非流式，一次性返回

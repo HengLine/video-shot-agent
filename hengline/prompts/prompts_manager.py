@@ -6,20 +6,147 @@
 """
 import yaml
 from pathlib import Path
+from typing import Dict, Any
 
 
 class PromptManager:
-    def __init__(self, prompt_dir: Path = Path(__file__)):
-        self.prompt_dir = prompt_dir / "prompts"
+    def __init__(self, prompt_dir: Path = None):
+        # 如果没有提供prompt_dir，默认使用当前文件的父目录
+        if prompt_dir is None:
+            self.prompt_dir = Path(__file__).parent
+        else:
+            # 确保prompt_dir指向prompts目录
+            self.prompt_dir = prompt_dir / "prompts" if not str(prompt_dir).endswith("prompts") else prompt_dir
+        
+        # 缓存已加载的提示词模板 - 最大缓存1024个提示词
+        self._prompt_cache: Dict[str, Dict[str, Any]] = {}
+        self._all_prompts_loaded = False
 
     def get_prompt(self, name: str) -> str:
-        file_path = self.prompt_dir / f"{name}.yaml"
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        return data["template"]
+        """获取指定名称的提示词模板
+        
+        Args:
+            name: 提示词名称或标识符
+            
+        Returns:
+            提示词模板字符串
+        
+        匹配策略（按优先级）：
+        1. 首先检查缓存
+        2. 对于嵌套格式，优先通过键名(prompt_key)匹配
+        3. 对于嵌套格式，其次通过name字段匹配
+        4. 对于简单格式，通过name字段匹配
+        5. 尝试移除_prompt后缀进行匹配（兼容重命名后的文件）
+        """
+        # 检查缓存
+        if name in self._prompt_cache:
+            return self._prompt_cache[name].get("template", "")
+            
+        # 尝试多种匹配方式
+        match_methods = [
+            # 原始名称匹配
+            name,
+            # 尝试移除_prompt后缀匹配（兼容文件重命名）
+            name.replace("_prompt", "") if name.endswith("_prompt") else None
+        ]
+        
+        # 移除None值
+        match_methods = [m for m in match_methods if m]
+        
+        # 查找所有YAML文件
+        for yaml_file in self.prompt_dir.glob("*.yaml"):
+            try:
+                with open(yaml_file, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                    
+                    # 检查是否是嵌套结构 (prompts字典)
+                    if isinstance(data, dict) and "prompts" in data:
+                        # 遍历所有提示词
+                        for prompt_key, prompt_data in data["prompts"].items():
+                            if isinstance(prompt_data, dict):
+                                # 对每种匹配方式尝试键名和name字段匹配
+                                for match_name in match_methods:
+                                    # 优先通过键名匹配
+                                    if prompt_key == match_name:
+                                        if len(self._prompt_cache) >= 1024:
+                                            self._prompt_cache.pop(next(iter(self._prompt_cache)))
+                                        self._prompt_cache[name] = prompt_data
+                                        return prompt_data.get("template", "")
+                                    # 其次通过name字段匹配
+                                    if prompt_data.get("name") == match_name:
+                                        if len(self._prompt_cache) >= 1024:
+                                            self._prompt_cache.pop(next(iter(self._prompt_cache)))
+                                        self._prompt_cache[name] = prompt_data
+                                        return prompt_data.get("template", "")
+                    # 兼容简单格式（根级别直接定义）
+                    elif isinstance(data, dict):
+                        for match_name in match_methods:
+                            if data.get("name") == match_name:
+                                if len(self._prompt_cache) >= 1024:
+                                    self._prompt_cache.pop(next(iter(self._prompt_cache)))
+                                self._prompt_cache[name] = data
+                                return data.get("template", "")
+            except Exception as e:
+                # 记录错误但继续尝试其他文件
+                import logging
+                logging.debug(f"加载提示词文件 {yaml_file} 时出错: {str(e)}")
+                continue
+                
+        # 如果找不到指定名称的提示词，抛出异常
+        raise KeyError(f"提示词模板 '{name}' 不存在")
 
     def get_version(self, name: str) -> str:
-        file_path = self.prompt_dir / f"{name}.yaml"
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        return data.get("version", "unknown")
+        """获取指定名称提示词的版本
+        
+        Args:
+            name: 提示词名称或标识符
+            
+        Returns:
+            提示词版本字符串
+        """
+        # 检查缓存
+        if name in self._prompt_cache:
+            return self._prompt_cache[name].get("version", "unknown")
+            
+        # 如果不在缓存中，先加载提示词
+        try:
+            self.get_prompt(name)  # 这会更新缓存
+            return self._prompt_cache[name].get("version", "unknown")
+        except KeyError:
+            return "unknown"
+    
+    def get_all_prompts(self) -> Dict[str, Dict[str, Any]]:
+        """获取所有可用的提示词模板
+        
+        Returns:
+            所有提示词模板的字典，键为提示词名称，值为提示词配置
+        """
+        # 使用标志位避免重复加载所有提示词
+        if not self._all_prompts_loaded:
+            for yaml_file in self.prompt_dir.glob("*.yaml"):
+                try:
+                    with open(yaml_file, "r", encoding="utf-8") as f:
+                        data = yaml.safe_load(f)
+                        
+                        # 处理嵌套结构
+                        if isinstance(data, dict) and "prompts" in data:
+                            for prompt_key, prompt_data in data["prompts"].items():
+                                if isinstance(prompt_data, dict):
+                                    # 使用name字段或键名作为缓存键
+                                    cache_key = prompt_data.get("name", prompt_key)
+                                    self._prompt_cache[cache_key] = prompt_data
+                        # 处理旧格式
+                        elif isinstance(data, dict) and "name" in data:
+                            self._prompt_cache[data["name"]] = data
+                except Exception:
+                    continue
+            
+            # 标记所有提示词已加载
+            self._all_prompts_loaded = True
+            
+            # 限制缓存大小为1024个提示词
+            if len(self._prompt_cache) > 1024:
+                # 只保留最新的1024个提示词
+                self._prompt_cache = dict(list(self._prompt_cache.items())[-1024:])
+        
+        return self._prompt_cache.copy()

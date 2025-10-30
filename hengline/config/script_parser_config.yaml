@@ -244,3 +244,133 @@ atmosphere_keywords:
   "神秘": ["神秘", "诡异", "奇怪", "疑惑", "怀疑", "未知", "不确定", "朦胧"]
   "严肃": ["严肃", "认真", "庄重", "正式", "严厉", "严格", "紧张", "压抑"]
   "轻松": ["轻松", "悠闲", "自在", "舒适", "愉快", "放松", "随意", "惬意"]
+
+# ----------------------------------------------------------------------------- # 9. 场景类型定义与配置
+# 通用场景配置，支持多种场景类型
+# -----------------------------------------------------------------------------
+scene_types:
+  # 电话/手机场景配置
+  phone:
+    # 场景识别关键词
+    identifiers: ["电话", "手机", "接听", "来电", "通话", "拨号"]
+    
+    # 动作模式（通用模式，不包含特定角色名称）
+    action_patterns:
+      # 场景设置和初始动作
+      - pattern: "(?:裹着|披着).*?靠在沙发上"
+        action_text: "{0}靠在沙发上"
+        emotion: "平静"
+        state_features: "身体放松，靠在沙发背上，目光柔和"
+      
+      # 手机震动和接听相关（通用模式）
+      - pattern: "手机震动|手机.*?震动|震动"
+        action_text: "手机震动"
+        emotion: "警觉"
+        state_features: "目光转向手机，身体微微前倾，手指轻触沙发扶手"
+      - pattern: "犹豫.*?拿起手机"
+        action_text: "犹豫着伸手拿起手机"
+        emotion: "犹豫+警觉"
+        state_features: "下唇轻咬，手指无意识地摩挲手机边缘，目光闪烁不定"
+      - pattern: "查看屏幕|看手机屏幕"
+        action_text: "低头查看屏幕"
+        emotion: "犹豫+警觉"
+        state_features: "手指微微颤抖，目光在手机和周围环境间游移"
+      - pattern: "按下接听键|接起电话|接听电话"
+        action_text: "接起电话，将手机贴在耳边"
+        emotion: "警觉"
+        state_features: "手指微微颤抖，耳朵贴近手机，呼吸变得轻缓"
+      
+      # 通用对话处理模式（不硬编码特定对话内容）
+      - pattern: "轻声问.*?|.*?轻声说"
+        action_text: '轻声问："{1}"'
+        emotion: "试探+紧张"
+        state_features: "手指收紧，声音轻微颤抖，身体微微前倾"
+      - pattern: "对方.*?说|对方表示"
+        action_text: '听到对方说："{1}"'
+        emotion: "震惊"
+        state_features: "瞳孔骤缩，指节泛白，肩膀微微抖动"
+      
+      # 通用画外音处理模式
+      - pattern: '电话那头传来[^：:]*[：:][''"](.+?)[''"]'
+        action_text: '听到电话中传来："\1"'
+        emotion: "震惊"
+        state_features: "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"
+      - pattern: '传来[^：:]*[：:][''"](.+?)[''"]'
+        action_text: '听到传来的声音："\1"'
+        emotion: "震惊"
+        state_features: "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"
+      - pattern: '听到对方[^：:]*[：:][''"](.+?)[''"]|对方[^：:]*[：:][''"](.+?)[''"]'
+        action_text: '听到对方说："{1}"'
+        emotion: "震惊"
+        state_features: "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"
+      
+      # 情绪反应模式
+      - pattern: "攥紧手机|指节发白|猛地一颤|猛然僵直|震惊"
+        action_text: "身体猛然僵直"
+        emotion: "崩溃"
+        state_features: "瞳孔骤缩，指节泛白，肩膀剧烈抖动"
+      - pattern: "滑落|脱手|掉落"
+        action_text: "肩膀剧烈抖动，手中物品滑落"
+        emotion: "崩溃"
+        state_features: "双手本能撑住附近物体，指节因用力而泛白"
+    
+    # 动作顺序权重（通用顺序规则）
+    action_order_weights:
+      "手机震动": 1
+      "犹豫着伸手拿起手机": 2
+      "低头查看屏幕": 3
+      "接起电话，将手机贴在耳边": 4
+      "轻声问.*?": 5
+      "听到对方说.*?": 6
+      "身体猛然僵直": 7
+      "肩膀剧烈抖动，手中物品滑落": 8
+    
+    # 默认动作（通用反应）
+    default_actions:
+      - priority: 50
+        action_text: "身体微微颤抖，表情变得紧张"
+        emotion: "紧张"
+        state_features: "手指微微颤抖，呼吸变得急促"
+      - priority: 100
+        action_text: "对方挂断电话，留下一片寂静"
+        emotion: "失落"
+        state_features: "目光呆滞，手机慢慢从耳边移开"
+    
+    # 通用对话处理规则
+    dialogue_processing:
+      # 对话模板
+      dialogue_templates:
+        character_dialogue: "{character}：'{dialogue}'"
+        phone_dialogue: "听到电话中传来：'{dialogue}'"
+      
+      # 情绪映射（根据对话内容自动推断情绪）
+      emotion_patterns:
+        - pattern: "我回来了|回来|到家"
+          emotion: "震惊+感动"
+        - pattern: "分手|结束|离开"
+          emotion: "悲伤+崩溃"
+        - pattern: "是我|我是"
+          emotion: "惊讶+疑惑"
+        - pattern: "？|？$|？\\n"
+          emotion: "疑惑+紧张"
+  
+  # 其他场景类型可以在这里扩展
+  meeting:
+    identifiers: ["会议", "讨论", "商谈", "谈判", "汇报"]
+    action_patterns:
+      - pattern: "走进会议室|进入会议室"
+        action_text: "走进会议室，环顾四周"
+        emotion: "平静+专注"
+        state_features: "步伐沉稳，目光扫视会议室，双手自然下垂"
+      - pattern: "坐下|就座"
+        action_text: "在会议桌前坐下"
+        emotion: "专注"
+        state_features: "背部挺直，双手放在桌上，目光正视前方"
+    action_order_weights:
+      "走进会议室，环顾四周": 1
+      "在会议桌前坐下": 2
+    default_actions:
+      - priority: 50
+        action_text: "认真聆听对方发言"
+        emotion: "专注"
+        state_features: "身体微微前倾，目光专注，偶尔点头"

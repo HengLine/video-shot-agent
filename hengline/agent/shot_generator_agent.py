@@ -158,9 +158,10 @@ class ShotGeneratorAgent:
                         response = response.content
 
                     # 解析响应
-                    shot_data = json.loads(response)
+                    from hengline.tools import parse_json_response
+                    shot_data = parse_json_response(response)
                     debug(f"成功解析LLM响应，生成了包含{len(shot_data)}个字段的分镜数据")
-                except json.JSONDecodeError as jde:
+                except Exception as jde:
                     error(f"LLM响应JSON解析失败: {str(jde)}")
                     debug(f"原始LLM响应: {response[:200]}...")  # 记录部分原始响应用于调试
                     # 回退到规则生成

@@ -4,13 +4,153 @@
 @Author: HengLine
 @Time: 2025/10/27 17:22
 """
-
+import os
 import re
 from typing import Optional, Dict, List, Any
+
+import yaml
+
+from hengline.logger import debug, warning
 
 
 class ScriptParserConfig:
     """剧本解析器配置类"""
+    
+    def __init__(self):
+        """初始化配置类"""
+        # 加载的配置
+        self._config = {}
+        
+        # 场景类型配置
+        self.scene_types = self.DEFAULT_SCENE_TYPES.copy()
+        
+        # 配置缓存，避免频繁加载
+        self._config_cache = {}
+        self._last_config_update = {}
+    
+    def _get_cached_config(self, config_filename: str = 'script_parser_config.yaml') -> Dict[str, Any]:
+        """获取缓存的配置，如果缓存不存在或已过期则重新加载
+        
+        Args:
+            config_filename: 配置文件名
+            
+        Returns:
+            配置数据字典
+        """
+        import os
+        import time
+        
+        # 检查缓存是否存在
+        if config_filename in self._config_cache:
+            # 检查文件是否被修改
+            config_path = os.path.join(os.path.dirname(__file__), config_filename)
+            if os.path.exists(config_path):
+                current_mtime = os.path.getmtime(config_path)
+                # 如果文件未被修改且缓存时间小于5分钟，则使用缓存
+                if (config_filename in self._last_config_update and 
+                    current_mtime == self._last_config_update[config_filename] and 
+                    time.time() - self._last_config_update.get(f"{config_filename}_time", 0) < 300):
+                    return self._config_cache[config_filename]
+        
+        # 重新加载配置
+        config_data = self.load_yaml_config(config_filename)
+        
+        # 更新缓存
+        self._config_cache[config_filename] = config_data
+        
+        # 更新缓存时间和文件修改时间
+        config_path = os.path.join(os.path.dirname(__file__), config_filename)
+        if os.path.exists(config_path):
+            self._last_config_update[config_filename] = os.path.getmtime(config_path)
+        self._last_config_update[f"{config_filename}_time"] = time.time()
+        
+        return config_data
+    
+    def load_config(self, config_data: Dict[str, Any]):
+        """加载配置数据
+        
+        Args:
+            config_data: 配置数据字典
+        """
+        self._config = config_data.copy()
+        
+        # 加载场景类型配置
+        if "scene_types" in config_data:
+            self.scene_types = {}
+            for scene_type, scene_config in config_data["scene_types"].items():
+                # 合并默认配置和用户配置
+                default_config = self.DEFAULT_SCENE_TYPES.get(scene_type, {})
+                merged_config = default_config.copy()
+                merged_config.update(scene_config)
+                
+                # 确保所有必要字段存在
+                for key in ["action_patterns", "action_order_weights", "default_actions"]:
+                    if key not in merged_config:
+                        merged_config[key] = default_config.get(key, [] if key != "action_order_weights" else {})
+                
+                # 确保对话处理配置存在
+                if "dialogue_processing" not in merged_config:
+                    merged_config["dialogue_processing"] = {
+                        "dialogue_templates": {
+                            "character_dialogue": "{character}：'{dialogue}'"
+                        },
+                        "emotion_patterns": []
+                    }
+                
+                self.scene_types[scene_type] = merged_config
+    
+    def get_scene_type(self, text: str) -> Optional[str]:
+        """根据文本内容识别场景类型
+        
+        Args:
+            text: 剧本文本
+            
+        Returns:
+            识别出的场景类型，如果未识别出则返回None
+        """
+        for scene_type, config in self.scene_types.items():
+            identifiers = config.get("identifiers", [])
+            if any(identifier in text for identifier in identifiers):
+                return scene_type
+        return None
+    
+    def get_scene_config(self, scene_type: str) -> Dict[str, Any]:
+        """获取指定场景类型的配置
+        
+        Args:
+            scene_type: 场景类型
+            
+        Returns:
+            场景配置字典
+        """
+        return self.scene_types.get(scene_type, {})
+    
+    def load_yaml_config(self, config_filename: str = 'script_parser_config.yaml') -> Dict[str, Any]:
+        """加载YAML配置文件的公共方法
+        
+        Args:
+            config_filename: 配置文件名
+            
+        Returns:
+            配置数据字典，如果加载失败则返回空字典
+        """
+        try:
+            config_path = os.path.join(os.path.dirname(__file__), config_filename)
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config_data = yaml.safe_load(f)
+                    if config_data and isinstance(config_data, dict):
+                        debug(f"成功加载配置文件: {config_filename}")
+                        return config_data
+                    debug(f"配置文件格式不正确或为空: {config_filename}")
+            else:
+                debug(f"配置文件不存在: {config_path}")
+        except Exception as e:
+            warning(f"加载配置文件时出错: {str(e)}")
+        
+        return {}
+    
+
     
     # 默认场景模式
     DEFAULT_SCENE_PATTERNS = [
@@ -79,6 +219,104 @@ class ScriptParserConfig:
         "愤怒": ["生气", "愤怒", "恼火", "激动"],
         "惊讶": ["惊讶", "震惊", "意外", "突然"]
     }
+    
+    # 通用场景类型配置
+    DEFAULT_SCENE_TYPES = {
+        "phone": {
+            "identifiers": ["电话", "手机", "接听", "来电", "通话", "拨号"],
+            "action_patterns": [
+                {"pattern": "(?:裹着|披着).*?靠在沙发上", "action_text": "{0}靠在沙发上", "emotion": "平静", "state_features": "身体放松，靠在沙发背上，目光柔和"},
+                {"pattern": "手机震动|手机.*?震动|震动", "action_text": "手机震动", "emotion": "警觉", "state_features": "目光转向手机，身体微微前倾，手指轻触沙发扶手"},
+                {"pattern": "犹豫.*?拿起手机", "action_text": "犹豫着伸手拿起手机", "emotion": "犹豫+警觉", "state_features": "下唇轻咬，手指无意识地摩挲手机边缘，目光闪烁不定"},
+                {"pattern": "查看屏幕|看手机屏幕", "action_text": "低头查看屏幕", "emotion": "犹豫+警觉", "state_features": "手指微微颤抖，目光在手机和周围环境间游移"},
+                {"pattern": "按下接听键|接起电话|接听电话", "action_text": "接起电话，将手机贴在耳边", "emotion": "警觉", "state_features": "手指微微颤抖，耳朵贴近手机，呼吸变得轻缓"},
+                {"pattern": "轻声问.*?|.*?轻声说", "action_text": "轻声问：'{1}'", "emotion": "试探+紧张", "state_features": "手指收紧，声音轻微颤抖，身体微微前倾"},
+                {"pattern": "对方.*?说|对方表示", "action_text": "听到对方说：'{1}'", "emotion": "震惊", "state_features": "瞳孔骤缩，指节泛白，肩膀微微抖动"},
+                {"pattern": "电话那头传来[^：:]*[：:][\'\"](.+?)[\'\"]", "action_text": "听到电话中传来：'\1'", "emotion": "震惊", "state_features": "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"},
+                {"pattern": "传来[^：:]*[：:][\'\"](.+?)[\'\"]", "action_text": "听到传来的声音：'\1'", "emotion": "震惊", "state_features": "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"},
+                {"pattern": "听到对方[^：:]*[：:][\'\"](.+?)[\'\"]|对方[^：:]*[：:][\'\"](.+?)[\'\"]", "action_text": "听到对方说：'{1}'", "emotion": "震惊", "state_features": "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"},
+                {"pattern": "攥紧手机|指节发白|猛地一颤|猛然僵直|震惊", "action_text": "身体猛然僵直", "emotion": "崩溃", "state_features": "瞳孔骤缩，指节泛白，肩膀剧烈抖动"},
+                {"pattern": "滑落|脱手|掉落", "action_text": "肩膀剧烈抖动，手中物品滑落", "emotion": "崩溃", "state_features": "双手本能撑住附近物体，指节因用力而泛白"},
+            ],
+            "action_order_weights": {
+                "手机震动": 1,
+                "犹豫着伸手拿起手机": 2,
+                "低头查看屏幕": 3,
+                "接起电话，将手机贴在耳边": 4,
+                "轻声问.*?": 5,
+                "听到对方说.*?": 6,
+                "身体猛然僵直": 7,
+                "肩膀剧烈抖动，手中物品滑落": 8,
+            },
+            "default_actions": [
+                {"priority": 50, "action_text": "身体微微颤抖，表情变得紧张", "emotion": "紧张", "state_features": "手指微微颤抖，呼吸变得急促"},
+                {"priority": 100, "action_text": "对方挂断电话，留下一片寂静", "emotion": "失落", "state_features": "目光呆滞，手机慢慢从耳边移开"},
+            ],
+            "dialogue_processing": {
+                "dialogue_templates": {
+                    "character_dialogue": "{character}：'{dialogue}'",
+                    "phone_dialogue": "听到电话中传来：'{dialogue}'"
+                },
+                "emotion_patterns": [
+                    {"pattern": "我回来了|回来|到家", "emotion": "震惊+感动"},
+                    {"pattern": "分手|结束|离开", "emotion": "悲伤+崩溃"},
+                    {"pattern": "是我|我是", "emotion": "惊讶+疑惑"},
+                    {"pattern": "？|？$|？\\n", "emotion": "疑惑+紧张"},
+                ]
+            }
+        },
+        "meeting": {
+            "identifiers": ["会议", "讨论", "商谈", "谈判", "汇报"],
+            "action_patterns": [
+                {"pattern": "走进会议室|进入会议室", "action_text": "走进会议室，环顾四周", "emotion": "平静+专注", "state_features": "步伐沉稳，目光扫视会议室，双手自然下垂"},
+                {"pattern": "坐下|就座", "action_text": "在会议桌前坐下", "emotion": "专注", "state_features": "背部挺直，双手放在桌上，目光正视前方"},
+            ],
+            "action_order_weights": {
+                "走进会议室，环顾四周": 1,
+                "在会议桌前坐下": 2,
+            },
+            "default_actions": [
+                {"priority": 50, "action_text": "认真聆听对方发言", "emotion": "专注", "state_features": "身体微微前倾，目光专注，偶尔点头"},
+            ],
+            "dialogue_processing": {
+                "dialogue_templates": {
+                    "character_dialogue": "{character}：'{dialogue}'",
+                    "meeting_dialogue": "{character}在会议中说：'{dialogue}'"
+                }
+            }
+        }
+    }
+    
+    # 为了兼容旧版代码，提供旧版配置的访问方式
+    @property
+    def DEFAULT_PHONE_SCENARIO_ACTION_PATTERNS(self):
+        return self.DEFAULT_SCENE_TYPES.get("phone", {}).get("action_patterns", [])
+    
+    @property
+    def DEFAULT_PHONE_SCENARIO_ACTION_ORDER_WEIGHTS(self):
+        return self.DEFAULT_SCENE_TYPES.get("phone", {}).get("action_order_weights", {})
+    
+    @property
+    def DEFAULT_PHONE_SCENARIO_DEFAULT_ACTIONS(self):
+        return self.DEFAULT_SCENE_TYPES.get("phone", {}).get("default_actions", [])
+    
+    @property
+    def DEFAULT_PHONE_SCENARIO_REQUIRED_DIALOGUES(self):
+        # 模拟旧版必要对话格式
+        phone_config = self.DEFAULT_SCENE_TYPES.get("phone", {})
+        dialogue_processing = phone_config.get("dialogue_processing", {})
+        emotion_patterns = dialogue_processing.get("emotion_patterns", [])
+        
+        # 转换为旧格式
+        required_dialogues = []
+        for pattern in emotion_patterns:
+            # 提取示例文本
+            if "我回来了" in pattern.get("pattern", ""):
+                required_dialogues.append({"text": "我回来了", "action_template": "听到对方低声说：'{text}'", "emotion": pattern.get("emotion")})
+            elif "是我" in pattern.get("pattern", ""):
+                required_dialogues.append({"text": "是我", "action_template": "听到电话中传来沙哑男声：'{text}'", "emotion": pattern.get("emotion")})
+        
+        return required_dialogues
     
     # 地点正则模式
     @staticmethod
@@ -251,34 +489,84 @@ class ScriptParserConfig:
         Returns:
             包含所有解析模式和关键词的字典
         """
+        # 创建临时实例来访问property属性
+        temp_instance = script_parser_config
+        
         # 默认配置
         default_config = {
-            "scene_patterns": ScriptParserConfig.DEFAULT_SCENE_PATTERNS,
-            "dialogue_patterns": ScriptParserConfig.DEFAULT_DIALOGUE_PATTERNS,
-            "action_emotion_map": ScriptParserConfig.DEFAULT_ACTION_EMOTION_MAP,
-            "time_keywords": ScriptParserConfig.DEFAULT_TIME_KEYWORDS,
-            "appearance_keywords": ScriptParserConfig.DEFAULT_APPEARANCE_KEYWORDS,
-            "location_keywords": ScriptParserConfig.DEFAULT_LOCATION_KEYWORDS,
-            "emotion_keywords": ScriptParserConfig.DEFAULT_EMOTION_KEYWORDS,
-            "atmosphere_keywords": ScriptParserConfig.DEFAULT_ATMOSPHERE_KEYWORDS
+            "scene_patterns": temp_instance.DEFAULT_SCENE_PATTERNS,
+            "dialogue_patterns": temp_instance.DEFAULT_DIALOGUE_PATTERNS,
+            "action_emotion_map": temp_instance.DEFAULT_ACTION_EMOTION_MAP,
+            "time_keywords": temp_instance.DEFAULT_TIME_KEYWORDS,
+            "appearance_keywords": temp_instance.DEFAULT_APPEARANCE_KEYWORDS,
+            "location_keywords": temp_instance.DEFAULT_LOCATION_KEYWORDS,
+            "emotion_keywords": temp_instance.DEFAULT_EMOTION_KEYWORDS,
+            "atmosphere_keywords": temp_instance.DEFAULT_ATMOSPHERE_KEYWORDS,
+            "phone_scenario_action_patterns": temp_instance.DEFAULT_PHONE_SCENARIO_ACTION_PATTERNS,
+            "phone_scenario_action_order_weights": temp_instance.DEFAULT_PHONE_SCENARIO_ACTION_ORDER_WEIGHTS,
+            "phone_scenario_default_actions": temp_instance.DEFAULT_PHONE_SCENARIO_DEFAULT_ACTIONS,
+            "phone_scenario_required_dialogues": temp_instance.DEFAULT_PHONE_SCENARIO_REQUIRED_DIALOGUES,
+            "scene_types": temp_instance.DEFAULT_SCENE_TYPES
         }
 
         # 尝试从配置文件加载
         config_data = default_config.copy()
-        if config_path:
-            try:
-                import yaml
-                from hengline.logger import debug, warning
+        try:
+            if config_path:
+                # 使用load_yaml_config方法加载指定路径的配置文件
+                import os
+                # 从文件路径中提取文件名
+                config_filename = os.path.basename(config_path)
+                # 使用实例方法加载配置
+                loaded_config = temp_instance.load_yaml_config(config_filename)
+            else:
+                # 使用默认配置文件
+                loaded_config = temp_instance._get_cached_config()
                 
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    loaded_config = yaml.safe_load(f)
-                    # 确保loaded_config不为None
-                    if loaded_config is not None:
-                        # 合并配置，保留默认值作为回退
-                        for key in default_config:
-                            if key in loaded_config:
-                                config_data[key] = loaded_config[key]
-                debug(f"成功从配置文件加载剧本解析配置: {config_path}")
+            # 确保loaded_config不为None
+            if loaded_config is not None and isinstance(loaded_config, dict):
+                # 合并直接的配置项，保留默认值作为回退
+                for key in ["scene_patterns", "dialogue_patterns", "action_emotion_map", 
+                           "time_keywords", "appearance_keywords", "location_keywords", 
+                           "emotion_keywords", "atmosphere_keywords"]:
+                    if key in loaded_config:
+                        config_data[key] = loaded_config[key]
+                
+                # 特殊处理scene_types配置，并转换为phone_scenario相关配置
+                if "scene_types" in loaded_config and isinstance(loaded_config["scene_types"], dict):
+                    config_data["scene_types"] = loaded_config["scene_types"]
+                    
+                    # 从scene_types中提取phone场景配置
+                    if "phone" in loaded_config["scene_types"]:
+                        phone_config = loaded_config["scene_types"]["phone"]
+                        
+                        # 更新手机场景相关配置
+                        if "action_patterns" in phone_config:
+                            config_data["phone_scenario_action_patterns"] = phone_config["action_patterns"]
+                        if "action_order_weights" in phone_config:
+                            config_data["phone_scenario_action_order_weights"] = phone_config["action_order_weights"]
+                        if "default_actions" in phone_config:
+                            config_data["phone_scenario_default_actions"] = phone_config["default_actions"]
+                        
+                        # 从dialogue_processing中提取必要对话配置
+                        if "dialogue_processing" in phone_config and "emotion_patterns" in phone_config["dialogue_processing"]:
+                            # 转换为旧格式的必要对话
+                            required_dialogues = []
+                            for pattern in phone_config["dialogue_processing"]["emotion_patterns"]:
+                                if isinstance(pattern, dict):
+                                    pattern_text = pattern.get("pattern", "")
+                                    emotion = pattern.get("emotion", "")
+                                    
+                                    # 提取示例文本
+                                    if "我回来了" in pattern_text:
+                                        required_dialogues.append({"text": "我回来了", "action_template": "听到对方低声说：'{text}'", "emotion": emotion})
+                                    elif "是我" in pattern_text:
+                                        required_dialogues.append({"text": "是我", "action_template": "听到电话中传来沙哑男声：'{text}'", "emotion": emotion})
+                            
+                            if required_dialogues:
+                                config_data["phone_scenario_required_dialogues"] = required_dialogues
+                
+                debug(f"成功从配置文件加载剧本解析配置")
                 # 打印配置信息，用于调试
                 print(f"配置加载成功: ")
                 print(f"  - 场景识别模式: {len(config_data.get('scene_patterns', []))} 个")
@@ -289,8 +577,11 @@ class ScriptParserConfig:
                 print(f"  - 地点关键词: {len(config_data.get('location_keywords', {}))} 个")
                 print(f"  - 情绪关键词: {len(config_data.get('emotion_keywords', {}))} 个")
                 print(f"  - 场景氛围关键词: {len(config_data.get('atmosphere_keywords', {}))} 个")
-            except Exception as e:
-                warning(f"无法加载配置文件 {config_path}，使用默认配置: {str(e)}")
+                print(f"  - 手机场景动作模式: {len(config_data.get('phone_scenario_action_patterns', []))} 个")
+                print(f"  - 手机场景动作顺序权重: {len(config_data.get('phone_scenario_action_order_weights', {}))} 个")
+                print(f"  - 场景类型配置: {len(config_data.get('scene_types', {}))} 个")
+        except Exception as e:
+            warning(f"无法加载配置文件，使用默认配置: {str(e)}")
 
         # 编译正则表达式模式
         scene_patterns = []
@@ -299,8 +590,7 @@ class ScriptParserConfig:
                 # 注意：这里需要添加r前缀以确保正则表达式中的转义字符正确处理
                 scene_patterns.append(re.compile(pattern_str))
             except re.error as e:
-                import warnings
-                warnings.warn(f"正则表达式模式编译失败: {pattern_str}, 错误: {str(e)}")
+                warning(f"正则表达式模式编译失败: {pattern_str}, 错误: {str(e)}")
 
         # 编译对话模式
         dialogue_patterns = []
@@ -308,8 +598,7 @@ class ScriptParserConfig:
             try:
                 dialogue_patterns.append(re.compile(pattern_str))
             except re.error as e:
-                import warnings
-                warnings.warn(f"对话模式编译失败: {pattern_str}, 错误: {str(e)}")
+                warning(f"对话模式编译失败: {pattern_str}, 错误: {str(e)}")
 
         # 如果对话模式为空，使用默认模式
         if not dialogue_patterns:
@@ -318,6 +607,16 @@ class ScriptParserConfig:
                 re.compile(r'([^（）]+)[（(]([^)）]+)[)）][:：]\s*(.+)')
             ]
 
+        # 编译手机场景动作模式
+        phone_scenario_action_patterns = []
+        for pattern_config in config_data.get('phone_scenario_action_patterns', []):
+            try:
+                # 保存原始配置，同时编译正则表达式
+                pattern_config['compiled_pattern'] = re.compile(pattern_config['pattern'])
+                phone_scenario_action_patterns.append(pattern_config)
+            except re.error as e:
+                warning(f"手机场景动作模式编译失败: {pattern_config.get('pattern')}, 错误: {str(e)}")
+        
         return {
             "scene_patterns": scene_patterns,
             "dialogue_patterns": dialogue_patterns,
@@ -326,7 +625,11 @@ class ScriptParserConfig:
             "appearance_keywords": config_data.get('appearance_keywords', {}),
             "location_keywords": config_data.get('location_keywords', {}),
             "emotion_keywords": config_data.get('emotion_keywords', {}),
-            "atmosphere_keywords": config_data.get('atmosphere_keywords', {})
+            "atmosphere_keywords": config_data.get('atmosphere_keywords', {}),
+            "phone_scenario_action_patterns": phone_scenario_action_patterns,
+            "phone_scenario_action_order_weights": config_data.get('phone_scenario_action_order_weights', {}),
+            "phone_scenario_default_actions": config_data.get('phone_scenario_default_actions', []),
+            "phone_scenario_required_dialogues": config_data.get('phone_scenario_required_dialogues', [])
         }
     
     @staticmethod

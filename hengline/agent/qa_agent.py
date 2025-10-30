@@ -285,7 +285,7 @@ class QAAgent:
         try:
             # 使用PromptManager获取提示词，使用正确的提示词目录路径
             prompt_manager = PromptManager(prompt_dir=Path(__file__).parent.parent)
-            prompt = prompt_manager.get_prompt("qa_review")
+            prompt = prompt_manager.get_prompt("qa_review_prompt")
 
             # 填充提示词模板
             filled_prompt = prompt.format(
@@ -307,14 +307,9 @@ class QAAgent:
             # 确保response_text是字符串
             response_text = str(response_text).strip()
 
-            # 尝试提取纯JSON部分（移除可能的前后文本）
-            if '{' in response_text and '}' in response_text:
-                # 提取第一个{到最后一个}之间的内容
-                start_idx = response_text.find('{')
-                end_idx = response_text.rfind('}') + 1
-                response_text = response_text[start_idx:end_idx]
-
-            result = json.loads(response_text)
+            # 使用JSON响应解析器解析响应
+            from hengline.tools import parse_json_response
+            result = parse_json_response(response_text)
             return result
         except json.JSONDecodeError as e:
             warning(f"LLM高级审查JSON解析失败: {str(e)}, 响应文本: {str(response_text)[:100]}...")
