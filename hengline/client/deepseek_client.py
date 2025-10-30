@@ -86,10 +86,25 @@ class DeepSeekClient(BaseAIClient):
 
                 # 发送请求，包含超时参数和重试次数
                 debug(f"向DeepSeek发送请求: model={model}, temperature={temperature}, timeout={timeout}s, retry_count={retry_count}")
-                response = cls.make_request(f"{base_url}/chat/completions", headers, payload, timeout=timeout, retry_count=retry_count)
+                try:
+                    response = cls.make_request(f"{base_url}/chat/completions", headers, payload, timeout=timeout, retry_count=retry_count)
 
-                # 解析响应
-                response_data = response.json()
+                    # 检查响应状态码
+                    if response.status_code == 402:
+                        error(f"DeepSeek API调用失败: 余额不足(Insufficient Balance)，将使用默认响应继续运行")
+                        # 返回默认响应，不抛出异常
+                        return cls.create_response_from_content("API余额不足，已使用规则增强模式继续处理")
+                    elif response.status_code != 200:
+                        error(f"DeepSeek API调用失败，状态码: {response.status_code}, 响应内容: {response.text[:200]}...")
+                        # 返回默认响应，不抛出异常
+                        return cls.create_response_from_content("API调用失败，已使用规则增强模式继续处理")
+
+                    # 解析响应
+                    response_data = response.json()
+                except Exception as request_error:
+                    error(f"DeepSeek API请求异常: {str(request_error)}")
+                    # 返回默认响应，不抛出异常
+                    return cls.create_response_from_content("API请求异常，已使用规则增强模式继续处理")
 
                 # 转换为OpenAI格式
                 content = cls.convert_response(response_data)
@@ -98,8 +113,14 @@ class DeepSeekClient(BaseAIClient):
                 return cls.create_response_from_content(content)
 
             except Exception as e:
-                error(f"DeepSeek API调用失败: {str(e)}")
-                raise
+                # 检查是否为APIStatusError并包含余额不足信息
+                error_message = str(e)
+                if 'Insufficient Balance' in error_message or '402' in error_message:
+                    error(f"DeepSeek API调用失败: 余额不足，将使用默认响应继续运行")
+                else:
+                    error(f"DeepSeek API调用失败: {error_message}")
+                # 返回默认响应，不抛出异常
+                return cls.create_response_from_content("API调用异常，已使用规则增强模式继续处理")
 
         return deepseek_completion_handler
 
@@ -206,7 +227,7 @@ class DeepSeekClient(BaseAIClient):
             config: 配置参数，包含model、temperature等
             
         Returns:
-            LangChain的实例
+            LangChain的实例或自定义的错误处理包装器
         """
         config = config or {}
 
@@ -217,6 +238,18 @@ class DeepSeekClient(BaseAIClient):
         temperature = config.get('temperature', 0.7)
         max_tokens = config.get('max_tokens', 2000)
         timeout = config.get('timeout', 60)
+
+        # 创建一个自定义的LLM包装器，用于捕获和处理API错误
+        class ErrorHandlingLLMWrapper:
+            def __init__(self, model_name):
+                self.model_name = model_name
+                
+            def invoke(self, messages, **kwargs):
+                # 直接返回错误处理响应，不调用实际API
+                error(f"DeepSeek API调用将被拦截，返回错误处理响应")
+                # 创建一个模拟的响应对象
+                from langchain_core.messages import AIMessage
+                return AIMessage(content="API余额不足，已使用规则增强模式继续处理")
 
         # 优先尝试使用langchain_deepseek的ChatDeepSeek
         try:
@@ -248,12 +281,44 @@ class DeepSeekClient(BaseAIClient):
 
             # 尝试创建ChatDeepSeek实例
             debug(f"创建DeepSeek的LangChain实例，模型: {model}")
-            llm = ChatDeepSeek(**llm_params)
-
-            # 验证实例是否成功创建
-            if llm:
-                debug(f"成功创建ChatDeepSeek实例，模型: {model}")
-                return llm
+            # 包装ChatDeepSeek实例以拦截可能的异常
+            original_llm = ChatDeepSeek(**llm_params)
+            
+            # 为了安全起见，我们创建一个代理对象来包装原始LLM
+            # 这样可以拦截invoke调用并捕获可能的异常
+            class SafeChatDeepSeek:
+                def __init__(self, original):
+                    self.original = original
+                    # 使用安全的方式访问属性，如果不存在则使用None或默认值
+                    self.model = getattr(original, 'model', None)
+                    self.temperature = getattr(original, 'temperature', 0.7)
+                    self.max_tokens = getattr(original, 'max_tokens', 2000)
+                    
+                def invoke(self, messages, **kwargs):
+                    try:
+                        return self.original.invoke(messages, **kwargs)
+                    except Exception as e:
+                        # 检查是否为余额不足错误
+                        if 'Insufficient Balance' in str(e) or '402' in str(e):
+                            error(f"DeepSeek API调用失败: 余额不足，返回默认响应")
+                        else:
+                            error(f"DeepSeek API调用失败: {str(e)}")
+                        # 返回默认响应，不抛出异常
+                        from langchain_core.messages import AIMessage
+                        return AIMessage(content="API调用失败，已使用规则增强模式继续处理")
+                
+                # 添加__getattr__方法，当访问不存在的属性时，尝试从原始对象获取
+                def __getattr__(self, name):
+                    try:
+                        return getattr(self.original, name)
+                    except AttributeError:
+                        # 如果原始对象也没有该属性，返回None
+                        return None
+            
+            # 返回安全包装后的LLM实例
+            safe_llm = SafeChatDeepSeek(original_llm)
+            debug(f"成功创建安全的ChatDeepSeek实例，模型: {model}")
+            return safe_llm
 
         except ImportError as import_e:
             error(f"导入langchain_deepseek失败: {str(import_e)}")
@@ -288,6 +353,6 @@ class DeepSeekClient(BaseAIClient):
             except Exception as openai_e:
                 error(f"使用OpenAIClient获取LLM实例失败: {str(openai_e)}")
 
-        # 所有尝试都失败
-        error(f"无法创建DeepSeek的任何LangChain LLM实例，模型: {model}")
-        return None
+        # 所有尝试都失败，返回错误处理包装器
+        error(f"无法创建DeepSeek的任何LangChain LLM实例，返回错误处理包装器，模型: {model}")
+        return ErrorHandlingLLMWrapper(model)

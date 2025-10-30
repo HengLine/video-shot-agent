@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 langchain==0.3.27
-langchain_core==0.3.79
+langchain-core==0.3.79
 langchain-community==0.3.31
 dashscope==1.23.9
 langgraph==0.6.11
@@ -9,7 +9,7 @@ langgraph==0.6.11
 # langchain-openai
 # langchain-wenxin
 langchain-deepseek
-# langchain-ollama
+langchain-ollama
 llama-index-core==0.13.6
 llama-index-embeddings-openai
 llama-index-embeddings-huggingface

@@ -7,7 +7,8 @@
 """
 
 from typing import Dict, Any, Optional, Callable
-from langchain_community.llms import Ollama
+# from langchain_community.llms import Ollama
+from langchain_ollama import OllamaLLM
 from langchain_core.callbacks import CallbackManager
 from hengline.client.openai_client import OpenAIClient
 from hengline.client.base_client import BaseAIClient
@@ -251,18 +252,39 @@ class OllamaClient(BaseAIClient):
             # 添加其他可能的参数
             if max_tokens != 2000:
                 llm_params['max_tokens'] = max_tokens
+            else:
+                llm_params['max_tokens'] = 2000
             
             # 添加其他可能的Ollama特定参数
             if config.get('keep_alive') is not None:
                 llm_params['keep_alive'] = config.get('keep_alive')
+            else:
+                llm_params['keep_alive'] = -1
             
+            # 最大生成长度
             if config.get('num_predict') is not None:
                 llm_params['num_predict'] = config.get('num_predict')
-            
+            else:
+                llm_params['num_predict'] = 2048
+
+            # 采样参数
+            if config.get('top_k') is not None:
+                llm_params['top_k'] = config.get('top_k')
+            else:
+                llm_params['top_k'] = 40
+                
+            # 核采样参数
+            if config.get('top_p') is not None:
+                llm_params['top_p'] = config.get('top_p')
+            else:
+                llm_params['top_p'] = 0.9
+
             # 创建Ollama实例
             debug(f"创建Ollama的LangChain实例，模型: {model}")
-            llm = Ollama(**llm_params)
-            
+            # llm = Ollama(**llm_params)
+            # 使用新的 OllamaLLM 类
+            llm = OllamaLLM(**llm_params)
+
             # 验证实例是否成功创建
             if llm:
                 debug(f"成功创建Ollama实例，模型: {model}")
