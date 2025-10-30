@@ -7,7 +7,8 @@
 from typing import Dict, Any, Optional
 
 from hengline.agent import MultiAgentPipeline
-from hengline.logger import warning, info
+from hengline.logger import warning, info, error
+from utils.log_utils import print_log_exception
 
 
 # 对外暴露的主函数
@@ -57,7 +58,8 @@ def generate_storyboard(
         if not llm:
             warning(f"AI模型初始化失败（未能获取 {provider} 的LLM实例），系统将自动使用规则引擎模式继续工作")
     except Exception as e:
-        warning(f"AI模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
+        print_log_exception()
+        error(f"AI模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
 
     # 创建并运行多智能体管道
     pipeline = MultiAgentPipeline(llm=llm)

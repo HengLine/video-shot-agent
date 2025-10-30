@@ -233,7 +233,7 @@ class OllamaClient(BaseAIClient):
         base_url = config.get('base_url', cls.DEFAULT_BASE_URL)
         model = config.get('default_model', config.get('model', cls.DEFAULT_MODEL))
         temperature = config.get('temperature', 0.7)
-        timeout = config.get('timeout', 60)
+        timeout = config.get('timeout', 180)
         max_tokens = config.get('max_tokens', 2000)
         
         # 优先尝试使用langchain_ollama的ChatOllama
@@ -245,15 +245,19 @@ class OllamaClient(BaseAIClient):
                 'model': model,
                 'temperature': temperature,
                 'base_url': base_url,
-                'timeout': timeout,
+                'timeout': timeout * 2,
+                'repeat_penalty': 1.1,        # 重复惩罚
+                'format': 'json',           # 关键参数：强制返回 JSON
+                # 'num_ctx': 2048,              # 上下文长度，根据模型调整
+                'num_thread': 4,              # 线程数，根据CPU核心数调整
+                'stream': False,               # 非流式，一次性返回
+                # 'stop': ["\n\n", "。", "！", "？"],  # 停止词，避免无限生成
                 'callbacks': CallbackManager([])
             }
             
             # 添加其他可能的参数
             if max_tokens != 2000:
                 llm_params['max_tokens'] = max_tokens
-            else:
-                llm_params['max_tokens'] = 2000
             
             # 添加其他可能的Ollama特定参数
             if config.get('keep_alive') is not None:
@@ -264,14 +268,12 @@ class OllamaClient(BaseAIClient):
             # 最大生成长度
             if config.get('num_predict') is not None:
                 llm_params['num_predict'] = config.get('num_predict')
-            else:
-                llm_params['num_predict'] = 2048
 
             # 采样参数
             if config.get('top_k') is not None:
                 llm_params['top_k'] = config.get('top_k')
             else:
-                llm_params['top_k'] = 40
+                llm_params['top_k'] = 20
                 
             # 核采样参数
             if config.get('top_p') is not None:

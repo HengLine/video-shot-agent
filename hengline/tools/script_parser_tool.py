@@ -297,7 +297,7 @@ class ScriptParser:
                     if character_name in self.characters and scene.heading not in self.characters[character_name].scenes:
                         self.characters[character_name].scenes.append(scene.heading)
 
-            debug(f"剧本解析完成: {len(self.scenes)}个场景, {len(self.characters)}个角色, {len(self.elements)}个元素")
+            info(f"剧本解析完成: {len(self.scenes)}个场景, {len(self.characters)}个角色, {len(self.elements)}个元素")
 
             return {
                 "scenes": [asdict(scene) for scene in self.scenes],

@@ -169,7 +169,7 @@ class TemporalPlannerAgent:
         
         # 确保不小于最小动作时长
         duration = max(duration, self.config.min_action_duration)
-        debug(f"使用ActionDurationEstimator估算动作时长: {duration:.2f}s")
+        debug(f"使用ActionDurationEstimator估算{action_text}动作时长: {duration:.2f}s")
         return duration
     
     # 以下方法已被ActionDurationEstimator替代
