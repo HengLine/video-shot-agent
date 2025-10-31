@@ -98,6 +98,9 @@ class ScriptParserConfig:
                     }
                 
                 self.scene_types[scene_type] = merged_config
+        
+        # 初始化所有默认配置项
+        self.initialize_default_configs()
     
     def get_scene_type(self, text: str) -> Optional[str]:
         """根据文本内容识别场景类型
@@ -115,15 +118,57 @@ class ScriptParserConfig:
         return None
     
     def get_scene_config(self, scene_type: str) -> Dict[str, Any]:
-        """获取指定场景类型的配置
+        """
+        获取特定场景类型的配置
         
         Args:
-            scene_type: 场景类型
+            scene_type: 场景类型名称
             
         Returns:
             场景配置字典
         """
         return self.scene_types.get(scene_type, {})
+        
+    def get(self, key: str, default: Any = None) -> Any:
+        """
+        获取配置项，支持从主配置中获取通用配置项
+        
+        Args:
+            key: 配置项键名
+            default: 默认值
+            
+        Returns:
+            配置值或默认值
+        """
+        return self._config.get(key, default)
+        
+    def initialize_default_configs(self):
+        """
+        初始化默认配置，确保所有必要的通用配置项都有合理的默认值
+        """
+        # 设置默认位置和时间
+        if 'default_location' not in self._config:
+            self._config['default_location'] = '室内'
+        
+        if 'default_time' not in self._config:
+            self._config['default_time'] = '白天'
+        
+        # 设置默认服装关键词映射
+        if 'clothing_keyword_mappings' not in self._config:
+            self._config['clothing_keyword_mappings'] = {
+                '毛衣': '穿着毛衣',
+                '外套': '穿着外套',
+                '睡衣': '穿着睡衣'
+            }
+        
+        # 设置默认状态特征映射
+        if 'state_keyword_mappings' not in self._config:
+            self._config['state_keyword_mappings'] = {
+                '疲惫': '神情疲惫',
+                '紧张': '神情紧张',
+                '开心': '面带微笑',
+                '微笑': '面带微笑'
+            }
     
     def load_yaml_config(self, config_filename: str = 'script_parser_config.yaml') -> Dict[str, Any]:
         """加载YAML配置文件的公共方法
@@ -225,18 +270,18 @@ class ScriptParserConfig:
         "phone": {
             "identifiers": ["电话", "手机", "接听", "来电", "通话", "拨号"],
             "action_patterns": [
-                {"pattern": "(?:裹着|披着).*?靠在沙发上", "action_text": "{0}靠在沙发上", "emotion": "平静", "state_features": "身体放松，靠在沙发背上，目光柔和"},
-                {"pattern": "手机震动|手机.*?震动|震动", "action_text": "手机震动", "emotion": "警觉", "state_features": "目光转向手机，身体微微前倾，手指轻触沙发扶手"},
-                {"pattern": "犹豫.*?拿起手机", "action_text": "犹豫着伸手拿起手机", "emotion": "犹豫+警觉", "state_features": "下唇轻咬，手指无意识地摩挲手机边缘，目光闪烁不定"},
-                {"pattern": "查看屏幕|看手机屏幕", "action_text": "低头查看屏幕", "emotion": "犹豫+警觉", "state_features": "手指微微颤抖，目光在手机和周围环境间游移"},
-                {"pattern": "按下接听键|接起电话|接听电话", "action_text": "接起电话，将手机贴在耳边", "emotion": "警觉", "state_features": "手指微微颤抖，耳朵贴近手机，呼吸变得轻缓"},
-                {"pattern": "轻声问.*?|.*?轻声说", "action_text": "轻声问：'{1}'", "emotion": "试探+紧张", "state_features": "手指收紧，声音轻微颤抖，身体微微前倾"},
-                {"pattern": "对方.*?说|对方表示", "action_text": "听到对方说：'{1}'", "emotion": "震惊", "state_features": "瞳孔骤缩，指节泛白，肩膀微微抖动"},
-                {"pattern": "电话那头传来[^：:]*[：:][\'\"](.+?)[\'\"]", "action_text": "听到电话中传来：'\1'", "emotion": "震惊", "state_features": "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"},
-                {"pattern": "传来[^：:]*[：:][\'\"](.+?)[\'\"]", "action_text": "听到传来的声音：'\1'", "emotion": "震惊", "state_features": "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"},
-                {"pattern": "听到对方[^：:]*[：:][\'\"](.+?)[\'\"]|对方[^：:]*[：:][\'\"](.+?)[\'\"]", "action_text": "听到对方说：'{1}'", "emotion": "震惊", "state_features": "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"},
-                {"pattern": "攥紧手机|指节发白|猛地一颤|猛然僵直|震惊", "action_text": "身体猛然僵直", "emotion": "崩溃", "state_features": "瞳孔骤缩，指节泛白，肩膀剧烈抖动"},
-                {"pattern": "滑落|脱手|掉落", "action_text": "肩膀剧烈抖动，手中物品滑落", "emotion": "崩溃", "state_features": "双手本能撑住附近物体，指节因用力而泛白"},
+                {"pattern": "(?:裹着|披着).*?靠在沙发上", "description": "{0}靠在沙发上", "emotion": "平静", "state_features": "身体放松，靠在沙发背上，目光柔和"},
+                {"pattern": "手机震动|手机.*?震动|震动", "description": "手机震动", "emotion": "警觉", "state_features": "目光转向手机，身体微微前倾，手指轻触沙发扶手"},
+                {"pattern": "犹豫.*?拿起手机", "description": "犹豫着伸手拿起手机", "emotion": "犹豫+警觉", "state_features": "下唇轻咬，手指无意识地摩挲手机边缘，目光闪烁不定"},
+                {"pattern": "查看屏幕|看手机屏幕", "description": "低头查看屏幕", "emotion": "犹豫+警觉", "state_features": "手指微微颤抖，目光在手机和周围环境间游移"},
+                {"pattern": "按下接听键|接起电话|接听电话", "description": "接起电话，将手机贴在耳边", "emotion": "警觉", "state_features": "手指微微颤抖，耳朵贴近手机，呼吸变得轻缓"},
+                {"pattern": "轻声问.*?|.*?轻声说", "description": "轻声问：'{1}'", "emotion": "试探+紧张", "state_features": "手指收紧，声音轻微颤抖，身体微微前倾"},
+                {"pattern": "对方.*?说|对方表示", "description": "听到对方说：'{1}'", "emotion": "震惊", "state_features": "瞳孔骤缩，指节泛白，肩膀微微抖动"},
+                {"pattern": "电话那头传来[^：:]*[：:][\'\"](.+?)[\'\"]", "description": "听到电话中传来：'\1'", "emotion": "震惊", "state_features": "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"},
+                {"pattern": "传来[^：:]*[：:][\'\"](.+?)[\'\"]", "description": "听到传来的声音：'\1'", "emotion": "震惊", "state_features": "身体瞬间僵直，手指关节因握力过猛而泛白，呼吸凝滞"},
+                {"pattern": "听到对方[^：:]*[：:][\'\"](.+?)[\'\"]|对方[^：:]*[：:][\'\"](.+?)[\'\"]", "description": "听到对方说：'{1}'", "emotion": "震惊", "state_features": "瞳孔骤然收缩，呼吸急促，手指紧紧攥住手机边缘"},
+                {"pattern": "攥紧手机|指节发白|猛地一颤|猛然僵直|震惊", "description": "身体猛然僵直", "emotion": "崩溃", "state_features": "瞳孔骤缩，指节泛白，肩膀剧烈抖动"},
+                {"pattern": "滑落|脱手|掉落", "description": "肩膀剧烈抖动，手中物品滑落", "emotion": "崩溃", "state_features": "双手本能撑住附近物体，指节因用力而泛白"},
             ],
             "action_order_weights": {
                 "手机震动": 1,
@@ -249,8 +294,8 @@ class ScriptParserConfig:
                 "肩膀剧烈抖动，手中物品滑落": 8,
             },
             "default_actions": [
-                {"priority": 50, "action_text": "身体微微颤抖，表情变得紧张", "emotion": "紧张", "state_features": "手指微微颤抖，呼吸变得急促"},
-                {"priority": 100, "action_text": "对方挂断电话，留下一片寂静", "emotion": "失落", "state_features": "目光呆滞，手机慢慢从耳边移开"},
+                {"priority": 50, "description": "身体微微颤抖，表情变得紧张", "emotion": "紧张", "state_features": "手指微微颤抖，呼吸变得急促"},
+                {"priority": 100, "description": "对方挂断电话，留下一片寂静", "emotion": "失落", "state_features": "目光呆滞，手机慢慢从耳边移开"},
             ],
             "dialogue_processing": {
                 "dialogue_templates": {
@@ -268,15 +313,15 @@ class ScriptParserConfig:
         "meeting": {
             "identifiers": ["会议", "讨论", "商谈", "谈判", "汇报"],
             "action_patterns": [
-                {"pattern": "走进会议室|进入会议室", "action_text": "走进会议室，环顾四周", "emotion": "平静+专注", "state_features": "步伐沉稳，目光扫视会议室，双手自然下垂"},
-                {"pattern": "坐下|就座", "action_text": "在会议桌前坐下", "emotion": "专注", "state_features": "背部挺直，双手放在桌上，目光正视前方"},
+                {"pattern": "走进会议室|进入会议室", "description": "走进会议室，环顾四周", "emotion": "平静+专注", "state_features": "步伐沉稳，目光扫视会议室，双手自然下垂"},
+                {"pattern": "坐下|就座", "description": "在会议桌前坐下", "emotion": "专注", "state_features": "背部挺直，双手放在桌上，目光正视前方"},
             ],
             "action_order_weights": {
                 "走进会议室，环顾四周": 1,
                 "在会议桌前坐下": 2,
             },
             "default_actions": [
-                {"priority": 50, "action_text": "认真聆听对方发言", "emotion": "专注", "state_features": "身体微微前倾，目光专注，偶尔点头"},
+                {"priority": 50, "description": "认真聆听对方发言", "emotion": "专注", "state_features": "身体微微前倾，目光专注，偶尔点头"},
             ],
             "dialogue_processing": {
                 "dialogue_templates": {
@@ -489,7 +534,7 @@ class ScriptParserConfig:
         Returns:
             包含所有解析模式和关键词的字典
         """
-        # 创建临时实例来访问property属性
+        # 获取全局配置实例
         temp_instance = script_parser_config
         
         # 默认配置
@@ -512,16 +557,17 @@ class ScriptParserConfig:
         # 尝试从配置文件加载
         config_data = default_config.copy()
         try:
+            # 首先尝试加载YAML配置
             if config_path:
-                # 使用load_yaml_config方法加载指定路径的配置文件
                 import os
-                # 从文件路径中提取文件名
                 config_filename = os.path.basename(config_path)
-                # 使用实例方法加载配置
                 loaded_config = temp_instance.load_yaml_config(config_filename)
             else:
-                # 使用默认配置文件
                 loaded_config = temp_instance._get_cached_config()
+            
+            # 重要：将加载的配置应用到实例中
+            if loaded_config and isinstance(loaded_config, dict):
+                temp_instance.load_config(loaded_config)
                 
             # 确保loaded_config不为None
             if loaded_config is not None and isinstance(loaded_config, dict):
