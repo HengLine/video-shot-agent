@@ -38,7 +38,7 @@ class ShotGeneratorAgent:
         # 定义YAML文件路径
         yaml_file_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            'prompts', 'shot_generator.yaml'
+            'prompts', 'shot_generator_prompt.yaml'
         )
 
         try:
@@ -57,7 +57,7 @@ class ShotGeneratorAgent:
             self.shot_generation_template = ChatPromptTemplate.from_template(template_content)
 
         except Exception as e:
-            debug(f"无法加载提示词YAML文件，使用默认模板: {e}")
+            warning(f"无法加载提示词YAML文件，使用默认模板: {e}")
             # 使用PromptManager获取提示词
             self.prompt_manager = PromptManager(prompt_dir=Path(__file__).parent.parent)
 
