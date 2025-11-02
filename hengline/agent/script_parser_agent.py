@@ -13,10 +13,10 @@ from typing import Dict, List, Any, Optional
 import jieba
 
 from hengline.logger import debug, error, warning, info
-from hengline.tools.result_storage_tool import create_result_storage
 from hengline.tools.script_intelligence_tool import create_script_intelligence
 from hengline.tools.script_parser_tool import ScriptParser
 from hengline.config.script_parser_config import script_parser_config
+from config.config import get_embedding_config
 from utils.log_utils import print_log_exception
 
 
@@ -25,7 +25,6 @@ class ScriptParserAgent:
 
     def __init__(self,
                  llm=None,
-                 embedding_model_name: str = "openai",
                  storage_dir: Optional[str] = None,
                  config_path: Optional[str] = None,
                  output_dir: Optional[str] = None,
@@ -35,14 +34,12 @@ class ScriptParserAgent:
         
         Args:
             llm: 语言模型实例（推荐GPT-4o）
-            embedding_model_name: 嵌入模型名称
             storage_dir: 知识库存储目录
             config_path: 配置文件路径，如果为None则使用默认路径
             output_dir: 结果输出目录
             default_character_name: 默认角色名
         """
         self.llm = llm
-        self.embedding_model_name = embedding_model_name
         self.storage_dir = storage_dir
         self.output_dir = output_dir
         self.default_character_name = default_character_name
@@ -53,21 +50,21 @@ class ScriptParserAgent:
         # 初始化基础解析器
         self.script_parser = ScriptParser()
 
+        # 从config获取嵌入模型配置
+        self.embedding_config = get_embedding_config()
+
         # 初始化智能分析工具
         try:
             self.script_intel = create_script_intelligence(
-                embedding_model_name=embedding_model_name,
+                embedding_model_type=self.embedding_config["provider"],
+                embedding_model_name=self.embedding_config["model"],
+                embedding_model_config=self.embedding_config,
                 storage_dir=storage_dir
             )
             debug("成功初始化ScriptIntelligence工具")
         except Exception as e:
             warning(f"初始化ScriptIntelligence失败，但将继续使用基础功能: {str(e)}")
             self.script_intel = None
-
-        # 延迟导入以避免循环导入
-        from config.config import get_data_output_path
-        # 初始化结果存储工具
-        self.result_storage = create_result_storage(output_dir or get_data_output_path())
 
         # 设置配置属性
         self.config = script_parser_config
@@ -86,8 +83,80 @@ class ScriptParserAgent:
         # 保存场景类型配置
         self.scene_types = patterns.get("scene_types", {})
 
-    # initialize_patterns方法已移至ScriptParserConfig类中
-
+    def _parse_with_llm(self, script_text: str) -> Optional[Dict[str, Any]]:
+        """
+        使用LLM直接解析剧本
+        
+        Args:
+            script_text: 原始剧本文本
+            
+        Returns:
+            解析结果或None
+        """
+        try:
+            from hengline.prompts.prompts_manager import PromptManager
+            prompt_manager = PromptManager()
+            parser_prompt = prompt_manager.get_prompt('script_parser')
+            
+            # 调用LLM进行直接解析
+            llm_result = self.llm.invoke(parser_prompt.format(script_text=script_text))
+            debug(f"LLM直接解析结果:\n {llm_result}")
+            
+            # 解析LLM响应
+            from hengline.tools import parse_json_response
+            parsed_result = parse_json_response(llm_result)
+            
+            # LLM解析结果通常已经比较完整，只需要少量优化
+            if parsed_result and parsed_result.get("scenes"):
+                debug("LLM解析成功，应用最小化优化")
+                # 对LLM结果应用轻量级优化
+                for scene in parsed_result["scenes"]:
+                    # 确保必要字段存在
+                    if "atmosphere" not in scene:
+                        scene["atmosphere"] = self._infer_atmosphere(scene)
+                    if "characters" not in scene:
+                        scene["characters"] = []
+                    # 对动作进行基本排序优化
+                    if "actions" in scene:
+                        scene["actions"] = self._reorder_actions_for_logic(scene["actions"])
+                return parsed_result
+            return None
+        except Exception as e:
+            print_log_exception()
+            error(f"使用LLM直接解析失败: {str(e)}")
+            return None
+    
+    def _parse_with_local_tool(self, script_text: str) -> Optional[Dict[str, Any]]:
+        """
+        使用本地ScriptIntelligence工具解析剧本
+        
+        Args:
+            script_text: 原始剧本文本
+            
+        Returns:
+            解析结果或None
+        """
+        try:
+            if not self.script_intel:
+                warning("ScriptIntelligence工具未初始化")
+                return None
+            
+            debug("使用ScriptIntelligence进行本地解析")
+            intel_result = self.script_intel.analyze_script_text(script_text)
+            parsed = intel_result.get("parsed_result", {})
+            
+            if parsed and parsed.get("scenes"):
+                debug("本地解析成功，应用完整优化流程")
+                # 对本地解析结果应用完整的增强和格式转换
+                enhanced_result = self.enhance_with_llm(parsed)
+                final_result = self._convert_to_target_format(enhanced_result)
+                return final_result
+            return None
+        except Exception as e:
+            print_log_exception()
+            warning(f"ScriptIntelligence解析失败: {str(e)}")
+            return None
+    
     def parse_script(self, script_text: str, task_id: Optional[str] = None) -> Dict[str, Any]:
         """
         优化版剧本解析函数
@@ -104,187 +173,155 @@ class ScriptParserAgent:
 
         try:
             # 初始化结果结构
-            result = {
-                "scenes": []
-            }
+            result = {"scenes": []}
+            final_result = None
             
-            # 尝试使用LLM直接解析剧本（如果配置了LLM）
+            # 1. 优先尝试LLM解析（如果配置了）
             if self.llm:
-                try:
-                    from hengline.prompts.prompts_manager import PromptManager
-                    prompt_manager = PromptManager()
-                    parser_prompt = prompt_manager.get_prompt('script_parser')
-                    # debug(f"成功从PromptManager获取剧本解析提示词模板: {parser_prompt}")
-                    
-                    # 调用LLM进行直接解析
-                    llm_result = self.llm.invoke(parser_prompt.format(script_text=script_text))
-                    debug(f"LLM直接解析结果:\n {llm_result}")
-                    # 直接使用LLM解析结果
-                    try:
-                        from hengline.tools import parse_json_response
-                        parsed_result = parse_json_response(llm_result)
-                        if parsed_result and parsed_result.get("scenes"):
-                            result = parsed_result
-                        else:
-                            result = llm_result
-
-                    except Exception as e:
-                        print_log_exception()
-                        error(f"解析LLM响应失败: {str(e)}")
-                except Exception as e:
-                    print_log_exception()
-                    error(f"使用LLM直接解析失败: {str(e)}")
+                llm_result = self._parse_with_llm(script_text)
+                if llm_result:
+                    debug("使用LLM解析结果作为最终输出")
+                    final_result = llm_result
             
-            # 如果LLM解析失败或未配置，尝试使用高级解析器
-            if not result.get("scenes") and self.script_intel:
-                try:
-                    debug("尝试使用高级解析器")
-                    intel_result = self.script_intel.analyze_script_text(script_text)
-                    parsed = intel_result.get("parsed_result", {})
-                    if parsed and parsed.get("scenes"):
-                        debug("使用ScriptIntelligence解析成功")
-                        result = parsed
-                        
-                        # 即使高级解析成功，也应用增强和格式转换
-                        enhanced_result = self.enhance_with_llm(result)
-                        final_result = self._convert_to_target_format(enhanced_result)
-                        debug(f"剧本解析完成，提取了 {len(final_result['scenes'])} 个场景")
-                        return final_result
-                except Exception as e:
-                    warning(f"ScriptIntelligence解析失败，回退到基础解析: {str(e)}")
-
-            # 优先级2: 特殊场景处理
-            scene_type = self._identify_scene_type(script_text)
-            if scene_type:
-                debug(f"检测到{scene_type}场景，使用特殊解析方法")
-                # 获取该场景类型的配置
-                scene_config = self.config.get_scene_config(scene_type)
-                # 使用通用场景解析方法
-                scenes = self._parse_specific_scenario(script_text, scene_type, scene_config)
-                
-                # 确保scenes是列表格式并过滤
-                if not isinstance(scenes, list):
-                    scenes = [scenes]
-                
-                valid_scenes = [scene for scene in scenes if isinstance(scene, dict)]
-                result["scenes"] = valid_scenes
-            else:
-                scenes = []
-                
-                # 确保scenes是列表格式
-                if not isinstance(scenes, list):
-                    scenes = [scenes]
-                
-                # 过滤并丰富场景信息
-                valid_scenes = []
-                for scene in scenes:
-                    if isinstance(scene, dict):
-                        # 确保结果包含必要的字段
-                        if "location" not in scene:
-                            scene["location"] = self.config.get('default_location', '室内')
-                        # 丰富场景氛围描述，从场景内容动态推断
-                        if "atmosphere" not in scene:
-                            scene["atmosphere"] = self._infer_atmosphere(scene)
-                        # 确保有characters字段
-                        if "characters" not in scene:
-                            # 从动作文本中提取角色信息
-                            all_action_text = " ".join([action.get("action", "") for action in scene.get("actions", [])])
-                            
-                            # 初始化基本外观信息
-                            appearance = {
-                                "age": "未知",
-                                "gender": "未知",
-                                "clothing": "普通服装",
-                                "hair": "普通发型",
-                                "base_features": "普通外貌"
-                            }
-                            
-                            # 根据动作文本动态推断服装和状态特征
-                            # 使用配置中的映射规则或默认逻辑
-                            clothing_mappings = self.config.get('clothing_keyword_mappings', {
-                                '毛衣': '穿着毛衣',
-                                '外套': '穿着外套', 
-                                '睡衣': '穿着睡衣'
-                            })
-                            
-                            for keyword, clothing_desc in clothing_mappings.items():
-                                if keyword in all_action_text:
-                                    appearance["clothing"] = clothing_desc
-                                    break
-                            
-                            # 状态特征映射
-                            state_mappings = self.config.get('state_keyword_mappings', {
-                                '疲惫': '神情疲惫',
-                                '紧张': '神情紧张',
-                                '开心': '面带微笑',
-                                '微笑': '面带微笑'
-                            })
-                            
-                            for keyword, state_desc in state_mappings.items():
-                                if keyword in all_action_text:
-                                    appearance["base_features"] = state_desc
-                                    break
-                            
-                            scene["characters"] = [
-                                {
-                                    "name": self.default_character_name,
-                                    "appearance": appearance
-                                }
-                            ]
-                        valid_scenes.append(scene)
-                
-                result["scenes"] = valid_scenes
+            # 2. 如果LLM解析失败或未配置，使用本地解析器
+            if final_result is None:
+                local_result = self._parse_with_local_tool(script_text)
+                if local_result:
+                    debug("使用本地解析结果作为最终输出")
+                    final_result = local_result
             
-            # 优先级4: 基础解析逻辑（如果前面的方法没有产生足够的场景）
-            if not result["scenes"]:
-                debug("使用基础解析 + 增强逻辑")
-                
-                # 1. 首先检测是否有明确的场景划分
-                scenes_data = self._detect_scenes(script_text)
-                
-                # 2. 处理每个场景
-                for scene_info in scenes_data:
-                    scene_actions = self._parse_scene_actions(scene_info["content"])
-                    scene_entry = {
-                        "location": scene_info["location"],
-                        "time_of_day": scene_info["time_of_day"],
-                        "actions": scene_actions
-                    }
-                    result["scenes"].append(scene_entry)
-                
-                # 3. 如果仍然没有检测到场景，使用默认场景并解析整个文本
-                if not result["scenes"]:
-                    default_actions = self._parse_scene_actions(script_text)
-                    result["scenes"].append({
-                        "location": self.config.get('default_location', '室内'),  # 默认位置
-                        "time_of_day": self.config.get('default_time', '白天'),  # 默认时间
-                        "actions": default_actions
-                    })
+            # 3. 回退到基础解析方法
+            if final_result is None:
+                debug("所有解析方法失败，回退到基础解析")
+                self._apply_fallback_parsing(script_text, result)
+                final_result = self._ensure_correct_format(result)
+                debug(f"基础解析完成，提取了 {len(final_result.get('scenes', []))} 个场景")
             
-            # 对所有解析结果应用LLM增强
-            debug("应用LLM增强")
-            enhanced_result = self.enhance_with_llm(result)
+            # 4. 如果仍然没有场景，执行最后的兜底解析
+            if not final_result.get("scenes"):
+                debug("执行兜底解析逻辑")
+                self._apply_fallback_parsing(script_text, final_result)
             
-            # 应用格式转换，确保输出符合理想结构
-            final_result = self._convert_to_target_format(enhanced_result)
-            debug("剧本解析完成，结果将由工作流节点保存")
+            # 对所有解析结果应用LLM增强（如果配置了LLM）
+            if self.llm:
+                debug("应用LLM增强")
+                enhanced_result = self.enhance_with_llm(final_result)
+                final_result = self._convert_to_target_format(enhanced_result)
             
-            debug(f"剧本解析完成，提取了 {len(final_result['scenes'])} 个场景")
+            debug(f"剧本解析完成，提取了 {len(final_result.get('scenes', []))} 个场景")
             return final_result
 
         except Exception as e:
             print_log_exception()
             error(f"剧本解析失败: {str(e)}")
-            # 返回默认结构
-            return {
-                "scenes": [{
-                    "location": "未知",
-                    "time_of_day": "未知",
-                    "atmosphere": "未知",
-                    "characters": [],
-                    "actions": []
-                }]
+            # 返回最小化的结果结构
+            return {"scenes": []}
+    
+    def _apply_fallback_parsing(self, script_text: str, result: Dict[str, Any]) -> None:
+        """
+        应用回退解析策略
+        
+        Args:
+            script_text: 原始剧本文本
+            result: 结果字典，将被修改
+        """
+        # 1. 尝试识别场景类型
+        scene_type = self._identify_scene_type(script_text)
+        if scene_type:
+            debug(f"检测到{scene_type}场景，使用特殊解析方法")
+            scene_config = self.config.get_scene_config(scene_type)
+            scenes = self._parse_specific_scenario(script_text, scene_type, scene_config)
+            
+            # 确保scenes是列表格式并过滤
+            if not isinstance(scenes, list):
+                scenes = [scenes]
+            valid_scenes = [scene for scene in scenes if isinstance(scene, dict)]
+            result["scenes"] = valid_scenes
+        
+        # 2. 如果没有场景，尝试检测场景划分
+        if not result["scenes"]:
+            debug("使用基础解析 + 场景检测")
+            scenes_data = self._detect_scenes(script_text)
+            
+            for scene_info in scenes_data:
+                scene_actions = self._parse_scene_actions(scene_info["content"])
+                scene_entry = {
+                    "location": scene_info["location"],
+                    "time_of_day": scene_info["time_of_day"],
+                    "actions": scene_actions
+                }
+                # 丰富场景信息
+                self._enrich_scene_info(scene_entry)
+                result["scenes"].append(scene_entry)
+        
+        # 3. 如果仍然没有检测到场景，使用默认场景
+        if not result["scenes"]:
+            debug("使用默认场景解析")
+            default_actions = self._parse_scene_actions(script_text)
+            default_scene = {
+                "location": self.config.get('default_location', '室内'),
+                "time_of_day": self.config.get('default_time', '白天'),
+                "actions": default_actions
             }
+            # 丰富场景信息
+            self._enrich_scene_info(default_scene)
+            result["scenes"].append(default_scene)
+    
+    def _enrich_scene_info(self, scene: Dict[str, Any]) -> None:
+        """
+        丰富场景信息
+        
+        Args:
+            scene: 场景字典，将被修改
+        """
+        # 确保必要字段存在
+        if "atmosphere" not in scene:
+            scene["atmosphere"] = self._infer_atmosphere(scene)
+        
+        if "characters" not in scene:
+            # 初始化角色信息
+            appearance = {
+                "age": "未知",
+                "gender": "未知",
+                "clothing": "普通服装",
+                "hair": "普通发型",
+                "base_features": "普通外貌"
+            }
+            
+            # 尝试从动作文本中提取更多信息
+            all_action_text = " ".join([action.get("action", "") for action in scene.get("actions", [])])
+            
+            # 服装信息映射
+            clothing_mappings = self.config.get('clothing_keyword_mappings', {
+                '毛衣': '穿着毛衣',
+                '外套': '穿着外套',
+                '睡衣': '穿着睡衣'
+            })
+            
+            for keyword, clothing_desc in clothing_mappings.items():
+                if keyword in all_action_text:
+                    appearance["clothing"] = clothing_desc
+                    break
+            
+            # 状态特征映射
+            state_mappings = self.config.get('state_keyword_mappings', {
+                '疲惫': '神情疲惫',
+                '紧张': '神情紧张',
+                '开心': '面带微笑',
+                '微笑': '面带微笑'
+            })
+            
+            for keyword, state_desc in state_mappings.items():
+                if keyword in all_action_text:
+                    appearance["base_features"] = state_desc
+                    break
+            
+            scene["characters"] = [
+                {
+                    "name": self.default_character_name,
+                    "appearance": appearance
+                }
+            ]
 
     def _detect_scenes(self, script_text: str) -> List[Dict[str, str]]:
         """
@@ -925,6 +962,7 @@ class ScriptParserAgent:
                     
                     # 判断是否是特定角色
                     is_specific_char = False
+                    specific_char_indicators = {}  # 定义空字典避免变量未定义错误
                     for char_name in specific_char_indicators.keys():
                         if potential_char == char_name:
                             character = char_name
@@ -1801,7 +1839,7 @@ class ScriptParserAgent:
             try:
                 from hengline.tools import parse_json_response
                 enhanced_script = parse_json_response(response)
-                debug("LLM增强成功，返回增强后的剧本结构")
+                debug(f"LLM增强成功，返回增强后的剧本结构: {enhanced_script}")
             except Exception as e:
                 # 记录错误并保持原有的异常处理流程
                 warning(f"JSON解析器处理失败: {str(e)}")

@@ -74,7 +74,89 @@ class ScriptParserConfig:
         """
         self._config = config_data.copy()
         
-        # 加载场景类型配置
+        # 处理新的配置结构 (parse_rules)
+        if "parse_rules" in config_data:
+            parse_rules = config_data["parse_rules"]
+            
+            # 处理场景识别规则
+            if "scene_recognition" in parse_rules:
+                scene_recog = parse_rules["scene_recognition"]
+                # 合并场景相关的模式
+                all_scene_patterns = []
+                if "start_patterns" in scene_recog:
+                    all_scene_patterns.extend(scene_recog["start_patterns"])
+                if "transition_patterns" in scene_recog:
+                    all_scene_patterns.extend(scene_recog["transition_patterns"])
+                if "end_patterns" in scene_recog:
+                    all_scene_patterns.extend(scene_recog["end_patterns"])
+                if all_scene_patterns:
+                    self._config["scene_patterns"] = all_scene_patterns
+            
+            # 处理角色识别规则
+            if "character_recognition" in parse_rules:
+                char_recog = parse_rules["character_recognition"]
+                if "name_patterns" in char_recog:
+                    # 将角色名提取模式作为对话模式的一部分
+                    self._config["dialogue_patterns"] = char_recog["name_patterns"]
+            
+            # 处理对话识别规则
+            if "dialogue_recognition" in parse_rules:
+                dial_recog = parse_rules["dialogue_recognition"]
+                all_dialogue_patterns = []
+                if "direct_patterns" in dial_recog:
+                    all_dialogue_patterns.extend(dial_recog["direct_patterns"])
+                if "indirect_patterns" in dial_recog:
+                    all_dialogue_patterns.extend(dial_recog["indirect_patterns"])
+                if all_dialogue_patterns:
+                    # 如果有角色名模式和对话模式，合并它们
+                    if "dialogue_patterns" in self._config:
+                        self._config["dialogue_patterns"].extend(all_dialogue_patterns)
+                    else:
+                        self._config["dialogue_patterns"] = all_dialogue_patterns
+            
+            # 处理情绪识别规则
+            if "emotion_recognition" in parse_rules and "keywords" in parse_rules["emotion_recognition"]:
+                emotion_keywords = parse_rules["emotion_recognition"]["keywords"]
+                # 转换为情绪关键词映射
+                emotion_map = {}
+                for emotion_type, words in emotion_keywords.items():
+                    if isinstance(words, list):
+                        emotion_map[emotion_type] = words
+                if emotion_map:
+                    self._config["emotion_keywords"] = emotion_map
+        
+        # 处理场景特殊规则
+        if "scene_special_rules" in config_data:
+            # 初始化场景特殊规则到手机场景配置
+            phone_action_patterns = []
+            for rule in config_data["scene_special_rules"]:
+                if "pattern" in rule and isinstance(rule, dict):
+                    phone_action_patterns.append({
+                        "pattern": rule["pattern"],
+                        "description": rule.get("description", ""),
+                        "emotion": rule.get("emotion", ""),
+                        "state_features": rule.get("state_features", "")
+                    })
+            
+            if phone_action_patterns:
+                # 创建或更新电话场景配置
+                if "scene_types" not in self._config:
+                    self._config["scene_types"] = {}
+                
+                self._config["scene_types"]["phone"] = {
+                    "identifiers": ["电话", "手机", "接听", "来电", "通话", "拨号"],
+                    "action_patterns": phone_action_patterns,
+                    "action_order_weights": {},
+                    "default_actions": [],
+                    "dialogue_processing": {
+                        "dialogue_templates": {
+                            "character_dialogue": "{character}：'{dialogue}'"
+                        },
+                        "emotion_patterns": []
+                    }
+                }
+        
+        # 加载场景类型配置 (兼容原有逻辑)
         if "scene_types" in config_data:
             self.scene_types = {}
             for scene_type, scene_config in config_data["scene_types"].items():
@@ -98,6 +180,13 @@ class ScriptParserConfig:
                     }
                 
                 self.scene_types[scene_type] = merged_config
+        
+        # 加载其他直接配置项
+        for key in ["scene_patterns", "dialogue_patterns", "action_emotion_map", 
+                   "time_keywords", "appearance_keywords", "location_keywords", 
+                   "emotion_keywords", "atmosphere_keywords"]:
+            if key in config_data:
+                self._config[key] = config_data[key]
         
         # 初始化所有默认配置项
         self.initialize_default_configs()
@@ -571,10 +660,93 @@ class ScriptParserConfig:
                 
             # 确保loaded_config不为None
             if loaded_config is not None and isinstance(loaded_config, dict):
-                # 合并直接的配置项，保留默认值作为回退
+                # 支持新的配置结构（嵌套结构）
+                if "parse_rules" in loaded_config:
+                    parse_rules = loaded_config["parse_rules"]
+                    
+                    # 提取场景识别规则
+                    if "scene_recognition" in parse_rules:
+                        scene_recog = parse_rules["scene_recognition"]
+                        # 合并场景相关的模式
+                        all_scene_patterns = []
+                        if "start_patterns" in scene_recog:
+                            all_scene_patterns.extend(scene_recog["start_patterns"])
+                        if "transition_patterns" in scene_recog:
+                            all_scene_patterns.extend(scene_recog["transition_patterns"])
+                        if "end_patterns" in scene_recog:
+                            all_scene_patterns.extend(scene_recog["end_patterns"])
+                        if all_scene_patterns:
+                            config_data["scene_patterns"] = all_scene_patterns
+                    
+                    # 提取角色识别规则
+                    if "character_recognition" in parse_rules:
+                        char_recog = parse_rules["character_recognition"]
+                        if "name_patterns" in char_recog:
+                            # 将角色名提取模式作为对话模式的一部分
+                            config_data["dialogue_patterns"] = char_recog["name_patterns"]
+                    
+                    # 提取对话识别规则
+                    if "dialogue_recognition" in parse_rules:
+                        dial_recog = parse_rules["dialogue_recognition"]
+                        all_dialogue_patterns = []
+                        if "direct_patterns" in dial_recog:
+                            all_dialogue_patterns.extend(dial_recog["direct_patterns"])
+                        if "indirect_patterns" in dial_recog:
+                            all_dialogue_patterns.extend(dial_recog["indirect_patterns"])
+                        if all_dialogue_patterns:
+                            # 如果有角色名模式和对话模式，合并它们
+                            if "dialogue_patterns" in config_data:
+                                config_data["dialogue_patterns"].extend(all_dialogue_patterns)
+                            else:
+                                config_data["dialogue_patterns"] = all_dialogue_patterns
+                    
+                    # 提取情绪识别规则
+                    if "emotion_recognition" in parse_rules and "keywords" in parse_rules["emotion_recognition"]:
+                        emotion_keywords = parse_rules["emotion_recognition"]["keywords"]
+                        # 转换为旧格式的情绪关键词映射
+                        emotion_map = {}
+                        for emotion_type, words in emotion_keywords.items():
+                            if isinstance(words, list):
+                                emotion_map[emotion_type] = words
+                        if emotion_map:
+                            config_data["emotion_keywords"] = emotion_map
+                
+                # 处理场景特殊规则（从新配置中提取电话场景相关配置）
+                phone_scenario_action_patterns = []
+                if "scene_special_rules" in loaded_config:
+                    for rule in loaded_config["scene_special_rules"]:
+                        if "pattern" in rule and isinstance(rule, dict):
+                            # 转换为手机场景动作模式格式
+                            phone_scenario_action_patterns.append({
+                                "pattern": rule["pattern"],
+                                "description": rule.get("description", ""),
+                                "emotion": rule.get("emotion", ""),
+                                "state_features": rule.get("state_features", "")
+                            })
+                
+                if phone_scenario_action_patterns:
+                    config_data["phone_scenario_action_patterns"] = phone_scenario_action_patterns
+                    
+                    # 为手机场景创建默认的scene_types配置
+                    if "scene_types" not in config_data:
+                        config_data["scene_types"] = {}
+                    config_data["scene_types"]["phone"] = {
+                        "identifiers": ["电话", "手机", "接听", "来电", "通话", "拨号"],
+                        "action_patterns": phone_scenario_action_patterns,
+                        "action_order_weights": {},
+                        "default_actions": [],
+                        "dialogue_processing": {
+                            "dialogue_templates": {
+                                "character_dialogue": "{character}：'{dialogue}'"
+                            },
+                            "emotion_patterns": []
+                        }
+                    }
+                
+                # 保留对旧配置结构的支持（向后兼容）
                 for key in ["scene_patterns", "dialogue_patterns", "action_emotion_map", 
                            "time_keywords", "appearance_keywords", "location_keywords", 
-                           "emotion_keywords", "atmosphere_keywords"]:
+                           "emotion_keywords", "atmosphere_keywords", "scene_types"]:
                     if key in loaded_config:
                         config_data[key] = loaded_config[key]
                 

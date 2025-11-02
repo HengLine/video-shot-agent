@@ -4,8 +4,8 @@
 @Author: HengLine
 @Time: 2025/10/23 11:19
 """
+import random
 from typing import Optional, Dict, Any, List
-import uuid
 from datetime import datetime
 
 from fastapi import APIRouter
@@ -25,12 +25,15 @@ class StoryboardRequest(BaseModel):
     分镜生成请求模型
     """
     script_text: str
+    # 分镜风格，可选值："realistic"（逼真）、"anime"（动漫）、"cinematic"（电影）、"cartoon"（卡通）
     style: str = "realistic"
+    # 每个分镜的持续时间（秒），默认5秒
     duration_per_shot: int = 5
+    # 前一个分镜的连续性状态，用于保持连续性
     prev_continuity_state: Optional[Dict[str, Any]] = None
     # 唯一请求ID，默认生成UUID
     # task_id: str = str(uuid.uuid4())
-    task_id: str = "hengline-" + str(datetime.now().strftime("%Y%m%d-%H%M%S"))
+    task_id: str = "hengline-" + str(datetime.now().strftime("%Y%m%d-%H%M%S-")) + str(random.randint(10, 99))
 
 
 # 定义响应模型

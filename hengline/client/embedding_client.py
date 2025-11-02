@@ -11,7 +11,7 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 
 from config.config import get_embedding_config
 from hengline.logger import debug, info, error
-
+from utils.log_utils import print_log_exception
 
 def get_embedding_model(
         model_type: Optional[str] = None,
@@ -125,10 +125,10 @@ def get_embedding_model(
             raise ValueError(f"不支持的嵌入模型类型: {model_type}")
 
     except Exception as e:
-        error(f"获取嵌入模型失败: {str(e)}")
+        print_log_exception()
+        error(f"获取嵌入模型失败: {str(e)}, 将尝试使用默认的OpenAI嵌入模型")
         # 如果出错，尝试返回默认的OpenAI嵌入模型
         try:
-            info("尝试使用默认的OpenAI嵌入模型")
             return OpenAIEmbedding(model="text-embedding-3-small")
         except Exception as default_error:
             error(f"默认模型初始化也失败: {str(default_error)}")

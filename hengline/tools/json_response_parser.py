@@ -51,7 +51,7 @@ class JsonResponseParser:
             result = json.loads(response_text)
             return result
         except json.JSONDecodeError:
-            warning("直接解析失败，尝试从Markdown代码块中提取JSON")
+            info("直接解析失败，尝试从Markdown代码块中提取JSON")
             # 尝试从Markdown代码块中提取JSON
             try:
                 result = JsonResponseParser._extract_from_markdown_codeblock(response_text)
@@ -66,7 +66,7 @@ class JsonResponseParser:
                     debug("成功清理后解析JSON响应")
                     return result
                 except json.JSONDecodeError:
-                    error("所有解析尝试都失败")
+                    error(f"所有Json解析尝试都失败: {cleaned_text}")
                     raise
     
     @staticmethod
