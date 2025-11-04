@@ -302,8 +302,8 @@ def get_settings_config() -> Dict[str, Any]:
     if debug_mode_env in ["true", "1", "yes"]:
         merged_config["app"]["debug"] = True
     
-    debug(f"✅ 配置加载完成，最终 Embedding 配置: {merged_config.get('embedding', {})}")
-    debug(f"✅ 配置加载完成，最终 LLM 配置: {merged_config.get('llm', {})}")
+    debug(f"配置加载完成，最终 Embedding 配置: {merged_config.get('embedding', {})}")
+    debug(f"配置加载完成，最终 LLM 配置: {merged_config.get('llm', {})}")
     _config_instance = merged_config
     return merged_config
 
