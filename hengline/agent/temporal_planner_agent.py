@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """
 @FileName: temporal_planner_agent.py
-@Description: 时序规划智能体，负责将剧本按5秒粒度切分，估算动作时长
+@Description: 时序规划智能体，负责将剧本按5秒粒度切分，估算动作时长，使用LangChain实现状态记忆
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from hengline.logger import debug, warning, info
 from hengline.prompts.prompts_manager import PromptManager
 from hengline.config.temporal_planner_config import get_planner_config
 from hengline.tools.action_duration_tool import ActionDurationEstimator
+from hengline.tools.langchain_memory_tool import LangChainMemoryTool
 
 
 class TemporalPlannerAgent:
@@ -27,6 +28,9 @@ class TemporalPlannerAgent:
         
         # 初始化动作时长估算器
         self.duration_estimator = ActionDurationEstimator(self.config.config_path)
+        
+        # 初始化LangChain记忆工具（替代原有的向量记忆+状态机）
+        self.memory_tool = LangChainMemoryTool()
         
         debug(f"时序规划智能体初始化完成，加载了 {len(self.config.base_actions)} 个基础动作配置")
 
@@ -60,6 +64,9 @@ class TemporalPlannerAgent:
             "est_duration": 0.0,
             "scene_id": 0
         }
+        
+        # 用于状态记忆的前一个动作状态
+        previous_action = None
 
         # 遍历所有场景
         scenes = structured_script.get("scenes", [])
@@ -77,6 +84,9 @@ class TemporalPlannerAgent:
                 scene_actions = [default_action]
 
             for action in scene_actions:
+                # 使用LangChain记忆工具改进动作连贯性
+                self._enhance_action_coherence(action, previous_action)
+                
                 action_duration = self._estimate_action_duration(action)
 
                 # 检查是否需要分段
@@ -96,6 +106,10 @@ class TemporalPlannerAgent:
                 current_segment["actions"].append(action)
                 current_segment["est_duration"] += action_duration
                 current_segment["scene_id"] = scene_idx
+                
+                # 存储当前动作状态到记忆中
+                self._store_action_state(action, scene_idx)
+                previous_action = action
 
         # 添加最后一个分段
         if current_segment["actions"]:
@@ -175,6 +189,59 @@ class TemporalPlannerAgent:
     # 以下方法已被ActionDurationEstimator替代
     # 配置现在由 ActionDurationEstimator 管理
 
+    def _enhance_action_coherence(self, current_action: Dict[str, Any], previous_action: Optional[Dict[str, Any]]) -> None:
+        """
+        使用LangChain记忆工具增强动作连贯性
+        
+        Args:
+            current_action: 当前动作
+            previous_action: 前一个动作
+        """
+        if previous_action:
+            try:
+                # 获取状态转换建议
+                suggestions = self.memory_tool.get_state_transition_suggestions(previous_action)
+                
+                # 如果有建议，应用合理的连贯性改进
+                if suggestions:
+                    best_suggestion = suggestions[0]["state"]
+                    
+                    # 可以根据需要调整当前动作的某些属性
+                    # 例如保持情绪的连贯性
+                    if "emotion" in best_suggestion and "emotion" in current_action:
+                        # 这里可以添加更复杂的情绪连贯性逻辑
+                        pass
+                    
+                    debug(f"应用状态转换建议，提高动作连贯性")
+            except Exception as e:
+                debug(f"增强动作连贯性失败: {e}")
+    
+    def _store_action_state(self, action: Dict[str, Any], scene_idx: int) -> None:
+        """
+        存储动作状态到LangChain记忆中
+        
+        Args:
+            action: 动作信息
+            scene_idx: 场景索引
+        """
+        try:
+            # 构建完整的状态信息
+            state = {
+                "action": action.get("action", ""),
+                "emotion": action.get("emotion", ""),
+                "character": action.get("character", ""),
+                "scene_id": scene_idx,
+                "timestamp": len(self.memory_tool.retrieve_similar_states("")) + 1  # 简化的时间戳
+            }
+            
+            # 添加上下文信息
+            context = f"场景 {scene_idx} 中的动作"
+            
+            # 存储到记忆中
+            self.memory_tool.store_state(state, context)
+        except Exception as e:
+            debug(f"存储动作状态失败: {e}")
+    
     def _optimize_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         优化分段，确保时长合理

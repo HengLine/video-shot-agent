@@ -9,7 +9,7 @@ import json
 import os
 
 # 嵌入模型获取
-from hengline.client.embedding_client import get_embedding_model
+from hengline.client.embedding_client import get_embedding_client
 # 导入工具模块
 from hengline.tools import (
     # 剧本智能分析主类
@@ -93,7 +93,7 @@ def example_script_knowledge_base():
     try:
         # 获取嵌入模型（使用默认的OpenAI模型）
         print("正在初始化嵌入模型...")
-        embedding_model = get_embedding_model(model_type="openai")
+        embedding_model = get_embedding_client(model_type="openai")
 
         # 创建知识库
         kb = create_script_knowledge_base(

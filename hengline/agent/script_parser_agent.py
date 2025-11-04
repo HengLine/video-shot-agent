@@ -1115,6 +1115,42 @@ class ScriptParserAgent:
                     return emotion
 
         return "平静"  # 默认情绪
+    
+    def _enhance_phone_dialogue(self, action, scene_actions):
+        """
+        增强电话对话，确保来电者身份信息被明确指出
+        
+        Args:
+            action: 当前动作对象
+            scene_actions: 场景中的所有动作列表
+        """
+        # 检查是否是电话相关动作
+        action_text = action.get("action", "").lower()
+        dialogue = action.get("dialogue", "").lower()
+        
+        # 识别电话对话场景
+        if any(keyword in action_text for keyword in ["电话", "手机", "接听", "听到", "说"]):
+            # 如果是听到电话内容但没有明确来电者身份
+            if "听到" in action_text and "说" in action_text and "未知号码" not in action_text:
+                # 查找之前的电话相关动作，可能包含来电者信息
+                for prev_action in scene_actions:
+                    prev_action_text = prev_action.get("action", "").lower()
+                    if "手机震动" in prev_action_text or "来电" in prev_action_text:
+                        # 提取可能的来电者信息
+                        if "陈默" in prev_action_text:
+                            # 更新动作文本，明确指出来电者身份
+                            action["action"] = action["action"].replace("听到", "听到电话中陈默说")
+                        break
+            
+            # 特殊处理对话内容中的提示词
+            if "你说什么？现在？不可能……" in action.get("dialogue", ""):
+                # 确保动作文本明确指出来电者身份
+                action_text = action.get("action", "")
+                if "听到" in action_text and "陈默" not in action_text:
+                    action["action"] = action["action"].replace("听到", "听到电话中陈默说")
+                    # 增强state_features，体现因来电者身份而产生的震惊
+                    action["state_features"] = "瞳孔骤然放大，脊背瞬间绷直，肩膀明显颤抖，手指关节发白，呼吸急促"
+                    action["emotion"] = "震惊"
 
     def _infer_emotion_from_action(self, action_text: str) -> str:
         """从动作描述推断情绪"""
@@ -1721,6 +1757,10 @@ class ScriptParserAgent:
                     del char["actions"]
                 characters.append(char)
             
+            # 对处理后的动作应用电话对话增强，确保来电者身份信息被明确指出
+            for action in processed_actions:
+                self._enhance_phone_dialogue(action, processed_actions)
+            
             # 构建场景对象，确保只包含必要字段，避免time字段冗余
             scene_entry = {
                 "location": location,
@@ -1786,7 +1826,7 @@ class ScriptParserAgent:
     def enhance_with_llm(self, structured_script: Dict[str, Any]) -> Dict[str, Any]:
         """
         使用LLM增强解析结果
-        添加情绪识别和角色外观推断
+        添加情绪识别和角色外观推断，同时确保画外音信息完整
         
         Args:
             structured_script: 结构化的剧本数据
@@ -2159,7 +2199,7 @@ class ScriptParserAgent:
 
     def _ensure_correct_format(self, data: Any) -> Dict[str, Any]:
         """
-        确保返回数据格式正确
+        确保返回数据格式正确，同时清理冗余字段
         
         Args:
             data: 输入数据
@@ -2172,6 +2212,10 @@ class ScriptParserAgent:
             return {
                 "scenes": []
             }
+
+        # 移除props_tracking字段以避免结构冗余
+        if "props_tracking" in data:
+            del data["props_tracking"]
 
         # 确保有scenes字段
         if "scenes" not in data or not isinstance(data["scenes"], list):

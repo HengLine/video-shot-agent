@@ -13,7 +13,7 @@ from config.config import get_embedding_config
 from hengline.logger import debug, info, error
 from utils.log_utils import print_log_exception
 
-def get_embedding_model(
+def get_embedding_client(
         model_type: Optional[str] = None,
         model_name: Optional[str] = None,
         **kwargs

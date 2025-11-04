@@ -19,7 +19,7 @@ from hengline.tools.script_parser_tool import (
 from llama_index.core.retrievers import BaseRetriever
 
 from hengline.logger import debug, info, error, warning
-from hengline.client.embedding_client import get_embedding_model
+from hengline.client.embedding_client import get_embedding_client
 from hengline.tools.script_knowledge_tool import (
     create_script_knowledge_base
 )
@@ -71,7 +71,7 @@ class ScriptIntelligence:
             # 合并配置
             merged_config = {**self.embedding_model_config, **model_kwargs}
 
-            self.embedding_model = get_embedding_model(
+            self.embedding_model = get_embedding_client(
                 model_type=embedding_model_type,
                 model_name=embedding_model_name,
                 **merged_config
