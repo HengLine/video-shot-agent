@@ -205,8 +205,63 @@ class ScriptParserAgent:
             # 对所有解析结果应用LLM增强（如果配置了LLM）
             if self.llm:
                 debug("应用LLM增强")
+                # 保存原始核心信息，用于后续验证
+                original_core_info = {
+                    "characters": [],
+                    "locations": [],
+                    "dialogues": []
+                }
+                
+                # 提取原始核心信息
+                for scene in final_result.get("scenes", []):
+                    # 收集场景位置
+                    if scene.get("location"):
+                        original_core_info["locations"].append(scene.get("location"))
+                    # 收集角色名称
+                    for char in scene.get("characters", []):
+                        if char.get("name"):
+                            original_core_info["characters"].append(char.get("name"))
+                    # 收集对话内容
+                    for action in scene.get("actions", []):
+                        if action.get("dialogue"):
+                            original_core_info["dialogues"].append(action.get("dialogue"))
+                
+                # 应用增强
                 enhanced_result = self.enhance_with_llm(final_result)
                 final_result = self._convert_to_target_format(enhanced_result)
+                
+                # 简单验证：确保增强后至少保留了一些核心信息
+                preserved_core = False
+                enhanced_core_info = {
+                    "characters": [],
+                    "locations": [],
+                    "dialogues": []
+                }
+                
+                # 提取增强后的核心信息
+                for scene in final_result.get("scenes", []):
+                    if scene.get("location"):
+                        enhanced_core_info["locations"].append(scene.get("location"))
+                    for char in scene.get("characters", []):
+                        if char.get("name"):
+                            enhanced_core_info["characters"].append(char.get("name"))
+                    for action in scene.get("actions", []):
+                        if action.get("dialogue"):
+                            enhanced_core_info["dialogues"].append(action.get("dialogue"))
+                
+                # 检查核心信息保留情况
+                if original_core_info["characters"]:
+                    preserved_core = any(char in enhanced_core_info["characters"] for char in original_core_info["characters"])
+                if original_core_info["locations"] and not preserved_core:
+                    preserved_core = any(loc in " ".join(enhanced_core_info["locations"]) for loc in original_core_info["locations"])
+                if original_core_info["dialogues"] and not preserved_core:
+                    preserved_core = any(dialogue in " ".join(enhanced_core_info["dialogues"]) for dialogue in original_core_info["dialogues"])
+                
+                # 如果核心信息严重不匹配，使用本地规则增强而非LLM增强
+                if not preserved_core and original_core_info["characters"]:
+                    warning("LLM增强结果与原始剧本核心信息严重不符，使用规则增强替代")
+                    enhanced_result = self._enhance_with_rules(final_result)
+                    final_result = self._convert_to_target_format(enhanced_result)
             
             debug(f"剧本解析完成，提取了 {len(final_result.get('scenes', []))} 个场景")
             return final_result
@@ -1839,15 +1894,25 @@ class ScriptParserAgent:
             return self._enhance_with_rules(structured_script)
 
         try:
-            # 定义默认提示词模板
+            # 定义默认提示词模板 - 强调必须保留原始核心信息
             default_prompt = """
             请作为一个专业的中文剧本分析专家，对以下结构化剧本进行增强处理：
-            1. 确保每个动作都有合适的情绪标签
-            2. 为每个角色推断合理的外观描述（年龄、穿着、外貌特征等）
-            3. 优化场景信息（地点和时间）
-            4. 保持原始动作序列的顺序和内容
             
-            请返回增强后的JSON格式结果，不要添加额外说明。
+            【核心规则：绝对不能改变原始剧本的核心信息！】
+            - 必须完全保留原始角色的姓名（如"林然"不能变成"林晓"）
+            - 必须保留原始场景的地点（如"公寓客厅"不能变成"公寓卧室"）
+            - 必须保留原始对话的内容，不能修改或创建新的对话
+            - 必须保留原始动作的基本含义和顺序
+            
+            【增强任务】
+            1. 为每个动作添加更细致的情绪标签
+            2. 为每个角色丰富外观描述（年龄、穿着、外貌特征等）
+            3. 细化场景氛围和环境细节
+            4. 为动作添加微表情和身体语言描述
+            5. 保持原始动作序列的顺序不变
+            
+            请严格按照输入的JSON结构返回增强后的结果，只在现有字段上添加或丰富内容，
+            绝对不要修改原始剧本的核心信息。
             
             原始剧本：
             {script_json}

@@ -20,6 +20,7 @@ class InputState(TypedDict):
 class ScriptParsingState(TypedDict):
     """剧本解析相关状态"""
     structured_script: Optional[Dict[str, Any]]  # 结构化剧本
+    memory: dict  # 自定义 memory 字段
 
 
 class TimelinePlanningState(TypedDict):

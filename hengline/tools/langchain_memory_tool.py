@@ -15,6 +15,7 @@ from langchain.docstore.document import Document
 
 from hengline.client.embedding_client import get_embedding_client
 from hengline.logger import debug, warning, error
+from utils.log_utils import print_log_exception
 
 
 class LangChainMemoryTool:
@@ -199,9 +200,25 @@ class LangChainMemoryTool:
                         
                         # 确保返回的是列表
                         if isinstance(embedding, list):
-                            results.append(embedding)
+                            # 检查是否为空列表
+                            if not embedding:
+                                warning(f"嵌入结果为空列表，使用默认空向量")
+                                results.append([0.0] * 1024)
+                            else:
+                                results.append(embedding)
                         elif hasattr(embedding, 'tolist'):
-                            results.append(embedding.tolist())
+                            try:
+                                # 捕获tolist()转换可能出现的异常
+                                list_embedding = embedding.tolist()
+                                # 检查转换后的列表是否为空
+                                if not list_embedding:
+                                    warning(f"嵌入结果转换为空列表，使用默认空向量")
+                                    results.append([0.0] * 1024)
+                                else:
+                                    results.append(list_embedding)
+                            except Exception as tolist_error:
+                                warning(f"嵌入结果转换为列表失败: {tolist_error}")
+                                results.append([0.0] * 1024)
                         else:
                             warning(f"嵌入结果格式不正确: {type(embedding)}")
                             # 使用适当维度的空向量作为后备
@@ -225,15 +242,30 @@ class LangChainMemoryTool:
                     
                     # 确保返回的是列表
                     if isinstance(embedding, list):
+                        # 检查是否为空列表
+                        if not embedding:
+                            warning(f"查询嵌入结果为空列表，使用默认空向量")
+                            return [0.0] * 1024
                         return embedding
                     elif hasattr(embedding, 'tolist'):
-                        return embedding.tolist()
+                        try:
+                            # 捕获tolist()转换可能出现的异常
+                            list_embedding = embedding.tolist()
+                            # 检查转换后的列表是否为空
+                            if not list_embedding:
+                                warning(f"查询嵌入结果转换为空列表，使用默认空向量")
+                                return [0.0] * 1024
+                            return list_embedding
+                        except Exception as tolist_error:
+                            warning(f"查询嵌入结果转换为列表失败: {tolist_error}")
+                            return [0.0] * 1024
                     else:
                         warning(f"查询嵌入结果格式不正确: {type(embedding)}")
                         # 使用适当维度的空向量作为后备
                         return [0.0] * 1024
                 except Exception as e:
-                    warning(f"生成查询嵌入失败: {e}")
+                    print_log_exception()
+                    error(f"生成查询嵌入失败: {e}")
                     # 使用适当维度的空向量作为后备
                     return [0.0] * 1024
         
@@ -269,9 +301,25 @@ class LangChainMemoryTool:
                     
                     # 确保返回的是列表
                     if isinstance(embedding, list):
-                        results.append(embedding)
+                        # 检查是否为空列表
+                        if not embedding:
+                            warning(f"嵌入结果为空列表，使用默认空向量")
+                            results.append([0.0] * 1024)
+                        else:
+                            results.append(embedding)
                     elif hasattr(embedding, 'tolist'):
-                        results.append(embedding.tolist())
+                        try:
+                            # 捕获tolist()转换可能出现的异常
+                            list_embedding = embedding.tolist()
+                            # 检查转换后的列表是否为空
+                            if not list_embedding:
+                                warning(f"嵌入结果转换为空列表，使用默认空向量")
+                                results.append([0.0] * 1024)
+                            else:
+                                results.append(list_embedding)
+                        except Exception as tolist_error:
+                            warning(f"嵌入结果转换为列表失败: {tolist_error}")
+                            results.append([0.0] * 1024)
                     else:
                         warning(f"嵌入结果格式不正确: {type(embedding)}")
                         # 使用默认维度的空向量作为后备
@@ -300,15 +348,30 @@ class LangChainMemoryTool:
                 
                 # 确保返回的是列表
                 if isinstance(embedding, list):
+                    # 检查是否为空列表
+                    if not embedding:
+                        warning(f"查询嵌入结果为空列表，使用默认空向量")
+                        return [0.0] * 1024
                     return embedding
                 elif hasattr(embedding, 'tolist'):
-                    return embedding.tolist()
+                    try:
+                        # 捕获tolist()转换可能出现的异常
+                        list_embedding = embedding.tolist()
+                        # 检查转换后的列表是否为空
+                        if not list_embedding:
+                            warning(f"查询嵌入结果转换为空列表，使用默认空向量")
+                            return [0.0] * 1024
+                        return list_embedding
+                    except Exception as tolist_error:
+                        warning(f"查询嵌入结果转换为列表失败: {tolist_error}")
+                        return [0.0] * 1024
                 else:
                     warning(f"查询嵌入结果格式不正确: {type(embedding)}")
                     # 使用默认维度的空向量作为后备
                     return [0.0] * 1024
             except Exception as e:
-                warning(f"生成查询嵌入失败: {e}")
+                print_log_exception()
+                error(f"生成查询嵌入失败: {e}")
                 # 使用默认维度的空向量作为后备
                 return [0.0] * 1024
         
