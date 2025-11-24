@@ -1,11 +1,11 @@
 # 剧本分镜智能体
 
-一个基于多智能体协作的AI系统，能够将剧本智能拆分为短视频脚本单元，生成高质量分镜描述，并保证叙事连续性。支持多种AI提供商，具有强大的可扩展性和易用性。
+一个基于多智能体协作的剧本分镜系统，能够将自然语言剧本拆分为AI可生成的短视频脚本单元，输出高质量分镜片段描述，并保证叙事连续性。支持多种AI提供商，具有强大的可扩展性和易用性。可以通过Python库、Web API、LangGraph节点或A2A系统集成使用。
 
 ## 核心功能
 
-- **智能剧本解析**：自动识别场景、对话和动作指令
-- **精准时序规划**：按短视频粒度智能切分内容
+- **智能剧本解析**：自动识别场景、对话和动作指令，理解故事结构
+- **精准时序规划**：按短视频粒度智能切分内容，分配合理时长
 - **连续性守护**：确保相邻分镜间角色状态、场景和情节的一致性
 - **高质量分镜生成**：生成详细的中文画面描述和英文AI视频提示词
 - **多模型支持**：兼容OpenAI、Qwen、DeepSeek、Ollama等多种AI提供商
@@ -21,16 +21,18 @@
 git clone https://github.com/HengLine/video-shot-agent.git
 cd video-shot-agent
 
-# 方式1：自动安装（推荐）
+######### 方式1：自动安装
+# 脚本会自动创建虚拟环境、安装依赖并启动服务，若失败，可手动安装
 python start_app.py
-# 脚本会自动创建虚拟环境、安装依赖并启动服务
 
-# 方式2：手动安装
+
+######### 方式2：手动安装
 python -m venv .venv
 # 激活虚拟环境 (Windows)
 .venv\Scripts\activate
 # 或者 (Linux/Mac)
 source .venv/bin/activate
+
 # 安装依赖
 pip install -r requirements.txt
 ```
@@ -50,10 +52,11 @@ cp .env.example .env
 AI_PROVIDER=qwen
 
 # 根据选择的提供商配置对应的API密钥
-QWEN_API_KEY=your_qwen_api_key
+QWEN_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxx
 QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_MODEL=qwen-plus
 
-# 嵌入模型配置
+# 嵌入模型配置，支持AI供应商：ollama、huggingface、openai
 EMBEDDING_PROVIDER=ollama
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_EMBEDDING_MODEL=quentinz/bge-large-zh-v1.5:latest

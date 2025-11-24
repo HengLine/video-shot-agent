@@ -20,7 +20,7 @@ import argparse
 
 import uvicorn
 
-from app_env import AppBaseEnv
+from app.app_env import AppBaseEnv
 from config.config import get_settings_config, is_debug_mode
 from hengline.logger import debug, info, error
 
