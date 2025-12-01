@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-@FileName: qa_agent.py
+@FileName: shot_qa_agent.py
 @Description: 分镜审查智能体，负责审查分镜质量和连续性
 @Author: HengLine
 @Time: 2025/10 - 2025/11
@@ -159,7 +159,7 @@ class QAAgent:
         suggestions = []
 
         # 核心必填字段（缺少会导致功能错误）
-        core_required_fields = ["shot_id", "chinese_description"]
+        core_required_fields = ["shot_id"]
         # 推荐字段（缺少会影响质量但不阻止继续）
         recommended_fields = ["ai_prompt", "camera", "characters_in_frame"]
 

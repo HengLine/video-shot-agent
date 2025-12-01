@@ -18,7 +18,7 @@ def test_parser():
     
     # 解析剧本
     print("\n解析剧本中...")
-    result = parser.parse_script(test_script, task_id="test_result")
+    result = parser.parse_script(test_script)
     
     # 打印结果
     print("\n解析结果:")

@@ -13,10 +13,11 @@ from langgraph.graph import StateGraph
 
 from hengline.logger import debug, info, error
 from .continuity_guardian_agent import ContinuityGuardianAgent
-from .qa_agent import QAAgent
+from .shot_qa_agent import QAAgent
 from .script_parser_agent import ScriptParserAgent
 from .shot_generator_agent import ShotGeneratorAgent
 from .temporal_planner_agent import TemporalPlannerAgent
+from .workflow_models import VideoStyle
 from .workflow_nodes import WorkflowNodes
 from .workflow_states import StoryboardWorkflowState
 
@@ -45,7 +46,7 @@ class MultiAgentPipeline:
         self.temporal_planner = TemporalPlannerAgent()
         self.continuity_guardian = ContinuityGuardianAgent()
         self.shot_generator = ShotGeneratorAgent(llm=self.llm)
-        self.qa_agent = QAAgent(llm=self.llm)
+        self.shot_qa = QAAgent(llm=self.llm)
 
         # 初始化工作流节点集合
         self.workflow_nodes = WorkflowNodes(
@@ -53,7 +54,7 @@ class MultiAgentPipeline:
             temporal_planner=self.temporal_planner,
             continuity_guardian=self.continuity_guardian,
             shot_generator=self.shot_generator,
-            qa_agent=self.qa_agent,
+            shot_qa=self.shot_qa,
             llm=self.llm
         )
 
@@ -65,64 +66,64 @@ class MultiAgentPipeline:
         workflow = StateGraph(StoryboardWorkflowState)
 
         # 定义工作流节点
-        workflow.add_node("parse_script", self.workflow_nodes.parse_script_node)
-        workflow.add_node("plan_timeline", self.workflow_nodes.plan_timeline_node)
-        workflow.add_node("generate_shot", self.workflow_nodes.generate_shot_node)
-        workflow.add_node("review_shot", self.workflow_nodes.review_shot_node)
-        workflow.add_node("extract_continuity", self.workflow_nodes.extract_continuity_node)
-        workflow.add_node("review_sequence", self.workflow_nodes.review_sequence_node)
-        workflow.add_node("fix_continuity", self.workflow_nodes.fix_continuity_node)
-        workflow.add_node("generate_result", self.workflow_nodes.generate_result_node)
+        workflow.add_node("parse_script", lambda graph_state: self.workflow_nodes.parse_script_node(graph_state))
+        workflow.add_node("plan_timeline", lambda graph_state: self.workflow_nodes.plan_timeline_node(graph_state))
+        workflow.add_node("generate_shot", lambda graph_state: self.workflow_nodes.generate_shot_node(graph_state))
+        workflow.add_node("review_shot", lambda graph_state: self.workflow_nodes.review_shot_node(graph_state))
+        workflow.add_node("extract_continuity", lambda graph_state: self.workflow_nodes.extract_continuity_node(graph_state))
+        workflow.add_node("review_sequence", lambda graph_state: self.workflow_nodes.review_sequence_node(graph_state))
+        workflow.add_node("fix_continuity", lambda graph_state: self.workflow_nodes.fix_continuity_node(graph_state))
+        workflow.add_node("generate_result", lambda graph_state: self.workflow_nodes.generate_result_node(graph_state))
 
         # 定义条件边，根据解析结果是否有效继续流程（工作流执行流程）
         workflow.add_conditional_edges(
             "parse_script",
-            lambda state: "continue",  # 始终继续到下一步
+            lambda graph_state: "continue",  # 始终继续到下一步
             {"continue": "plan_timeline"}
         )
 
         workflow.add_conditional_edges(
             "plan_timeline",
-            lambda state: "continue",
+            lambda graph_state: "continue",
             {"continue": "generate_shot"}
         )
 
         workflow.add_conditional_edges(
             "generate_shot",
-            lambda state: "continue",
+            lambda graph_state: "continue",
             {"continue": "review_shot"}
         )
 
         workflow.add_conditional_edges(
             "review_shot",
-            lambda state: "valid" if state["qa_results"][-1]["is_valid"] else "invalid",
+            lambda graph_state: "valid" if graph_state["qa_results"][-1]["is_valid"] else "invalid",
             {"valid": "extract_continuity", "invalid": "check_retry"}
         )
 
         # 添加检查重试逻辑的条件边
         workflow.add_conditional_edges(
             "extract_continuity",
-            lambda state: "next_segment" if state["current_segment_index"] < len(state["segments"]) - 1 else "review_sequence",
+            lambda graph_state: "next_segment" if graph_state["current_segment_index"] < len(graph_state["segments"]) - 1 else "review_sequence",
             {"next_segment": "generate_shot", "review_sequence": "review_sequence"}
         )
 
         # 添加自定义检查重试节点
-        workflow.add_node("check_retry", self.workflow_nodes.check_retry_node)
+        workflow.add_node("check_retry", lambda graph_state: self.workflow_nodes.check_retry_node(graph_state))
         workflow.add_conditional_edges(
             "check_retry",
-            lambda state: "retry" if state["retry_count"] < state["max_retries"] else "use_current",
+            lambda graph_state: "retry" if graph_state["retry_count"] < graph_state["max_retries"] else "use_current",
             {"retry": "generate_shot", "use_current": "extract_continuity"}
         )
 
         workflow.add_conditional_edges(
             "review_sequence",
-            lambda state: "fix" if state["sequence_qa"]["has_continuity_issues"] else "done",
+            lambda graph_state: "fix" if graph_state["sequence_qa"]["has_continuity_issues"] else "done",
             {"fix": "fix_continuity", "done": "generate_result"}
         )
 
         workflow.add_conditional_edges(
             "fix_continuity",
-            lambda state: "continue",
+            lambda graph_state: "continue",
             {"continue": "generate_result"}
         )
 
@@ -134,9 +135,9 @@ class MultiAgentPipeline:
 
     def run_pipeline(self,
                      script_text: str,
-                     style: str = "realistic",
+                     style: VideoStyle = VideoStyle.REALISTIC,
                      duration_per_shot: int = 5,
-                     task_id: Optional[str] = None,
+                     task_id: str = None,
                      prev_continuity_state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         运行完整的分镜生成流程
@@ -146,6 +147,7 @@ class MultiAgentPipeline:
             style: 视频风格
             duration_per_shot: 每段时长
             prev_continuity_state: 上一段的连续性状态
+            task_id: 任务ID
             
         Returns:
             完整的分镜结果
@@ -156,7 +158,7 @@ class MultiAgentPipeline:
             # 创建初始状态
             initial_state: StoryboardWorkflowState = {
                 "script_text": script_text,
-                "style": style,
+                "style": style.value,
                 "task_id": task_id,
                 "duration_per_shot": duration_per_shot,
                 "prev_continuity_state": prev_continuity_state,
@@ -210,7 +212,7 @@ class MultiAgentPipeline:
     def _generate_final_result(self,
                                script_text: str,
                                shots: List[Dict[str, Any]],
-                               style: str,
+                               style: VideoStyle,
                                duration_per_shot: int,
                                sequence_qa: Dict[str, Any]) -> Dict[str, Any]:
         """生成最终结果"""

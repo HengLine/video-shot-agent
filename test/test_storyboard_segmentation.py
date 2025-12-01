@@ -5,7 +5,7 @@
 @Time: 2025/10/24 14:21
 """
 import sys
-sys.path.append('../../')
+sys.path.append('../')
 from hengline.tools.action_duration_tool import ActionDurationEstimator
 from typing import List, Dict, Any
 import json
@@ -233,7 +233,7 @@ def generate_storyboard_from_script(script: str) -> List[Dict[str, Any]]:
         分镜列表
     """
     # 初始化动作时长估算器
-    estimator = ActionDurationEstimator("../../hengline/config/action_duration_config.yaml")
+    estimator = ActionDurationEstimator("../hengline/config/action_duration_config.yaml")
     estimator.clear_cache()
     
     # 1. 提取动词和动作

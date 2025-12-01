@@ -150,3 +150,10 @@ class PromptManager:
                 self._prompt_cache = dict(list(self._prompt_cache.items())[-1024:])
         
         return self._prompt_cache.copy()
+
+
+    def get_script_parser_prompt(self) -> str:
+        """获取剧本解析提示词模板"""
+        return self.get_prompt("script_parser")
+
+prompt_manager = PromptManager()

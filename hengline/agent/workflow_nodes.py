@@ -12,13 +12,14 @@ from typing import Dict, List, Any
 from hengline.logger import debug, info, warning, error
 from utils.log_utils import print_log_exception
 from hengline.tools.result_storage_tool import create_result_storage
+from .workflow_models import VideoStyle
 from .workflow_states import StoryboardWorkflowState
 
 
 class WorkflowNodes:
     """工作流节点集合，封装所有工作流执行功能"""
 
-    def __init__(self, script_parser, temporal_planner, continuity_guardian, shot_generator, qa_agent, llm=None):
+    def __init__(self, script_parser, temporal_planner, continuity_guardian, shot_generator, shot_qa, llm=None):
         """
         初始化工作流节点集合
         
@@ -27,40 +28,42 @@ class WorkflowNodes:
             temporal_planner: 时序规划器实例
             continuity_guardian: 连续性守卫实例
             shot_generator: 分镜生成器实例
-            qa_agent: 质量审查实例
+            shot_qa: 质量审查实例
             llm: 语言模型实例（可选）
         """
         self.script_parser = script_parser
         self.temporal_planner = temporal_planner
         self.continuity_guardian = continuity_guardian
         self.shot_generator = shot_generator
-        self.qa_agent = qa_agent
+        self.shot_qa = shot_qa
         self.llm = llm
 
-    def parse_script_node(self, state: StoryboardWorkflowState) -> Dict[str, Any]:
+
+
+    def parse_script_node(self, graph_state: StoryboardWorkflowState) -> Dict[str, Any]:
         """解析剧本文本节点"""
         debug("解析剧本文本节点执行中")
         try:
-            structured_script = self.script_parser.parse_script(state["script_text"], state["task_id"])
+            structured_script = self.script_parser.parse_script(graph_state["script_text"])
 
             # 使用LLM增强解析结果（如果有）
-            if self.llm:
-                structured_script = self.script_parser.enhance_with_llm(structured_script)
+            # if self.llm:
+            #     structured_script = self.script_parser.enhance_with_llm(structured_script)
 
             debug(f"剧本解析完成，场景数: {len(structured_script.get('scenes', []))}")
 
             # 保存剧本解析结果
-            task_id = state.get("task_id", str(uuid.uuid4()))
+            task_id = graph_state.get("task_id")
             try:
                 storage = create_result_storage()
                 storage.save_result(task_id, structured_script, "script_parser_result.json")
                 info(f"剧本解析结果已保存到: data/output/{task_id}/script_parser_result.json")
             except Exception as save_error:
                 warning(f"保存剧本解析结果失败: {str(save_error)}")
-            
             return {
                 "structured_script": structured_script
             }
+
         except Exception as e:
             print_log_exception()
             error(f"剧本解析失败: {str(e)}")
@@ -79,7 +82,7 @@ class WorkflowNodes:
             )
             
             # 保存时序规划结果
-            task_id = state.get("task_id", str(uuid.uuid4()))
+            task_id = state.get("task_id")
             try:
                 storage = create_result_storage()
                 result_data = {
@@ -159,7 +162,7 @@ class WorkflowNodes:
                 )
                 
                 # 保存分镜生成结果
-                task_id = state.get("task_id", str(uuid.uuid4()))
+                task_id = state.get("task_id")
                 try:
                     storage = create_result_storage()
                     storage.save_result(task_id, {
@@ -212,7 +215,7 @@ class WorkflowNodes:
             shot = state.get("current_shot")
 
             # 审查分镜
-            qa_result = self.qa_agent.review_single_shot(shot, segment)
+            qa_result = self.shot_qa.review_single_shot(shot, segment)
 
             # 记录不同级别的问题
             if qa_result.get("warnings"):
@@ -236,7 +239,7 @@ class WorkflowNodes:
             qa_results.append(qa_result)
 
             # 保存分镜审查结果
-            task_id = state.get("task_id", str(uuid.uuid4()))
+            task_id = state.get("task_id")
             try:
                 storage = create_result_storage()
                 shot_id = len(state.get("shots", [])) + 1
@@ -327,7 +330,7 @@ class WorkflowNodes:
             debug(f"分镜 {len(shots)} 生成并通过审查")
 
             # 保存连续性信息
-            task_id = state.get("task_id", str(uuid.uuid4()))
+            task_id = state.get("task_id")
             try:
                 storage = create_result_storage()
                 shot_id = len(shots)
@@ -360,7 +363,7 @@ class WorkflowNodes:
         """审查分镜序列节点，优化序列连续性审查"""
         debug("审查分镜序列连续性节点执行中")
         try:
-            sequence_qa = self.qa_agent.review_shot_sequence(state["shots"])
+            sequence_qa = self.shot_qa.review_shot_sequence(state["shots"])
             
             # 分类错误类型
             if sequence_qa.get("has_continuity_issues", False):
@@ -395,7 +398,7 @@ class WorkflowNodes:
                     sequence_qa = {"has_continuity_issues": False, "warnings": warnings}
             
             # 保存序列审查结果
-            task_id = state.get("task_id", str(uuid.uuid4()))
+            task_id = state.get("task_id")
             try:
                 storage = create_result_storage()
                 storage.save_result(task_id, {
@@ -426,7 +429,7 @@ class WorkflowNodes:
             fixed_shots = self._fix_continuity_issues(shots, qa_result)
             
             # 保存连续性修复结果
-            task_id = state.get("task_id", str(uuid.uuid4()))
+            task_id = state.get("task_id")
             try:
                 storage = create_result_storage()
                 storage.save_result(task_id, {
@@ -464,7 +467,7 @@ class WorkflowNodes:
             
             # 生成最终的分镜头剧本
             # 从结果中提取所需信息
-            title = state.get("script_title", "分镜头剧本")
+            title = state.get("title", "分镜头剧本")
             shots = state["shots"]
             qa_results = state.get("qa_results", [])
             
@@ -487,7 +490,7 @@ class WorkflowNodes:
             }
             
             # 保存最终结果
-            task_id = state.get("task_id", str(uuid.uuid4()))
+            task_id = state.get("task_id")
             try:
                 storage = create_result_storage()
                 storage.save_result(task_id, result, "final_result.json")
@@ -509,7 +512,7 @@ class WorkflowNodes:
                 "error": str(e)
             }
 
-    def _create_default_shot(self, segment: Dict[str, Any], shot_id: int, style: str) -> Dict[str, Any]:
+    def _create_default_shot(self, segment: Dict[str, Any], shot_id: int, style: VideoStyle) -> Dict[str, Any]:
         """创建默认分镜，增强默认分镜的基本信息和连续性"""
         debug(f"创建默认分镜 {shot_id}")
         # 从分段中提取角色信息
@@ -570,7 +573,7 @@ class WorkflowNodes:
             "dialogue": dialogue.strip(),
             "camera_angle": "medium_shot",
             "scene_id": segment.get("scene_id", 0),
-            "style": style,
+            "style": style.value,
             "aspect_ratio": "16:9",
             "initial_state": initial_state,
             "final_state": final_state,
@@ -622,7 +625,7 @@ class WorkflowNodes:
     def _generate_final_result(self,
                                script_text: str,
                                shots: List[Dict[str, Any]],
-                               style: str,
+                               style: VideoStyle,
                                duration_per_shot: int,
                                sequence_qa: Dict[str, Any]) -> Dict[str, Any]:
         """生成最终结果"""
@@ -656,7 +659,7 @@ class WorkflowNodes:
         return {
             "job_id": job_id,
             "input_script": script_text,
-            "style": style,
+            "style": style.value,
             "duration_per_shot": duration_per_shot,
             "total_shots": len(shots),
             "total_duration_sec": total_duration,

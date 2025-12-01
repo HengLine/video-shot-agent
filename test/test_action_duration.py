@@ -8,7 +8,7 @@ from hengline.tools.action_duration_tool import ActionDurationEstimator
 
 if __name__ == '__main__':
     # 初始化估算器（单例推荐）
-    estimator = ActionDurationEstimator("../config/action_duration_config.yaml")
+    estimator = ActionDurationEstimator("../hengline/config/action_duration_config.yaml")
     estimator.clear_cache()
 
     # 基础用法

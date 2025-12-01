@@ -5,16 +5,19 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
+import uuid
 from typing import Dict, List, Any, Optional, TypedDict
+
+from hengline.agent.workflow_models import VideoStyle
 
 
 class InputState(TypedDict):
     """工作流输入状态"""
     script_text: str  # 原始剧本文本
-    style: str  # 视频风格
+    style: VideoStyle  # 视频风格："realistic"（逼真）、"anime"（动漫）、"cinematic"（电影）、"cartoon"（卡通）
     duration_per_shot: int  # 每段时长
     prev_continuity_state: Optional[Dict[str, Any]]  # 上一段的连续性状态
-    task_id: str  #唯一标识符
+    task_id: str = str(uuid.uuid4())  #唯一标识符
 
 
 class ScriptParsingState(TypedDict):
