@@ -5,12 +5,11 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-from pathlib import Path
 from typing import List, Dict, Any
 
 from hengline.agent.temporal_planner.base_temporal_planner import TemporalPlanner
 from hengline.logger import debug, error
-from hengline.prompts.prompts_manager import PromptManager
+from hengline.prompts.prompts_manager import prompt_manager
 
 
 class LLMTemporalPlanner(TemporalPlanner):
@@ -36,11 +35,9 @@ class LLMTemporalPlanner(TemporalPlanner):
                   "rationale": "合并理由，如'展现从犹豫到决定的完整过程'"
                 }}
     """
+
     def __init__(self):
         """初始化时序规划智能体"""
-        # 初始化PromptManager，使用正确的提示词目录路径
-        self.prompt_manager = PromptManager(prompt_dir=Path(__file__).parent.parent)
-
         debug(f"LLM + 规则约束的时序规划，加载了 {len(self.config.base_actions)} 个基础动作配置")
 
     def plan_timeline(self, structured_script: Dict[str, Any], target_duration: int = 5) -> List[Dict[str, Any]] | None:
@@ -57,7 +54,7 @@ class LLMTemporalPlanner(TemporalPlanner):
 
         # 获取提示词模板（供后续扩展使用）
         try:
-            timeline_planning_template = self.prompt_manager.get_prompt("temporal_planner_prompt")
+            timeline_planning_template = prompt_manager.get_temporal_planner_prompt()
 
             return None
         except Exception as e:

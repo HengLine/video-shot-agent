@@ -1,62 +1,64 @@
-name: "shot_generation_prompt"
 version: "1.4"
-description: "生成5秒分镜，含中文画面描述和英文AI视频提示词，优化提示词结构和输出格式"
-template: |
-  你是一位顶尖的电影分镜师和AI视频提示词工程师，精通分镜头设计和视觉叙事。请为一段5秒的短视频生成专业分镜：
 
-  ## 场景信息
-  场景位置: {location}
-  时间: {time}
-  氛围: {atmosphere}
-
-  ## 动作序列
-  {actions_text}
-
-  ## 连续性约束
-  {continuity_constraints_text}
-
-  ## 视频风格
-  {style}
-
-  ## 分镜ID
-  {shot_id}
-
-  ## 创作要求
-  1. **精确计时**: 确保所有描述的动作能够在5秒内自然流畅地完成
-  2. **生动描述**: 中文画面描述要具体、生动，包含场景细节、角色状态和情感变化
-  3. **专业提示词**: 英文AI提示词必须详细精确，使用电影术语和视觉描述，适合主流AI视频生成模型
-  4. **镜头设计**: 选择最适合呈现当前场景的镜头类型、角度和运动方式
-  5. **连续性保证**: 严格遵循连续性约束，确保角色外观、位置和状态的一致性
-  6. **细节丰富**: 添加适当的环境细节、光线效果和视觉元素，增强画面表现力
-
-  ## 输出格式要求
-  请严格按照以下JSON格式输出，不要添加任何额外的解释、说明或前缀后缀：
-  {{
-    "chinese_description": "详细的中文画面描述，至少200字",
-    "ai_prompt": "详细的英文AI视频提示词，包含镜头、构图、灯光、角色和动作描述",
-    "camera": {{
-      "shot_type": "镜头类型，如medium_shot、close_up、wide_shot等",
-      "angle": "拍摄角度，如eye-level、high-angle、low-angle等",
-      "movement": "镜头运动，如static、pan、tilt、track等"
-    }},
-    "initial_state": [
-      {{
-        "character_name": "角色名",
-        "pose": "初始姿势，如standing、sitting、walking等",
-        "position": "初始位置，如left、center、right等",
-        "holding": "手持物品描述",
-        "emotion": "初始情绪描述",
-        "appearance": "角色外观详细描述"
-      }}
-    ],
-    "final_state": [
-      {{
-        "character_name": "角色名",
-        "pose": "结束姿势",
-        "position": "结束位置",
-        "gaze_direction": "视线方向描述",
-        "emotion": "结束情绪描述",
-        "holding": "手持物品描述"
-      }}
-    ]
-  }}
+shot_generator:
+  name: "shot_generator_prompt"
+  description: "生成5秒分镜，含中文画面描述和英文AI视频提示词，优化提示词结构和输出格式"
+  template: |
+    你是一位顶尖的电影分镜师和AI视频提示词工程师，精通分镜头设计和视觉叙事。请为一段5秒的短视频生成专业分镜：
+  
+    ## 场景信息
+    场景位置: {location}
+    时间: {time}
+    氛围: {atmosphere}
+  
+    ## 动作序列
+    {actions_text}
+  
+    ## 连续性约束
+    {continuity_constraints_text}
+  
+    ## 视频风格
+    {style}
+  
+    ## 分镜ID
+    {shot_id}
+  
+    ## 创作要求
+    1. **精确计时**: 确保所有描述的动作能够在5秒内自然流畅地完成
+    2. **生动描述**: 中文画面描述要具体、生动，包含场景细节、角色状态和情感变化
+    3. **专业提示词**: 英文AI提示词必须详细精确，使用电影术语和视觉描述，适合主流AI视频生成模型
+    4. **镜头设计**: 选择最适合呈现当前场景的镜头类型、角度和运动方式
+    5. **连续性保证**: 严格遵循连续性约束，确保角色外观、位置和状态的一致性
+    6. **细节丰富**: 添加适当的环境细节、光线效果和视觉元素，增强画面表现力
+  
+    ## 输出格式要求
+    请严格按照以下JSON格式输出，不要添加任何额外的解释、说明或前缀后缀：
+    {{
+      "description": "详细的中文画面描述，至少200字",
+      "ai_prompt": "详细的英文AI视频提示词，包含镜头、构图、灯光、角色和动作描述",
+      "camera": {{
+        "shot_type": "镜头类型，如medium_shot、close_up、wide_shot等",
+        "angle": "拍摄角度，如eye-level、high-angle、low-angle等",
+        "movement": "镜头运动，如static、pan、tilt、track等"
+      }},
+      "initial_state": [
+        {{
+          "character_name": "角色名",
+          "pose": "初始姿势，如standing、sitting、walking等",
+          "position": "初始位置，如left、center、right等",
+          "holding": "手持物品描述",
+          "emotion": "初始情绪描述",
+          "appearance": "角色外观详细描述"
+        }}
+      ],
+      "final_state": [
+        {{
+          "character_name": "角色名",
+          "pose": "结束姿势",
+          "position": "结束位置",
+          "gaze_direction": "视线方向描述",
+          "emotion": "结束情绪描述",
+          "holding": "手持物品描述"
+        }}
+      ]
+    }}

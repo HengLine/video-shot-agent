@@ -25,8 +25,6 @@ class ScriptParser:
         Returns:
             结构化的剧本动作序列
         """
-        debug(f"开始解析剧本: {script_text[:100]}...")
-
         try:
             # 初始化结果结构
             return self.parse_script_to_json(script_text, result)

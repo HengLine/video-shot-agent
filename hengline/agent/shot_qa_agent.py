@@ -6,11 +6,10 @@
 @Time: 2025/10 - 2025/11
 """
 import json
-from pathlib import Path
 from typing import Dict, List, Any
 
 from hengline.logger import debug, warning
-from hengline.prompts.prompts_manager import PromptManager
+from hengline.prompts.prompts_manager import prompt_manager
 
 
 class QAAgent:
@@ -40,7 +39,7 @@ class QAAgent:
         debug(f"审查分镜，ID: {shot.get('shot_id')}")
 
         critical_issues = []  # 关键错误，需要修正
-        warnings = []         # 警告，不阻止继续处理
+        warnings = []  # 警告，不阻止继续处理
         suggestions = []
 
         # 检查基本字段
@@ -284,8 +283,7 @@ class QAAgent:
         """使用LLM进行高级审查"""
         try:
             # 使用PromptManager获取提示词，使用正确的提示词目录路径
-            prompt_manager = PromptManager(prompt_dir=Path(__file__).parent.parent)
-            prompt = prompt_manager.get_prompt("qa_review_prompt")
+            prompt = prompt_manager.get_qa_review_prompt()
 
             # 填充提示词模板
             filled_prompt = prompt.format(
@@ -347,7 +345,7 @@ class QAAgent:
         # 特殊处理电话场景
         is_prev_phone = any("电话" in action.get("action", "") for action in prev_shot.get("actions", []))
         is_current_phone = any("电话" in action.get("action", "") for action in current_shot.get("actions", []))
-        
+
         # 检查共同角色
         common_characters = set(prev_final_state.keys()) & set(current_initial_state.keys())
 
@@ -357,11 +355,11 @@ class QAAgent:
 
             # 电话角色特殊处理
             is_phone_character = "电话" in character or "对面" in character
-            
+
             # 检查位置连续性（允许合理的位置变化）
             prev_pos = prev_state.get("position")
             current_pos = current_state.get("position")
-            
+
             if is_phone_character:
                 # 电话角色位置应该始终为off-screen
                 if prev_pos != "off-screen" and current_pos != "off-screen":
@@ -390,12 +388,12 @@ class QAAgent:
         # 检查角色突然出现或消失
         prev_characters = set(prev_final_state.keys())
         current_characters = set(current_initial_state.keys())
-        
+
         new_characters = current_characters - prev_characters
         if new_characters:
             warnings.append(f"新角色突然出现: {', '.join(new_characters)}")
             suggestions.append("建议添加角色入场的自然过渡")
-            
+
         disappeared_characters = prev_characters - current_characters
         if disappeared_characters:
             warnings.append(f"角色突然消失: {', '.join(disappeared_characters)}")

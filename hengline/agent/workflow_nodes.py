@@ -37,6 +37,7 @@ class WorkflowNodes:
         self.shot_generator = shot_generator
         self.shot_qa = shot_qa
         self.llm = llm
+        self.storage = create_result_storage()
 
 
 
@@ -55,8 +56,7 @@ class WorkflowNodes:
             # 保存剧本解析结果
             task_id = graph_state.get("task_id")
             try:
-                storage = create_result_storage()
-                storage.save_result(task_id, structured_script, "script_parser_result.json")
+                self.storage.save_result(task_id, structured_script, "script_parser_result.json")
                 info(f"剧本解析结果已保存到: data/output/{task_id}/script_parser_result.json")
             except Exception as save_error:
                 warning(f"保存剧本解析结果失败: {str(save_error)}")
@@ -84,13 +84,12 @@ class WorkflowNodes:
             # 保存时序规划结果
             task_id = state.get("task_id")
             try:
-                storage = create_result_storage()
                 result_data = {
                     "segments": segments,
                     "structured_script": state["structured_script"],
                     "duration_per_shot": state["duration_per_shot"]
                 }
-                storage.save_result(task_id, result_data, "temporal_planner_result.json")
+                self.storage.save_result(task_id, result_data, "temporal_planner_result.json")
                 info(f"时序规划结果已保存到: data/output/{task_id}/temporal_planner_result.json")
             except Exception as save_error:
                 warning(f"保存时序规划结果失败: {str(save_error)}")
@@ -164,8 +163,7 @@ class WorkflowNodes:
                 # 保存分镜生成结果
                 task_id = state.get("task_id")
                 try:
-                    storage = create_result_storage()
-                    storage.save_result(task_id, {
+                    self.storage.save_result(task_id, {
                         "shot_id": shot_id,
                         "segment": segment,
                         "shot": shot,
@@ -241,9 +239,8 @@ class WorkflowNodes:
             # 保存分镜审查结果
             task_id = state.get("task_id")
             try:
-                storage = create_result_storage()
                 shot_id = len(state.get("shots", [])) + 1
-                storage.save_result(task_id, {
+                self.storage.save_result(task_id, {
                     "shot_id": shot_id,
                     "segment": segment,
                     "shot": shot,
@@ -332,9 +329,8 @@ class WorkflowNodes:
             # 保存连续性信息
             task_id = state.get("task_id")
             try:
-                storage = create_result_storage()
                 shot_id = len(shots)
-                storage.save_result(task_id, {
+                self.storage.save_result(task_id, {
                     "shot_id": shot_id,
                     "segment": segment,
                     "shot": shot,
@@ -400,8 +396,7 @@ class WorkflowNodes:
             # 保存序列审查结果
             task_id = state.get("task_id")
             try:
-                storage = create_result_storage()
-                storage.save_result(task_id, {
+                self.storage.save_result(task_id, {
                     "shots": state["shots"],
                     "sequence_qa": sequence_qa
                 }, "sequence_review.json")
@@ -431,8 +426,7 @@ class WorkflowNodes:
             # 保存连续性修复结果
             task_id = state.get("task_id")
             try:
-                storage = create_result_storage()
-                storage.save_result(task_id, {
+                self.storage.save_result(task_id, {
                     "original_shots": shots,
                     "fixed_shots": fixed_shots,
                     "qa_result": qa_result
@@ -492,12 +486,11 @@ class WorkflowNodes:
             # 保存最终结果
             task_id = state.get("task_id")
             try:
-                storage = create_result_storage()
-                storage.save_result(task_id, result, "final_result.json")
+                self.storage.save_result(task_id, result, "final_result.json")
                 info(f"最终结果已保存到: data/output/{task_id}/final_result.json")
                 
                 # 保存最终分镜头剧本
-                storage.save_result(task_id, final_storyboard, "final_storyboard.json")
+                self.storage.save_result(task_id, final_storyboard, "final_storyboard.json")
                 info(f"最终分镜头剧本已保存到: data/output/{task_id}/final_storyboard.json")
             except Exception as save_error:
                 warning(f"保存最终结果失败: {str(save_error)}")
