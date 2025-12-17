@@ -70,6 +70,18 @@ class ContinuityGuardianAgent:
         if prev_continuity_state:
             self.config_manager.load_prev_state(prev_continuity_state)
 
+        # 从场景上下文获取角色外观信息
+        character_appearances = {}
+        if scene_context and "characters" in scene_context:
+            for character in scene_context["characters"]:
+                character_name = character.get("name")
+                if character_name and "appearance" in character:
+                    character_appearances[character_name] = character["appearance"]
+
+        # 为每个角色设置外观信息
+        for character_name, appearance in character_appearances.items():
+            self.config_manager.set_character_appearance(character_name, appearance)
+
         # 为每个角色生成初始约束
         for character_name in character_names:
             # 从LangChain记忆中获取状态
@@ -442,3 +454,4 @@ class ContinuityGuardianAgent:
 
         # 检查是否是有效的过渡
         return curr_category in valid_transitions.get(prev_category, [])
+

@@ -343,9 +343,18 @@ class WorkflowNodes:
             # 移动到下一个分段
             current_segment_index = state["current_segment_index"] + 1
 
+            # 将连续性锚点列表转换为字典，使用角色名作为键
+            continuity_state_dict = {}
+            if isinstance(continuity_anchor, list):
+                for anchor in continuity_anchor:
+                    if isinstance(anchor, dict) and "character_name" in anchor:
+                        continuity_state_dict[anchor["character_name"]] = anchor
+            else:
+                continuity_state_dict = continuity_anchor
+
             return {
                 "shots": shots,
-                "current_continuity_state": continuity_anchor,
+                "current_continuity_state": continuity_state_dict,  # 使用字典类型
                 "current_segment_index": current_segment_index,
                 "retry_count": 0  # 重置重试计数
             }
@@ -559,14 +568,12 @@ class WorkflowNodes:
         return {
             "shot_id": shot_id,
             "time_range_sec": [(shot_id - 1) * 5, shot_id * 5],
-            "scene_context": {"location": location, "time": time_of_day},
             "description": f"默认分镜描述：场景位于{location}，时间是{time_of_day}。这是一个为确保系统稳定性而生成的默认分镜。",
-            "prompt_en": f"Default shot in {location} at {time_of_day}. This is a fallback shot generated for system stability.",
             "characters": characters,
             "dialogue": dialogue.strip(),
             "camera_angle": "medium_shot",
             "scene_id": segment.get("scene_id", 0),
-            "style": style.value,
+            "style": style,
             "aspect_ratio": "16:9",
             "initial_state": initial_state,
             "final_state": final_state,
@@ -652,7 +659,7 @@ class WorkflowNodes:
         return {
             "job_id": job_id,
             "input_script": script_text,
-            "style": style.value,
+            "style": style,
             "duration_per_shot": duration_per_shot,
             "total_shots": len(shots),
             "total_duration_sec": total_duration,

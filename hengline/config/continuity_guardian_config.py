@@ -71,10 +71,23 @@ class ContinuityGuardianConfig:
 
     def load_prev_state(self, prev_continuity_state: Optional[Dict[str, Any]]):
         """加载上一段的连续性状态"""
-        for state in prev_continuity_state:
-            character_name = state.get("character_name")
-            if character_name:
-                self.character_states[character_name] = state
+        # 检查prev_continuity_state类型
+        if isinstance(prev_continuity_state, dict):
+            # 如果是字典，直接使用
+            self.character_states = prev_continuity_state
+        elif isinstance(prev_continuity_state, list):
+            # 如果是列表，转换为字典
+            for state in prev_continuity_state:
+                character_name = state.get("character_name")
+                if character_name:
+                    self.character_states[character_name] = state
+        elif prev_continuity_state is None:
+            # 如果是None，清空character_states
+            self.character_states = {}
+        else:
+            # 其他类型，给出警告并清空
+            warning(f"未知的连续性状态类型: {type(prev_continuity_state).__name__}")
+            self.character_states = {}
 
     def extract_characters(self, segment: Dict[str, Any]) -> List[str]:
         """提取段落中的所有角色"""
@@ -95,10 +108,17 @@ class ContinuityGuardianConfig:
                 **self.default_appearances
             }
 
-    
+    def set_character_appearance(self, character_name: str, appearance: Dict[str, Any]):
+        """设置角色的外观信息"""
+        if character_name not in self.character_states:
+            self.character_states[character_name] = self.get_character_state(character_name)
+        
+        # 添加外观信息到角色状态
+        self.character_states[character_name]["appearance"] = appearance
+
     def _generate_character_constraints(self, character_name: str, state: Dict[str, Any]) -> Dict[str, Any]:
         """生成角色连续性约束"""
-        return {
+        constraints = {
             "must_start_with_pose": state.get("pose", "unknown"),
             "must_start_with_position": state.get("position", "unknown"),
             "must_start_with_emotion": state.get("emotion", "unknown"),
@@ -106,9 +126,31 @@ class ContinuityGuardianConfig:
             "must_start_with_holding": state.get("holding", "unknown"),
             "character_description": self._generate_character_description(character_name, state)
         }
+        
+        # 如果有外观信息，添加到约束中
+        if "appearance" in state:
+            constraints["appearance"] = state["appearance"]
+        
+        return constraints
 
     def _generate_character_description(self, character_name: str, state: Dict[str, Any]) -> str:
         """生成角色描述"""
-        # 可以根据需要生成更详细的角色描述
-        # 暂时使用简单的描述模板
-        return f"{character_name}, {state.get('pose')}, {state.get('emotion')}"
+        # 如果有外观信息，使用更详细的描述
+        if "appearance" in state:
+            appearance = state["appearance"]
+            desc_parts = [
+                character_name,
+                f"{appearance.get('age', 'unknown')}岁",
+                appearance.get('gender', 'unknown'),
+                f"{appearance.get('clothing', '')}",
+                f"{appearance.get('hair', '')}",
+                f"{appearance.get('base_features', '')}",
+                f"姿势: {state.get('pose', 'unknown')}",
+                f"情绪: {state.get('emotion', 'unknown')}"
+            ]
+            # 过滤掉空字符串
+            desc_parts = [part for part in desc_parts if part]
+            return ", ".join(desc_parts)
+        else:
+            # 没有外观信息时使用简单描述
+            return f"{character_name}, {state.get('pose')}, {state.get('emotion')}"
