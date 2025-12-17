@@ -6,7 +6,7 @@ HengLine 工具模块
 """
 
 # 导出JSON响应解析器
-from hengline.tools.json_response_parser import (
+from hengline.tools.json_parser_tool import (
     JsonResponseParser,
     json_parser,
     parse_json_response,
@@ -37,7 +37,7 @@ from .script_knowledge_tool import (
 )
 # 剧本解析功能
 from .script_parser_tool import (
-    ScriptParser,
+    ScriptParserTool,
     parse_script_to_documents,
     parse_script_file_to_documents,
     Scene,
@@ -53,7 +53,7 @@ __all__ = [
     "create_vector_store",
 
     # 剧本解析
-    "ScriptParser",
+    "ScriptParserTool",
     "parse_script_to_documents",
     "parse_script_file_to_documents",
     "Scene",

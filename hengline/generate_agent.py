@@ -7,17 +7,19 @@
 from typing import Dict, Any, Optional
 
 from hengline.agent import MultiAgentPipeline
+from hengline.agent.workflow_models import VideoStyle
 from hengline.logger import warning, info, error
 from utils.log_utils import print_log_exception
 
 
-# 对外暴露的主函数
+# 对外暴露的主函数，供 LangGraph 或 A2A 调用
 def generate_storyboard(
         script_text: str,
-        style: str = "realistic",
+        style: VideoStyle = VideoStyle.REALISTIC,
         duration_per_shot: int = 5,
         prev_continuity_state: Optional[Dict[str, Any]] = None,
-        task_id: Optional[str] = None
+        task_id: Optional[str] = None,
+        llm = None
 ) -> Dict[str, Any]:
     """
     剧本分镜生成主接口（可嵌入 LangGraph 或 A2A 调用）
@@ -27,12 +29,25 @@ def generate_storyboard(
         style: 视频风格（realistic / anime / cinematic）
         duration_per_shot: 每段目标时长（秒）
         prev_continuity_state: 上一段的 continuity_anchor（用于长剧本续生成）
+        task_id: 任务ID，用于关联多次调用。 同一个剧本任务ID应该一致
+        llm: 可选的LLM实例，如果不提供，将自动初始化（需要配置env参数）
 
     Returns:
         包含分镜列表的完整结果
     """
+    # 创建并运行多智能体管道
+    pipeline = MultiAgentPipeline(llm=llm if llm else get_llm())
+    return pipeline.run_pipeline(
+        script_text=script_text,
+        style=style,
+        duration_per_shot=duration_per_shot,
+        task_id=task_id,
+        prev_continuity_state=prev_continuity_state
+    )
+
+
+def get_llm():
     # 尝试初始化LLM（从配置中获取AI提供商）
-    llm = None
     try:
         from config.config import get_ai_config
         from hengline.client.client_factory import ai_client_factory
@@ -57,16 +72,8 @@ def generate_storyboard(
 
         if not llm:
             warning(f"AI模型初始化失败（未能获取 {provider} 的LLM实例），系统将自动使用规则引擎模式继续工作")
+
+        return llm
     except Exception as e:
         print_log_exception()
         error(f"AI模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
-
-    # 创建并运行多智能体管道
-    pipeline = MultiAgentPipeline(llm=llm)
-    return pipeline.run_pipeline(
-        script_text=script_text,
-        style=style,
-        duration_per_shot=duration_per_shot,
-        task_id=task_id,
-        prev_continuity_state=prev_continuity_state
-    )

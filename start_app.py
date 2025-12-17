@@ -47,11 +47,11 @@ class HengLineApp(AppBaseEnv):
                 self.server.should_exit = True
             sys.exit(0)
 
-        # 注册信号处理
-        signal.signal(signal.SIGINT, signal_handler)  # 处理Ctrl+C
-        signal.signal(signal.SIGTERM, signal_handler)  # 处理终止信号
-
         try:
+            # 注册信号处理
+            signal.signal(signal.SIGINT, signal_handler)  # 处理Ctrl+C
+            signal.signal(signal.SIGTERM, signal_handler)  # 处理终止信号
+
             # 解析命令行参数
             parser = argparse.ArgumentParser(description='HengLine应用启动脚本')
             parser.add_argument('--host', type=str, help='服务器监听地址')

@@ -10,18 +10,17 @@ import os
 from datetime import datetime
 from typing import Dict, Optional, Any
 
-from hengline.tools.script_parser_tool import (
-    ScriptParser,
-    parse_script_to_documents,
-    parse_script_file_to_documents,
-    Scene, Character, SceneElement
-)
 from llama_index.core.retrievers import BaseRetriever
 
-from hengline.logger import debug, info, error, warning
 from hengline.client.embedding_client import get_embedding_client
+from hengline.logger import debug, info, error, warning
 from hengline.tools.script_knowledge_tool import (
     create_script_knowledge_base
+)
+from .script_parser_tool import (
+    ScriptParserTool,
+    parse_script_to_documents,
+    parse_script_file_to_documents
 )
 
 
@@ -57,7 +56,7 @@ class ScriptIntelligence:
         self.chunk_overlap = chunk_overlap
 
         # 初始化组件
-        self.parser = ScriptParser()
+        self.parser = ScriptParserTool()
         self.embedding_model = None
         self.knowledge_base = None
 

@@ -12,6 +12,7 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from pydantic import BaseModel
 
+from hengline.agent.workflow_models import VideoStyle
 from hengline.generate_agent import generate_storyboard
 from hengline.logger import info, error, log_with_context
 from utils.log_utils import print_log_exception
@@ -26,7 +27,7 @@ class StoryboardRequest(BaseModel):
     """
     script_text: str
     # 分镜风格，可选值："realistic"（逼真）、"anime"（动漫）、"cinematic"（电影）、"cartoon"（卡通）
-    style: str = "realistic"
+    style: VideoStyle = VideoStyle.REALISTIC
     # 每个分镜的持续时间（秒），默认5秒
     duration_per_shot: int = 5
     # 前一个分镜的连续性状态，用于保持连续性

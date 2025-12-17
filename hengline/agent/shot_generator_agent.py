@@ -5,16 +5,15 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-import json
-from pathlib import Path
 from typing import Dict, List, Any
 
 # LLMChain在langchain 1.0+中已更改，我们将直接使用模型和提示词
 from langchain_core.prompts import ChatPromptTemplate
+from openai import AuthenticationError, APIError
 
 from hengline.logger import debug, error, warning
+from hengline.prompts.prompts_manager import prompt_manager
 from utils.log_utils import print_log_exception
-from hengline.prompts.prompts_manager import PromptManager
 
 
 class ShotGeneratorAgent:
@@ -28,80 +27,8 @@ class ShotGeneratorAgent:
             llm: 语言模型实例
         """
         self.llm = llm
-        self._init_prompts()
-
-    def _init_prompts(self):
-        """从YAML文件初始化提示词模板"""
-        import os
-        import yaml
-
-        # 定义YAML文件路径
-        yaml_file_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            'prompts', 'shot_generator_prompt.yaml'
-        )
-
-        try:
-            # 读取YAML文件
-            with open(yaml_file_path, 'r', encoding='utf-8') as f:
-                yaml_content = yaml.safe_load(f)
-
-            # 提取模板内容
-            template_content = yaml_content.get('template', '')
-            debug(f"成功从{yaml_file_path}加载提示词模板，版本: {yaml_content.get('version', 'unknown')}")
-
-            # 使用PromptManager获取提示词
-            self.prompt_manager = PromptManager(prompt_dir=Path(__file__).parent.parent)
-
-            # 分镜生成提示词模板 - 从YAML加载或使用默认
-            self.shot_generation_template = ChatPromptTemplate.from_template(template_content)
-
-        except Exception as e:
-            warning(f"无法加载提示词YAML文件，使用默认模板: {e}")
-            # 使用PromptManager获取提示词
-            self.prompt_manager = PromptManager(prompt_dir=Path(__file__).parent.parent)
-
-            # 如果加载失败，使用默认模板作为备份
-            default_template = """
-你是一位顶尖的电影分镜师和AI视频提示词工程师。请为一段5秒的短视频生成专业分镜：
-
-## 场景信息
-场景位置: {location}
-时间: {time}
-氛围: {atmosphere}
-
-## 动作序列
-{actions_text}
-
-## 连续性约束
-{continuity_constraints_text}
-
-## 视频风格
-{style}
-
-## 分镜ID
-{shot_id}
-
-## 创作要求
-1. **精确计时**: 确保所有描述的动作能够在5秒内自然流畅地完成
-2. **生动描述**: 中文画面描述要具体、生动
-3. **专业提示词**: 英文AI提示词必须详细精确
-
-## 输出格式要求
-请严格按照以下JSON格式输出：
-{{
-  "chinese_description": "详细的中文画面描述",
-  "ai_prompt": "详细的英文AI视频提示词",
-  "camera": {{
-    "shot_type": "镜头类型",
-    "angle": "拍摄角度",
-    "movement": "镜头运动"
-  }},
-  "initial_state": [{{"character_name": "角色名","pose": "初始姿势","position": "初始位置","holding": "手持物品","emotion": "初始情绪","appearance": "角色外观描述"}}],
-  "final_state": [{{"character_name": "角色名","pose": "结束姿势","position": "结束位置","gaze_direction": "视线方向","emotion": "结束情绪","holding": "手持物品"}}]
-}}
-"""
-            self.shot_generation_template = ChatPromptTemplate.from_template(default_template)
+        # 分镜生成提示词模板 - 从YAML加载或使用默认
+        self.shot_generation_template = prompt_manager.get_shot_generator_prompt()
 
     def generate_shot(self,
                       segment: Dict[str, Any],
@@ -153,6 +80,7 @@ class ShotGeneratorAgent:
                     # 使用LLM生成
                     chain = current_template | self.llm
                     response = chain.invoke(prompt_input)
+                    debug(f"原始LLM响应: {response[:200]}...")  # 记录部分原始响应用于调试
                     # 确保获取到content
                     if hasattr(response, 'content'):
                         response = response.content
@@ -163,16 +91,15 @@ class ShotGeneratorAgent:
                     debug(f"成功解析LLM响应，生成了包含{len(shot_data)}个字段的分镜数据")
                 except Exception as jde:
                     error(f"LLM响应JSON解析失败: {str(jde)}")
-                    debug(f"原始LLM响应: {response[:200]}...")  # 记录部分原始响应用于调试
                     # 回退到规则生成
                     debug("JSON解析失败，回退到规则生成分镜")
                     shot_data = self._generate_shot_with_rules(segment, continuity_constraints, scene_context, style, shot_id)
-                except Exception as llm_e:
+                except AuthenticationError | ConnectionError | APIError as llm_e:
                     # 检查是否是API密钥错误
                     if "API key" in str(llm_e) or "401" in str(llm_e):
-                        warning(f"LLM生成分镜失败：API密钥错误或权限不足: {str(llm_e)}")
+                        error(f"LLM生成分镜失败：API密钥错误或权限不足: {str(llm_e)}")
                     else:
-                        warning(f"LLM生成分镜失败: {str(llm_e)}")
+                        error(f"LLM生成分镜失败: {str(llm_e)}")
                     # 回退到规则生成
                     debug("回退到规则生成分镜")
                     shot_data = self._generate_shot_with_rules(segment, continuity_constraints, scene_context, style, shot_id)
@@ -197,10 +124,8 @@ class ShotGeneratorAgent:
                 "duration": duration,
 
                 # 描述字段
-                "chinese_description": shot_data.get("chinese_description", "默认中文描述"),
                 "ai_prompt": shot_data.get("ai_prompt", "Default AI prompt"),
-                "description": shot_data.get("chinese_description", "默认描述"),
-                "prompt_en": shot_data.get("ai_prompt", "Default prompt"),
+                "description": shot_data.get("description", "默认描述"),
 
                 # 相机信息
                 "camera": shot_data.get("camera", {
@@ -224,7 +149,7 @@ class ShotGeneratorAgent:
                 "final_continuity_state": {}
             }
 
-            debug(f"分镜生成完成: {shot.get('chinese_description', '')[:100]}...")
+            debug(f"分镜生成完成: {shot.get('description', '')[:100]}...")
             return shot
 
         except Exception as e:
@@ -242,11 +167,11 @@ class ShotGeneratorAgent:
         lines = []
         # 确保动作按顺序排序
         sorted_actions = sorted(actions, key=lambda x: x.get("order", 0))
-        
+
         # 按角色分组，优先处理主要角色
         main_actions = []
         phone_actions = []
-        
+
         for action in sorted_actions:
             if "dialogue" in action:
                 if "电话那头" in action.get('character', '') or "off-screen" in action.get('character', ''):
@@ -258,21 +183,21 @@ class ShotGeneratorAgent:
                     phone_actions.append(action)
                 else:
                     main_actions.append(action)
-        
+
         # 先添加主要角色的动作
         for idx, action in enumerate(main_actions, 1):
             if "dialogue" in action:
                 lines.append(f"{idx}. {action['character']}（{action['emotion']}）：{action['dialogue']}")
             else:
                 lines.append(f"{idx}. {action['character']} {action.get('action', '')}（{action.get('emotion', '平静')}）")
-        
+
         # 再添加电话那头角色的动作
         for idx, action in enumerate(phone_actions, len(main_actions) + 1):
             if "dialogue" in action:
                 lines.append(f"{idx}. {action['character']}（{action['emotion']}）[声音]: {action['dialogue']}")
             else:
                 lines.append(f"{idx}. {action['character']} {action.get('action', '')}[声音]")
-        
+
         return "\n".join(lines)
 
     def _format_continuity_constraints(self, constraints: Dict[str, Any]) -> str:
@@ -289,14 +214,14 @@ class ShotGeneratorAgent:
 
         # 添加角色约束
         characters = constraints.get("characters", {})
-        
+
         # 确保characters是字典类型
         if isinstance(characters, dict):
             # 先处理主要角色（不在电话那头的）
             main_characters = {k: v for k, v in characters.items() if "电话那头" not in k and "off-screen" not in k}
             # 处理电话那头的角色
             phone_characters = {k: v for k, v in characters.items() if "电话那头" in k or "off-screen" in k}
-            
+
             # 添加主要角色约束
             for character_name, char_constraints in main_characters.items():
                 lines.append(f"角色 {character_name} 的约束：")
@@ -306,7 +231,7 @@ class ShotGeneratorAgent:
                         lines.append(f"  - 必须以 {constraint_name}: {value} 开始")
                     elif key == "character_description":
                         lines.append(f"  - 描述: {value}")
-            
+
             # 添加电话那头角色的特殊约束
             for character_name, char_constraints in phone_characters.items():
                 lines.append(f"角色 {character_name} 的约束（不在画面中）：")
@@ -316,7 +241,7 @@ class ShotGeneratorAgent:
             # 如果是列表，进行适当处理
             debug(f"连续性约束中的characters是列表类型，包含{len(characters)}个元素")
             for idx, character_info in enumerate(characters):
-                character_name = character_info.get("character_name", f"角色{idx+1}")
+                character_name = character_info.get("character_name", f"角色{idx + 1}")
                 lines.append(f"角色 {character_name} 的约束：")
                 if isinstance(character_info, dict):
                     for key, value in character_info.items():
@@ -351,31 +276,31 @@ class ShotGeneratorAgent:
         """使用规则生成分镜（当LLM不可用时）"""
         actions = segment.get("actions", [])
         all_characters = list(continuity_constraints.get("characters", {}).keys())
-        
+
         # 分离主要角色和电话那头的角色
         main_characters = [c for c in all_characters if "电话那头" not in c and "off-screen" not in c]
         phone_characters = [c for c in all_characters if "电话那头" in c or "off-screen" in c]
 
         # 生成中文描述
-        chinese_description = f"场景：{scene_context.get('location', '')}，{scene_context.get('time', '')}，{scene_context.get('atmosphere', '')}。"
-        
+        description = f"场景：{scene_context.get('location', '')}，{scene_context.get('time', '')}，{scene_context.get('atmosphere', '')}。"
+
         # 按角色分组动作
         main_actions = [a for a in actions if "character" in a and a["character"] in main_characters]
         phone_actions = [a for a in actions if "character" in a and a["character"] in phone_characters]
-        
+
         # 先添加主要角色的动作描述
         for action in main_actions:
             if "dialogue" in action:
-                chinese_description += f"{action['character']}（{action['emotion']}）说：{action['dialogue']}。"
+                description += f"{action['character']}（{action['emotion']}）说：{action['dialogue']}。"
             else:
-                chinese_description += f"{action['character']} {action.get('action', '')}。"
-        
+                description += f"{action['character']} {action.get('action', '')}。"
+
         # 再添加电话那头角色的动作描述
         for action in phone_actions:
             if "dialogue" in action:
-                chinese_description += f"{action['character']}（画外音）说：{action['dialogue']}。"
+                description += f"{action['character']}（画外音）说：{action['dialogue']}。"
             else:
-                chinese_description += f"{action['character']}（画外音）{action.get('action', '')}。"
+                description += f"{action['character']}（画外音）{action.get('action', '')}。"
 
         # 生成英文提示词
         style_prefix = self._get_style_prefix(style)
@@ -392,7 +317,7 @@ class ShotGeneratorAgent:
                 action_desc = action.get('action', 'does something')
                 emotion = action.get('emotion', 'neutral')
                 ai_prompt += f"A person named {character} {action_desc} with {emotion} expression. "
-        
+
         # 添加电话那头角色的英文描述（标记为off-screen）
         for action in phone_actions:
             character = action['character']
@@ -433,7 +358,7 @@ class ShotGeneratorAgent:
             final_position = char_constraints.get("must_start_with_position", "center")
             final_emotion = char_constraints.get("must_start_with_emotion", "neutral")
             final_holding = char_constraints.get("must_start_with_holding", "nothing")
-            
+
             # 分析角色动作来更新状态
             character_actions = [a for a in actions if "character" in a and a["character"] == character]
             for action in character_actions:
@@ -456,7 +381,7 @@ class ShotGeneratorAgent:
                 elif "看" in action_text or "注视" in action_text:
                     # 视线方向根据描述调整
                     final_emotion = "focused"
-            
+
             final_state.append({
                 "character_name": character,
                 "pose": final_pose,
@@ -465,7 +390,7 @@ class ShotGeneratorAgent:
                 "emotion": final_emotion,
                 "holding": final_holding
             })
-        
+
         # 处理电话那头角色的特殊状态
         for character in phone_characters:
             # 电话那头的角色状态保持一致且位置为off-screen
@@ -477,19 +402,19 @@ class ShotGeneratorAgent:
                 "emotion": "unknown",
                 "appearance": f"{character} (off-screen)"
             }
-            
+
             initial_state.append(phone_state)
-            
+
             # 结束状态基本相同，只可能更新情绪
             final_phone_state = phone_state.copy()
             character_actions = [a for a in actions if "character" in a and a["character"] == character]
             if character_actions and "dialogue" in character_actions[0]:
                 final_phone_state["emotion"] = character_actions[0].get('emotion', 'unknown')
-            
+
             final_state.append(final_phone_state)
 
         return {
-            "chinese_description": chinese_description,
+            "description": description,
             "ai_prompt": ai_prompt,
             "camera": camera,
             "initial_state": initial_state,
@@ -520,7 +445,7 @@ class ShotGeneratorAgent:
                     is_in_frame = False
                 if "电话那头" in character_name or "off-screen" in character_name:
                     is_in_frame = False
-                    
+
                 if is_in_frame:
                     characters.add(character_name)
 
@@ -528,7 +453,7 @@ class ShotGeneratorAgent:
         if not characters and "scene_context" in shot_data:
             # 这是一个回退机制
             return ["默认角色"]
-            
+
         return list(characters)
 
     def _generate_continuity_anchor(self, shot_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -543,7 +468,7 @@ class ShotGeneratorAgent:
         for state in shot_data.get("initial_state", []):
             if "character_name" in state:
                 all_characters.add(state["character_name"])
-                
+
         # 从结束状态生成锚点
         for character_name in all_characters:
             # 查找该角色的final_state
@@ -552,14 +477,14 @@ class ShotGeneratorAgent:
                 if state.get("character_name") == character_name:
                     character_state = state
                     break
-            
+
             # 如果没有找到，使用initial_state
             if not character_state:
                 for state in shot_data.get("initial_state", []):
                     if state.get("character_name") == character_name:
                         character_state = state
                         break
-            
+
             # 创建锚点
             anchor = {
                 "character_name": character_name,
@@ -569,7 +494,7 @@ class ShotGeneratorAgent:
                 "emotion": "unknown",
                 "holding": "unknown"
             }
-            
+
             # 如果找到状态，更新锚点
             if character_state:
                 anchor.update({
@@ -579,12 +504,12 @@ class ShotGeneratorAgent:
                     "emotion": character_state.get("emotion", "unknown"),
                     "holding": character_state.get("holding", "unknown")
                 })
-                
+
                 # 确保电话那头角色的位置正确
                 if "电话那头" in character_name or "off-screen" in character_name:
                     anchor["position"] = "off-screen"
                     anchor["pose"] = "off-screen"
-            
+
             anchors.append(anchor)
 
         return anchors
@@ -630,10 +555,8 @@ class ShotGeneratorAgent:
             "duration": duration,
 
             # 描述字段
-            "chinese_description": f"场景：{location}，{time}，{atmosphere}。分镜生成失败，使用默认描述。",
             "ai_prompt": f"Default shot of {location} at {time}",
             "description": f"场景：{location}，{time}，{atmosphere}。分镜生成失败，使用默认描述。",
-            "prompt_en": f"Default shot of {location} at {time}, {atmosphere}",
 
             # 相机信息
             "camera": {

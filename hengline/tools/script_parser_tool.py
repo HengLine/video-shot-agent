@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-剧本语法解析器模块
-提供自定义剧本格式的解析功能，支持场景、角色、对话、动作等元素的提取
+@FileName: script_parser_agent.py
+@Description: 剧本语法解析器模块
+            提供自定义剧本格式的解析功能，支持场景、角色、对话、动作等元素的提取
+@Author: HengLine
+@Time: 2025/10 - 2025/11
 """
-
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Dict, List, Optional, Any, Tuple
 
 from llama_index.core.schema import Document
@@ -64,7 +66,7 @@ class Scene:
             self.characters = []
 
 
-class ScriptParser:
+class ScriptParserTool:
     """
     自定义剧本语法解析器
     支持标准剧本格式和自定义扩展格式的解析
@@ -481,7 +483,7 @@ def parse_script_to_documents(script_text: str) -> Tuple[Dict[str, Any], List[Do
     Returns:
         (解析结果, 文档列表)元组
     """
-    parser = ScriptParser()
+    parser = ScriptParserTool()
     parsed_result = parser.parse(script_text)
     documents = parser.create_documents(parsed_result)
     return parsed_result, documents
@@ -497,7 +499,7 @@ def parse_script_file_to_documents(file_path: str) -> Tuple[Dict[str, Any], List
     Returns:
         (解析结果, 文档列表)元组
     """
-    parser = ScriptParser()
+    parser = ScriptParserTool()
     parsed_result = parser.parse_file(file_path)
     documents = parser.create_documents(parsed_result)
     return parsed_result, documents

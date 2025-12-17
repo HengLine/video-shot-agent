@@ -14,11 +14,10 @@ from hengline.client.embedding_client import get_embedding_client
 from hengline.tools import (
     # 剧本智能分析主类
     create_script_intelligence,
-    # 剧本解析器
-    ScriptParser,
     # 剧本知识库
     create_script_knowledge_base,
 )
+from hengline.tools.script_parser_tool import ScriptParserTool
 
 
 def example_basic_script_parsing():
@@ -66,7 +65,7 @@ def example_basic_script_parsing():
     """
 
     # 创建解析器并解析
-    parser = ScriptParser()
+    parser = ScriptParserTool()
     parsed_result = parser.parse(sample_script)
 
     # 显示解析结果
