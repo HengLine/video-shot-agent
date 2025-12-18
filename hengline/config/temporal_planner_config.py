@@ -6,16 +6,29 @@
 """
 import yaml
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from hengline.logger import debug, warning, info
+from hengline.language_manage import Language, get_language_code
 
 
 class TemporalPlannerConfig:
     """时序规划智能体配置类"""
     
-    def __init__(self):
-        """初始化配置管理器"""
-        self.config_path = Path(__file__).parent / "action_duration_config.yaml"
+    def __init__(self, language: Language = None):
+        """初始化配置管理器
+        
+        Args:
+            language: 语言枚举，默认使用系统设置的语言
+        """
+        # 设置当前语言
+        if language:
+            self._language = language.value
+        else:
+            self._language = get_language_code()
+        
+        # 设置配置文件路径
+        self._set_config_path()
+        
         self._config_data = {}
         self._base_actions = {}
         self._modifiers = {}
@@ -28,6 +41,14 @@ class TemporalPlannerConfig:
         
         # 加载配置
         self.load_configuration()
+    
+    def _set_config_path(self):
+        """设置配置文件路径"""
+        # 根据语言选择配置文件路径
+        if self._language == Language.EN.value:
+            self.config_path = Path(__file__).parent / "en" / "action_duration_config.yaml"
+        else:
+            self.config_path = Path(__file__).parent / "zh" / "action_duration_config.yaml"
     
     def load_configuration(self):
         """从配置文件加载动作时长数据"""
@@ -146,6 +167,18 @@ class TemporalPlannerConfig:
             self._max_duration_deviation = value
             debug(f"最大时长偏差已设置为: {value}秒")
     
+    def set_language(self, language: Language):
+        """设置语言并重新加载配置
+        
+        Args:
+            language: 语言枚举
+        """
+        if language.value != self._language:
+            self._language = language.value
+            self._set_config_path()
+            self.load_configuration()
+            debug(f"时序规划配置语言已切换为: {self._language}")
+    
     def get_config_summary(self) -> Dict[str, Any]:
         """获取配置摘要"""
         return {
@@ -153,7 +186,8 @@ class TemporalPlannerConfig:
             "modifiers_count": len(self._modifiers),
             "target_segment_duration": self._target_segment_duration,
             "max_duration_deviation": self._max_duration_deviation,
-            "min_action_duration": self._min_action_duration
+            "min_action_duration": self._min_action_duration,
+            "language": self._language
         }
 
 
@@ -161,17 +195,25 @@ class TemporalPlannerConfig:
 planner_config = TemporalPlannerConfig()
 
 
-def get_planner_config() -> TemporalPlannerConfig:
+def get_planner_config(language: Language = None) -> TemporalPlannerConfig:
     """
     获取时序规划配置实例
     
+    Args:
+        language: 语言枚举，默认使用系统设置的语言
+        
     Returns:
         TemporalPlannerConfig: 配置实例
     """
+    global planner_config
+    
+    if language and language.value != planner_config._language:
+        planner_config.set_language(language)
+    
     return planner_config
 
 
-def reload_configuration():
+def reload_configuration() -> TemporalPlannerConfig:
     """
     重新加载配置文件
     """

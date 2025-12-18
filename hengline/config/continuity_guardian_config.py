@@ -1,6 +1,6 @@
 """
 @FileName: continuity_guardian_config.py
-@Description: 
+@Description: 连续性守护智能体配置
 @Author: HengLine
 @Time: 2025/11/3 21:31
 """
@@ -10,13 +10,27 @@ from typing import Dict, List, Any, Optional
 import yaml
 
 from hengline.logger import debug, warning
+from hengline.language_manage import Language, get_language_code
 
 
 class ContinuityGuardianConfig:
-    def __init__(self):
-        """初始化连续性守护智能体"""
+    def __init__(self, language: Language = None):
+        """初始化连续性守护智能体
+        
+        Args:
+            language: 语言枚举，默认使用系统设置的语言
+        """
         # 角色状态记忆
         self.character_states = {}
+        
+        # 设置当前语言
+        if language:
+            self._language = language.value
+        else:
+            self._language = get_language_code()
+        
+        # 设置配置文件路径
+        self._set_config_path()
 
         # 加载连续性守护智能体配置
         self.config = self._load_config()
@@ -26,18 +40,27 @@ class ContinuityGuardianConfig:
 
         # 构建情绪映射表
         self._build_emotion_mapping()
+    
+    def _set_config_path(self):
+        """设置配置文件路径"""
+        current_dir = os.path.dirname(os.path.dirname(__file__))
+        
+        # 根据语言选择配置文件路径
+        if self._language == Language.EN.value:
+            config_file = 'en/continuity_guardian_config.yaml'
+        else:
+            config_file = 'zh/continuity_guardian_config.yaml'
+        
+        self.config_path = os.path.join(
+            current_dir, 'config', config_file
+        )
 
     def _load_config(self) -> Dict[str, Any]:
         """加载连续性守护智能体配置"""
-        config_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'config', 'continuity_guardian_config.yaml'
-        )
-
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
-            debug(f"成功加载连续性守护智能体配置: {config_path}")
+            debug(f"成功加载连续性守护智能体配置: {self.config_path}")
             return config
         except Exception as e:
             warning(f"加载连续性守护智能体配置失败: {e}")
@@ -154,3 +177,17 @@ class ContinuityGuardianConfig:
         else:
             # 没有外观信息时使用简单描述
             return f"{character_name}, {state.get('pose')}, {state.get('emotion')}"
+    
+    def set_language(self, language: Language):
+        """设置语言并重新加载配置
+        
+        Args:
+            language: 语言枚举
+        """
+        if language.value != self._language:
+            self._language = language.value
+            self._set_config_path()
+            self.config = self._load_config()
+            self.default_appearances = self.config.get('default_appearances', {})
+            self._build_emotion_mapping()
+            debug(f"连续性守护智能体配置语言已切换为: {self._language}")

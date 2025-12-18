@@ -172,6 +172,12 @@ class ContinuityGuardianAgent:
         # 合并所有动作文本
         all_actions_text = "".join(action.get("action", "") for action in actions)
         
+        # 获取各种关键词
+        pose_keywords = self.keyword_config.get_pose_keywords(Language.ZH)
+        gaze_keywords = self.keyword_config.get_gaze_keywords(Language.ZH)
+        # 获取位置关键词
+        position_keywords = self.keyword_config.get_position_keywords(Language.ZH)
+        
         # 根据动作文本推断姿势
         if any(keyword in all_actions_text for keyword in ["蜷在", "裹着", "躺在", "趴在"]):
             inferred_state["pose"] = "躺"
@@ -506,4 +512,4 @@ class ContinuityGuardianAgent:
         # 检查是否是有效的过渡
         return curr_category in valid_transitions.get(prev_category, [])
 
-
+

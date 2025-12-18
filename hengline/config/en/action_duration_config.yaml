@@ -1,0 +1,98 @@
+# =============================================================================
+# Storyboard Agent - Action Duration Estimation Configuration
+# Purpose: Convert natural language action descriptions to second-level durations (for 5-second storyboard segmentation)
+# Version: 1.2
+# Last Updated: 2025-10-24
+# =============================================================================
+
+version: "1.2"
+description: "Action duration estimation configuration file, used to convert natural language action descriptions to second-level durations for storyboard segmentation."
+
+# -----------------------------------------------------------------------------
+# 1. Base Action Durations (unit: seconds)
+# Format: Verb/Phrase → Default Duration
+# Note: Longer phrases are prioritized (e.g., "pick up phone" takes precedence over "pick up")
+# -----------------------------------------------------------------------------
+base_actions:
+  # === Body Movements ===
+  walk: 2.0
+  quick walk: 1.5
+  run: 1.2
+  jog: 1.4
+  stand up: 1.5
+  sit down: 1.3
+  lie down: 1.8
+  stand: 0.5
+  turn around: 0.8
+  pace: 2.5
+  jump: 1.0
+  squat: 1.2
+  get up: 1.6
+
+  # === Hand/Interaction Actions ===
+  reach out: 0.9
+  shake hands: 1.2
+  hug: 2.5
+  push: 0.7
+  pull: 0.7
+  pick up: 1.0
+  put down: 0.8
+  open: 1.0
+  close: 0.9
+  push door: 1.1
+  close door: 1.0
+  press button: 0.6
+  dial: 1.2
+  answer phone: 1.0
+  hang up phone: 0.8
+  flip through book: 1.0
+  write: 1.5
+  drink: 1.8
+  eat: 2.0
+
+  # === Head/Facial Actions ===
+  look up: 0.5
+  look down: 0.5
+  turn head: 0.6
+  nod: 0.6
+  shake head: 0.7
+  smile: 0.8
+  laugh: 1.2
+  frown: 0.6
+  stare: 0.5
+  close eyes: 0.4
+  cry: 1.5
+  wipe tears: 1.2
+  freeze: 1.0
+  hesitate: 1.2
+  surprised: 0.7
+  scared: 0.9
+  angry: 0.8
+
+  # === Special States (continuous) ===
+  stand still: 1.0
+  sit still: 1.0
+  gaze: 1.5
+  daze: 2.0
+
+# -----------------------------------------------------------------------------
+# 2. Modifier Correction Factors (multiplication factors)
+# Applied to base action durations
+# -----------------------------------------------------------------------------
+modifiers:
+  # Speed modifiers
+  quickly: 0.7
+  rapidly: 0.65
+  swiftly: 0.6
+  fast: 0.55
+  slowly: 1.8
+  gently: 1.3
+  softly: 1.4
+  suddenly: 0.6
+  abruptly: 0.7
+  forcefully: 0.9
+  carefully: 1.2
+  nervously: 1.1
+  calmly: 0.95
+  excitedly: 1.15
+  hesitantly: 1.3

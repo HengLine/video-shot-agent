@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from hengline.agent.workflow_models import VideoStyle
 from hengline.generate_agent import generate_storyboard
+from hengline.language_manage import Language
 from hengline.logger import info, error, log_with_context
 from utils.log_utils import print_log_exception
 
@@ -26,6 +27,8 @@ class StoryboardRequest(BaseModel):
     分镜生成请求模型
     """
     script_text: str
+    # 剧本语言，可选值："zh"（中文）、"en"（英文）
+    language: str = Language.ZH.value
     # 分镜风格，可选值："realistic"（逼真）、"anime"（动漫）、"cinematic"（电影）、"cartoon"（卡通）
     style: VideoStyle = VideoStyle.REALISTIC
     # 每个分镜的持续时间（秒），默认5秒
@@ -34,7 +37,7 @@ class StoryboardRequest(BaseModel):
     prev_continuity_state: Optional[Dict[str, Any]] = None
     # 唯一请求ID，默认生成UUID
     # task_id: str = str(uuid.uuid4())
-    task_id: str = "hengline-" + str(datetime.now().strftime("%Y%m%d-%H%M%S-")) + str(random.randint(10, 99))
+    task_id: str = "hengline-" + str(datetime.now().strftime("%Y%m%d-%H%M%S")) + str(random.randint(100, 999))
 
 
 # 定义响应模型

@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -14,7 +15,7 @@ def test_scene_parser():
     parser_agent = ScriptParserAgent()
     
     # 解析剧本
-    result = parser_agent.parse_script(script_text, task_id="test_scene_parser")
+    result = parser_agent.parse_script(script_text)
     
     # 打印结果
     print("解析结果:")

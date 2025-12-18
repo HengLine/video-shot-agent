@@ -156,7 +156,7 @@ def generate_storyboard_segments(script: str, min_shots: int = 5, max_shots: int
         优化后的分段列表
     """
     # 初始化估算器
-    estimator = ActionDurationEstimator("../hengline/config/action_duration_config.yaml")
+    estimator = ActionDurationEstimator("../hengline/config/zh/action_duration_config.yaml")
     estimator.clear_cache()
     
     # 提取动作

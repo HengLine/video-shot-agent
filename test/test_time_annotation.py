@@ -7,8 +7,8 @@ from hengline.tools.action_duration_tool import ActionDurationEstimator
 
 def test_time_annotations():
     """测试不同类型的时间标注处理"""
-    # 使用正确的配置文件路径
-    config_path = os.path.join(os.path.dirname(__file__), "hengline", "config", "action_duration_config.yaml")
+    # 使用正确的配置文件路径（中文）
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "hengline", "config", "zh", "action_duration_config.yaml")
     estimator = ActionDurationEstimator(config_path)
     
     test_cases = [

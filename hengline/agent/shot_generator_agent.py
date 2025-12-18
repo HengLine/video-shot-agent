@@ -13,6 +13,8 @@ from openai import AuthenticationError, APIError
 
 from hengline.logger import debug, error, warning
 from hengline.prompts.prompts_manager import prompt_manager
+from hengline.config.keyword_config import get_keyword_config
+from hengline.language_manage import Language
 from utils.log_utils import print_log_exception
 
 
@@ -30,50 +32,66 @@ class ShotGeneratorAgent:
         # 分镜生成提示词模板 - 从YAML加载或使用默认
         self.shot_generation_template = prompt_manager.get_shot_generator_prompt()
         
-        # 标准化状态值映射表
-        self._pose_map = {
-            # 中文到英文的映射
-            "坐": "sitting",
-            "坐着": "sitting",
-            "站立": "standing",
-            "站着": "standing",
-            "行走": "walking",
-            "走": "walking",
-            "躺": "lying",
-            "躺着": "lying",
-            "跪": "kneeling",
-            "跪着": "kneeling",
-            "弯腰": "bending",
-            "弯腰": "bending",
-            # 英文到英文的映射（确保大小写一致）
-            "Sitting": "sitting",
-            "Standing": "standing",
-            "Walking": "walking",
-            "Lying": "lying",
-            "Kneeling": "kneeling",
-            "Bending": "bending"
+        # 获取关键词配置
+        self.keyword_config = get_keyword_config()
+        
+        # 初始化姿态映射
+        self._init_mappings()
+    
+    def _init_mappings(self):
+        """初始化各种映射表"""
+        # 姿态映射
+        self._pose_map = {}
+        
+        # 添加中文到标准化值的映射
+        pose_keywords = self.keyword_config.get_pose_keywords(Language.ZH)
+        self._pose_map.update(pose_keywords)
+        
+        
+        # 添加标准化值到英文提示词的映射
+        pose_standard_map = self.keyword_config.get_pose_mapping()
+        self._standard_pose_map = pose_standard_map
+        
+        # 位置映射
+        position_keywords = self.keyword_config.get_position_keywords(Language.ZH)
+        self._position_map = {
+            # 左侧位置映射
+            **{kw: 'left' for kw in position_keywords.get('left', [])},
+            # 中央位置映射
+            **{kw: 'center' for kw in position_keywords.get('center', [])},
+            # 右侧位置映射
+            **{kw: 'right' for kw in position_keywords.get('right', [])},
+            # 前景位置映射
+            **{kw: 'foreground' for kw in position_keywords.get('foreground', [])},
+            # 背景位置映射
+            **{kw: 'background' for kw in position_keywords.get('background', [])},
         }
         
-        self._position_map = {
-            # 中文到英文的映射
-            "左侧": "left",
-            "左": "left",
-            "中央": "center",
-            "中间": "center",
-            "右侧": "right",
-            "右": "right",
-            "画面中央": "center",
-            "画面左侧": "left",
-            "画面右侧": "right",
-            # 英文到英文的映射
-            "Left": "left",
-            "Center": "center",
-            "Right": "right"
-        }
+        # 添加英文位置映射
+        position_keywords_en = self.keyword_config.get_position_keywords(Language.EN)
+        self._position_map.update({
+            # 左侧位置映射
+            **{kw: 'left' for kw in position_keywords_en.get('left', [])},
+            # 中央位置映射
+            **{kw: 'center' for kw in position_keywords_en.get('center', [])},
+            # 右侧位置映射
+            **{kw: 'right' for kw in position_keywords_en.get('right', [])},
+            # 前景位置映射
+            **{kw: 'foreground' for kw in position_keywords_en.get('foreground', [])},
+            # 背景位置映射
+            **{kw: 'background' for kw in position_keywords_en.get('background', [])},
+        })
+        
+        debug(f"初始化姿态映射: {self._pose_map}")
+        debug(f"初始化位置映射: {self._position_map}")
     
     def _standardize_pose(self, pose: str) -> str:
         """标准化姿势值"""
-        return self._pose_map.get(pose, pose.lower() if isinstance(pose, str) else "unknown")
+        # 先获取标准化值
+        standardized_pose = self._pose_map.get(pose, pose.lower() if isinstance(pose, str) else "unknown")
+        
+        # 再获取英文提示词
+        return self._standard_pose_map.get(standardized_pose, standardized_pose)
     
     def _standardize_position(self, position: str) -> str:
         """标准化位置值"""
@@ -82,21 +100,16 @@ class ShotGeneratorAgent:
     def _extract_props_from_actions(self, actions: List[Dict[str, Any]]) -> List[str]:
         """从动作描述中提取道具信息"""
         props = set()
+        # 获取道具关键词
+        prop_keywords = self.keyword_config.get_prop_keywords(Language.ZH).get('common', [])
+        
         for action in actions:
             action_text = action.get('action', '')
             # 从动作中提取常见道具
-            if "茶几" in action_text:
-                props.add("茶几")
-            if "手机" in action_text:
-                props.add("手机")
-            if "相册" in action_text:
-                props.add("相册")
-            if "凉茶" in action_text:
-                props.add("凉茶")
-            if "毛毯" in action_text:
-                props.add("毛毯")
-            if "电视" in action_text:
-                props.add("电视")
+            for prop in prop_keywords:
+                if prop in action_text:
+                    props.add(prop)
+        
         return list(props)
 
     def _standardize_state_values(self, state: Dict[str, Any]) -> Dict[str, Any]:

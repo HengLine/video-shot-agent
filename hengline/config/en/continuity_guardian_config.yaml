@@ -1,0 +1,100 @@
+# Continuity Guardian Agent Configuration File
+
+# Version Information
+version: "1.0"
+description: "Continuity Guardian Agent Configuration File, used to check the continuity of character emotions in scripts"
+
+# Default Character Appearance Configuration
+default_appearances:
+  pose: "stand"
+  position: "center of frame"
+  emotion: "calm"
+  gaze_direction: "forward"
+  holding: "none"
+
+# Emotion Mapping Table
+emotion_mapping:
+  # Neutral Emotions
+  neutral:
+    - "calm"
+    - "doubt"
+    - "hesitant"
+    - "natural"
+    - "normal"
+    - "ordinary"
+    - "general"
+  
+  # Positive Emotions
+  positive:
+    - "excited"
+    - "happy"
+    - "joyful"
+    - "thrilled"
+    - "satisfied"
+    - "grateful"
+    - "delighted"
+    - "blissful"
+    - "content"
+    - "pleased"
+  
+  # Negative Emotions
+  negative:
+    - "shocked"
+    - "angry"
+    - "sad"
+    - "fearful"
+    - "anxious"
+    - "disappointed"
+    - "upset"
+    - "depressed"
+    - "painful"
+    - "scared"
+
+# Emotion Transition Rules
+emotion_transition_rules:
+  "positive":
+    - "positive"
+    - "neutral"
+  "negative":
+    - "negative"
+    - "neutral"
+  "neutral":
+    - "positive"
+    - "negative"
+    - "neutral"
+
+# Character Special Handling Rules
+character_special_rules:
+  # Rules for off-screen characters
+  off_screen_characters:
+    keywords:
+      - "off-screen"
+      - "电话那头"
+    default_pose: "off-screen"
+    default_position: "off-screen"
+    default_holding: "none"
+    default_gaze: "forward"
+    default_emotion: "unknown"
+
+# Camera Constraints
+camera_constraints:
+  single_action_shot_type: "medium shot"
+  multi_action_shot_type: "medium shot"
+  default_angle: "eye level"
+  maintain_consistency: true
+
+# Vector Memory Configuration - For vectorized representation of character states
+vector_memory:
+  # Vector Dimension Configuration
+  dimensions:
+    pose: 4
+    position: 5
+    emotion: 2
+    gaze_direction: 3
+    holding: 5
+  
+  # Pose Mapping
+  pose_mapping:
+    "stand": [1.0, 0.0, 0.0, 0.0]
+    "sit": [0.0, 1.0, 0.0, 0.0]
+    "lie": [0.0, 0.0, 1.0, 0.0]

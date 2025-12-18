@@ -1,0 +1,134 @@
+# =============================================================================
+# Storyboard Agent - Keyword Unified Configuration
+# Purpose: Centralized management of all fixed keywords for multi-language support
+# Version: 1.0
+# Last Updated: 2025-12-18
+# =============================================================================
+
+version: "1.0"
+description: "Unified keyword configuration file for multi-language support"
+
+# -----------------------------------------------------------------------------# 1. Character Pose Keywords# -----------------------------------------------------------------------------
+pose_keywords:
+  # English keywords mapping to standardized values
+  sit: "sitting"
+  sitting: "sitting"
+  stand: "standing"
+  standing: "standing"
+  walk: "walking"
+  walking: "walking"
+  lie: "lying"
+  lying: "lying"
+  kneel: "kneeling"
+  kneeling: "kneeling"
+  bend: "bending"
+  bending: "bending"
+  squat: "squatting"
+  squatting: "squatting"
+
+# -----------------------------------------------------------------------------# 2. Action Recognition Keywords# -----------------------------------------------------------------------------
+action_keywords:
+  # English keywords
+  move: ["walk", "stroll", "run", "jog", "go", "leave", "approach", "come"]
+  interact: ["pick", "put", "open", "close", "use", "operate", "press", "click"]
+  gesture: ["wave", "nod", "shake", "smile", "frown", "blink", "clench"]
+  body_movement: ["sit", "stand", "lie", "rise", "turn", "bend", "raise"]
+  facial_expression: ["laugh", "cry", "anger", "surprise", "sadness", "fear", "confuse"]
+
+# -----------------------------------------------------------------------------# 3. Emotion Keywords# -----------------------------------------------------------------------------
+emotion_keywords:
+  # English keywords
+  positive: ["happy", "joyful", "cheerful", "glad", "delighted", "excited", "satisfied", "blissful", "warm", "moved"]
+  negative: ["sad", "grieved", "painful", "heartbroken", "desperate", "depressed", "melancholy", "lost", "lonely", "isolated"]
+  neutral: ["calm", "peaceful", "composed", "cool", "numb", "indifferent", "serene"]
+  anger: ["angry", "furious", "annoyed", "irritated", "enraged", "indignant", "wrathful", "resentful"]
+  surprise: ["surprised", "astonished", "shocked", "amazed", "startled", "astounded"]
+  fear: ["afraid", "fearful", "scared", "terrified", "petrified", "panicked", "timid", "intimidated"]
+  disgust: ["disgusted", "repulsed", "annoyed", "loathed", "detested", "contemptuous", "scornful"]
+  confusion: ["confused", "puzzled", "perplexed", "baffled", "muddled", "bewildered", "uncertain"]
+
+# -----------------------------------------------------------------------------# 4. Scene Keywords# -----------------------------------------------------------------------------
+scene_keywords:
+  # English keywords
+  indoor: ["living room", "bedroom", "kitchen", "study", "office", "meeting room", "restaurant", "cafe", "hotel room", "shop"]
+  outdoor: ["park", "street", "square", "garden", "beach", "forest", "mountain", "field", "parking lot", "station"]
+  public_space: ["hospital", "school", "library", "museum", "cinema", "theater", "gym", "swimming pool", "stadium"]
+  natural_environment: ["mountain", "water", "river", "lake", "sea", "forest", "grassland", "desert", "snow mountain", "rainforest"]
+  time: ["morning", "forenoon", "noon", "afternoon", "evening", "night", "late night", "dawn", "sunrise", "sunset"]
+  weather: ["sunny", "cloudy", "rainy", "snowy", "foggy", "windy", "stormy", "blizzard", "partly cloudy", "rainbow"]
+
+# -----------------------------------------------------------------------------# 5. Character Keywords# -----------------------------------------------------------------------------
+character_keywords:
+  # English keywords
+  occupation: ["doctor", "nurse", "teacher", "student", "worker", "farmer", "businessman", "civil servant", "police", "firefighter"]
+  age: ["baby", "toddler", "child", "teen", "young", "middle-aged", "elderly", "old", "adult", "minor"]
+  gender: ["male", "female", "man", "woman", "boy", "girl"]
+  relationship: ["father", "mother", "son", "daughter", "husband", "wife", "brother", "sister", "friend", "colleague"]
+  identity: ["protagonist", "supporting", "villain", "passerby", "guest", "host", "employee", "boss", "customer", "waiter"]
+
+# -----------------------------------------------------------------------------# 6. Dialogue Keywords# -----------------------------------------------------------------------------
+dialogue_keywords:
+  # English keywords
+  dialogue_start: ["said", "spoke", "talked", "asked", "answered", "replied", "questioned", "stated", "mentioned", "inquired"]
+  dialogue_content: [":", "\"", "'", "\"", "'"]
+  dialogue_end: [".", "?", "!", "...", "\n"]
+  dialogue_type: ["statement", "question", "exclamation", "command", "request", "suggestion", "warning", "threat"]
+
+# -----------------------------------------------------------------------------# 7. Position Keywords# -----------------------------------------------------------------------------
+position_keywords:
+  # English keywords
+  left: ["left", "on the left", "left side"]
+  right: ["right", "on the right", "right side"]
+  center: ["center", "middle", "in the center", "in the middle"]
+  foreground: ["foreground", "front", "in the foreground"]
+  background: ["background", "back", "in the background"]
+  window: ["window", "by the window", "near the window"]
+  door: ["door", "by the door", "near the door"]
+  table: ["table", "by the table", "near the table"]
+  sofa: ["sofa", "on the sofa", "near the sofa"]
+  bed: ["bed", "on the bed", "near the bed"]
+
+# -----------------------------------------------------------------------------# 8. Prop Keywords# -----------------------------------------------------------------------------
+prop_keywords:
+  # English keywords
+  common: ["phone", "telephone", "cup", "kettle", "book", "magazine", "newspaper", "computer", "laptop", "tablet"]
+  furniture: ["table", "chair", "sofa", "bed", "cabinet", "bookshelf", "coffee table", "nightstand", "dining table", "desk"]
+  appliance: ["TV", "air conditioner", "fan", "refrigerator", "washing machine", "microwave", "oven", "water heater", "coffee maker"]
+  transportation: ["car", "bicycle", "electric bike", "motorcycle", "bus", "subway", "train", "airplane", "ship"]
+  office: ["pen", "pencil", "fountain pen", "notebook", "document", "folder", "printer", "photocopier", "scanner"]
+  electronic: ["phone", "telephone", "cellphone", "smartphone", "mobile"]
+  drinkware: ["coffee cup", "tea cup", "water cup", "drink cup"]
+
+# -----------------------------------------------------------------------------# 9. Gaze Direction Keywords# -----------------------------------------------------------------------------
+gaze_keywords:
+  # English keywords
+  up: ["look up", "gaze up", "stare up", "raise head"]
+  down: ["look down", "gaze down", "stare down", "lower head"]
+  forward: ["look forward", "stare ahead", "look straight", "face forward"]
+  left: ["look left", "gaze left", "stare left", "look to the left"]
+  right: ["look right", "gaze right", "stare right", "look to the right"]
+  object: ["look at", "gaze at", "stare at", "watch", "focus on"]
+
+# -----------------------------------------------------------------------------# 10. Action Split Keywords# -----------------------------------------------------------------------------
+action_split_keywords:
+  # English keywords
+  "then": "then"
+  "next": "then"
+  "after": "then"
+  "before": "before"
+  "first": "before"
+  "start": "start"
+  "end": "end"
+
+# -----------------------------------------------------------------------------# 11. State Keywords
+# -----------------------------------------------------------------------------
+state_keywords:
+  # English keywords
+  tired: "tired"
+  exhausted: "tired"
+  nervous: "nervous"
+  anxious: "nervous"
+  happy: "happy"
+  joyful: "happy"
+  smile: "smiling"
+  smiling: "smiling"

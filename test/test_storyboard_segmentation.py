@@ -233,7 +233,7 @@ def generate_storyboard_from_script(script: str) -> List[Dict[str, Any]]:
         分镜列表
     """
     # 初始化动作时长估算器
-    estimator = ActionDurationEstimator("../hengline/config/action_duration_config.yaml")
+    estimator = ActionDurationEstimator("../hengline/config/zh/action_duration_config.yaml")
     estimator.clear_cache()
     
     # 1. 提取动词和动作

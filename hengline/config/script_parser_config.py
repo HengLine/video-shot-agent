@@ -10,14 +10,18 @@ from typing import Optional, Dict, List, Any
 
 import yaml
 
-from hengline.logger import debug, warning
-
+from hengline.logger import debug, warning, error
+from hengline.language_manage import Language, get_language_code
 
 class ScriptParserConfig:
     """剧本解析器配置类"""
     
-    def __init__(self):
-        """初始化配置类"""
+    def __init__(self, language: str = None):
+        """初始化配置类
+        
+        Args:
+            language: 语言代码，如'zh'或'en'，默认使用系统设置的语言
+        """
         # 加载的配置
         self._config = {}
         
@@ -27,6 +31,18 @@ class ScriptParserConfig:
         # 配置缓存，避免频繁加载
         self._config_cache = {}
         self._last_config_update = {}
+        
+        # 设置当前语言
+        if language:
+            lang_enum = Language.from_string(language)
+            if lang_enum:
+                self._language = lang_enum.value
+            else:
+                # 语言参数无效，使用默认语言
+                self._language = get_language_code()
+        else:
+            # 使用默认语言
+            self._language = get_language_code()
     
     def _get_cached_config(self, config_filename: str = 'script_parser_config.yaml') -> Dict[str, Any]:
         """获取缓存的配置，如果缓存不存在或已过期则重新加载
@@ -40,29 +56,42 @@ class ScriptParserConfig:
         import os
         import time
         
+        # 根据语言生成唯一的缓存键
+        cache_key = f"{self._language}_{config_filename}"
+        
         # 检查缓存是否存在
-        if config_filename in self._config_cache:
-            # 检查文件是否被修改
-            config_path = os.path.join(os.path.dirname(__file__), config_filename)
+        if cache_key in self._config_cache:
+            # 根据语言选择配置文件路径
+            if self._language == Language.EN.value:
+                # 英文配置文件放在en子目录下
+                config_path = os.path.join(os.path.dirname(__file__), 'en', f'{config_filename}')
+            else:
+                # 中文配置文件放在zh子目录下
+                config_path = os.path.join(os.path.dirname(__file__), 'zh', config_filename)
+            
             if os.path.exists(config_path):
                 current_mtime = os.path.getmtime(config_path)
                 # 如果文件未被修改且缓存时间小于5分钟，则使用缓存
-                if (config_filename in self._last_config_update and 
-                    current_mtime == self._last_config_update[config_filename] and 
-                    time.time() - self._last_config_update.get(f"{config_filename}_time", 0) < 300):
-                    return self._config_cache[config_filename]
+                if (cache_key in self._last_config_update and 
+                    current_mtime == self._last_config_update[cache_key] and 
+                    time.time() - self._last_config_update.get(f"{cache_key}_time", 0) < 300):
+                    return self._config_cache[cache_key]
         
         # 重新加载配置
         config_data = self.load_yaml_config(config_filename)
         
         # 更新缓存
-        self._config_cache[config_filename] = config_data
+        self._config_cache[cache_key] = config_data
         
         # 更新缓存时间和文件修改时间
-        config_path = os.path.join(os.path.dirname(__file__), config_filename)
+        if self._language == Language.EN.value:
+            config_path = os.path.join(os.path.dirname(__file__), 'en', f'{config_filename}')
+        else:
+            config_path = os.path.join(os.path.dirname(__file__), 'zh', config_filename)
+            
         if os.path.exists(config_path):
-            self._last_config_update[config_filename] = os.path.getmtime(config_path)
-        self._last_config_update[f"{config_filename}_time"] = time.time()
+            self._last_config_update[cache_key] = os.path.getmtime(config_path)
+        self._last_config_update[f"{cache_key}_time"] = time.time()
         
         return config_data
     
@@ -250,13 +279,41 @@ class ScriptParserConfig:
                 '睡衣': '穿着睡衣'
             }
         
+        # 从统一关键词配置中获取状态关键词
+        from hengline.config.keyword_config import get_keyword_config
+        keyword_config = get_keyword_config()
+        
         # 设置默认状态特征映射
         if 'state_keyword_mappings' not in self._config:
-            self._config['state_keyword_mappings'] = {
-                '疲惫': '神情疲惫',
-                '紧张': '神情紧张',
-                '开心': '面带微笑',
-                '微笑': '面带微笑'
+            self._config['state_keyword_mappings'] = keyword_config.get_state_keywords()
+        
+        # 设置默认情绪关键词（从统一配置获取）
+        if 'emotion_keywords' not in self._config:
+            emotion_config = keyword_config.get_emotion_keywords()
+            # 转换统一配置的格式为剧本解析器需要的格式
+            self._config['emotion_keywords'] = {
+                '高兴': emotion_config.get('正面', []),
+                '悲伤': emotion_config.get('负面', []),
+                '愤怒': emotion_config.get('愤怒', []),
+                '惊讶': emotion_config.get('惊讶', []),
+                '恐惧': emotion_config.get('恐惧', []),
+                '平静': emotion_config.get('中性', []),
+                '紧张': emotion_config.get('紧张', []),
+                '疑问': ['为什么', '什么', '哪里', '谁', '怎么', '如何', '是不是', '有没有']  # 特定疑问词保留
+            }
+        
+        # 设置默认时间关键词（从统一配置获取）
+        if 'time_keywords' not in self._config:
+            scene_config = keyword_config.get_scene_keywords()
+            self._config['time_keywords'] = {
+                time: time for time in scene_config.get('时间', [])
+            }
+        
+        # 设置默认地点关键词（从统一配置获取）
+        if 'location_keywords' not in self._config:
+            scene_config = keyword_config.get_scene_keywords()
+            self._config['location_keywords'] = {
+                loc: loc for loc in scene_config.get('室内', []) + scene_config.get('室外', []) + scene_config.get('公共空间', [])
             }
     
     def load_yaml_config(self, config_filename: str = 'script_parser_config.yaml') -> Dict[str, Any]:
@@ -269,18 +326,25 @@ class ScriptParserConfig:
             配置数据字典，如果加载失败则返回空字典
         """
         try:
-            config_path = os.path.join(os.path.dirname(__file__), config_filename)
+            # 根据语言选择配置文件路径
+            if self._language == Language.EN.value:
+                # 英文配置文件放在en子目录下
+                config_path = os.path.join(os.path.dirname(__file__), 'en', config_filename)
+            else:
+                # 中文配置文件放在zh子目录下
+                config_path = os.path.join(os.path.dirname(__file__), 'zh', config_filename)
+            
             if os.path.exists(config_path):
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config_data = yaml.safe_load(f)
                     if config_data and isinstance(config_data, dict):
-                        debug(f"成功加载配置文件: {config_filename}")
+                        debug(f"成功加载配置文件: {config_path}")
                         return config_data
-                    debug(f"配置文件格式不正确或为空: {config_filename}")
+                    debug(f"配置文件格式不正确或为空: {config_path}")
             else:
                 debug(f"配置文件不存在: {config_path}")
         except Exception as e:
-            warning(f"加载配置文件时出错: {str(e)}")
+            error(f"加载配置文件时出错: {str(e)}")
         
         return {}
     
@@ -346,7 +410,7 @@ class ScriptParserConfig:
     DEFAULT_ATMOSPHERE_KEYWORDS = {
         "温馨": ["温暖", "舒适", "柔和", "愉悦", "快乐", "放松"],
         "正式": ["严肃", "庄重", "严谨", "认真"],
-        "轻松": ["愉快", "轻松", "休闲", "自在"],
+        "轻松": ["愉悦", "轻松", "休闲", "自在"],
         "紧张": ["紧张", "焦虑", "不安", "担忧"],
         "浪漫": ["浪漫", "甜蜜", "温馨", "幸福"],
         "悲伤": ["难过", "伤心", "悲伤", "痛苦"],
@@ -359,7 +423,7 @@ class ScriptParserConfig:
         "phone": {
             "identifiers": ["电话", "手机", "接听", "来电", "通话", "拨号"],
             "action_patterns": [
-                {"pattern": "(?:裹着|披着).*?靠在沙发上", "description": "{0}靠在沙发上", "emotion": "平静", "state_features": "身体放松，靠在沙发背上，目光柔和"},
+                {"pattern": "(?:裹着|披着).*?靠在沙发上", "description": "{0}靠在沙发上", "emotion": "平静", "state_features": "身体放松，靠在沙发backed，目光柔和"},
                 {"pattern": "手机震动|手机.*?震动|震动", "description": "手机震动", "emotion": "警觉", "state_features": "目光转向手机，身体微微前倾，手指轻触沙发扶手"},
                 {"pattern": "犹豫.*?拿起手机", "description": "犹豫着伸手拿起手机", "emotion": "犹豫+警觉", "state_features": "下唇轻咬，手指无意识地摩挲手机边缘，目光闪烁不定"},
                 {"pattern": "查看屏幕|看手机屏幕", "description": "低头查看屏幕", "emotion": "犹豫+警觉", "state_features": "手指微微颤抖，目光在手机和周围环境间游移"},
@@ -786,18 +850,18 @@ class ScriptParserConfig:
                 
                 debug(f"成功从配置文件加载剧本解析配置")
                 # 打印配置信息，用于调试
-                print(f"配置加载成功: ")
-                print(f"  - 场景识别模式: {len(config_data.get('scene_patterns', []))} 个")
-                print(f"  - 对话识别模式: {len(config_data.get('dialogue_patterns', []))} 个")
-                print(f"  - 动作情绪映射: {len(config_data.get('action_emotion_map', {}))} 个")
-                print(f"  - 角色外观关键词: {len(config_data.get('appearance_keywords', {}))} 个")
-                print(f"  - 时段关键词: {len(config_data.get('time_keywords', {}))} 个")
-                print(f"  - 地点关键词: {len(config_data.get('location_keywords', {}))} 个")
-                print(f"  - 情绪关键词: {len(config_data.get('emotion_keywords', {}))} 个")
-                print(f"  - 场景氛围关键词: {len(config_data.get('atmosphere_keywords', {}))} 个")
-                print(f"  - 手机场景动作模式: {len(config_data.get('phone_scenario_action_patterns', []))} 个")
-                print(f"  - 手机场景动作顺序权重: {len(config_data.get('phone_scenario_action_order_weights', {}))} 个")
-                print(f"  - 场景类型配置: {len(config_data.get('scene_types', {}))} 个")
+                # print(f"配置加载成功: ")
+                # print(f"  - 场景识别模式: {len(config_data.get('scene_patterns', []))} 个")
+                # print(f"  - 对话识别模式: {len(config_data.get('dialogue_patterns', []))} 个")
+                # print(f"  - 动作情绪映射: {len(config_data.get('action_emotion_map', {}))} 个")
+                # print(f"  - 角色外观关键词: {len(config_data.get('appearance_keywords', {}))} 个")
+                # print(f"  - 时段关键词: {len(config_data.get('time_keywords', {}))} 个")
+                # print(f"  - 地点关键词: {len(config_data.get('location_keywords', {}))} 个")
+                # print(f"  - 情绪关键词: {len(config_data.get('emotion_keywords', {}))} 个")
+                # print(f"  - 场景氛围关键词: {len(config_data.get('atmosphere_keywords', {}))} 个")
+                # print(f"  - 手机场景动作模式: {len(config_data.get('phone_scenario_action_patterns', []))} 个")
+                # print(f"  - 手机场景动作顺序权重: {len(config_data.get('phone_scenario_action_order_weights', {}))} 个")
+                # print(f"  - 场景类型配置: {len(config_data.get('scene_types', {}))} 个")
         except Exception as e:
             warning(f"无法加载配置文件，使用默认配置: {str(e)}")
 

@@ -76,7 +76,7 @@ QWEN_MODEL=qwen-plus
 # 嵌入模型配置，支持AI供应商：ollama、huggingface、openai
 EMBEDDING_PROVIDER=ollama
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_EMBEDDING_MODEL=quentinz/bge-large-zh-v1.5:latest
+OLLAMA_EMBEDDING_MODEL=quentinz/bge-large-zh-v1.5
 ```
 
 ### 3. 启动应用

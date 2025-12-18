@@ -1,0 +1,99 @@
+# =============================================================================
+# Script Storyboard Agent - Script Parser Configuration (English)
+# Purpose: Configure regex patterns, keyword mappings and classification rules for script parsing
+# Version: 1.0
+# Last Update: 2025-12-18
+# =============================================================================
+
+version: "1.0"
+description: "Configuration for script parsing, including parsing rules, default parameters, etc."
+
+# Basic Configuration
+script_parser_base_config:
+  # Whether to enable LLM enhanced parsing
+  enable_llm_enhance: true
+  
+  # Whether to save parsed results to file
+  save_parsed_result: true
+  
+  # Parsing timeout in seconds
+  parse_timeout: 30
+
+# Script Parsing Rules Configuration
+parse_rules:
+  # Scene Recognition Rules
+  scene_recognition:
+    # Scene start markers
+    start_patterns:
+      - "SCENE:"
+      - 'SCENE \d+'
+      - "INT."
+      - "EXT."
+    # Scene transition markers
+    transition_patterns:
+      - "CUT TO"
+      - "FADE TO"
+      - "DISSOLVE TO"
+      - "SMASH CUT TO"
+    # Scene end markers
+    end_patterns:
+      - "[END]"
+      - "(END)"
+  
+  # Character Recognition Rules
+  character_recognition:
+    # Character name extraction patterns
+    name_patterns:
+      - '([A-Za-z\s]+)[;:]'
+      - '"([A-Za-z\s]+)"'
+    # Common character titles
+    common_titles:
+      - "Mr."
+      - "Mrs."
+      - "Dr."
+      - "Prof."
+      - "Officer"
+  
+  # Dialogue Recognition Rules
+  dialogue_recognition:
+    # Direct dialogue patterns
+    direct_patterns:
+      - '"([\s\S]*?)"'
+      - "'([\s\S]*?)'"
+    # Indirect dialogue patterns
+    indirect_patterns:
+      - 'said[;:][\s\S]*?'
+      - 'stated[;:][\s\S]*?'
+      - 'asked[;:][\s\S]*?'
+      - 'replied[;:][\s\S]*?'
+  
+  # Emotion Recognition Rules
+  emotion_recognition:
+    # Emotion keywords
+    keywords:
+      # Positive emotions
+      positive:
+        - "happy"
+        - "joyful"
+        - "excited"
+        - "satisfied"
+        - "grateful"
+        - "pleased"
+        - "blissful"
+        - "thrilled"
+        - "content"
+        - "delighted"
+        - "proud"
+        - "ecstatic"
+        - "cheerful"
+        - "relaxed"
+      # Negative emotions
+      negative:
+        - "angry"
+        - "sad"
+        - "fearful"
+        - "anxious"
+        - "disappointed"
+        - "depressed"
+        - "desperate"
+        - "painful"
