@@ -103,7 +103,7 @@ class MultiAgentPipeline:
         # 添加检查重试逻辑的条件边
         workflow.add_conditional_edges(
             "extract_continuity",
-            lambda graph_state: "next_segment" if graph_state["current_segment_index"] < len(graph_state["segments"]) - 1 else "review_sequence",
+            lambda graph_state: "next_segment" if graph_state["current_segment_index"] < len(graph_state["segments"]) else "review_sequence",
             {"next_segment": "generate_shot", "review_sequence": "review_sequence"}
         )
 

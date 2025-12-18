@@ -12,9 +12,9 @@
 >
 >   这便是本智能体需要完成的任务，用户只需要给出剧本，而后根据各种技术拆解，最后将拆解完成的剧本片段返回，用户只需要将其交给模型（Runway、Pika、Sora、Wan、Stable Video等）生成即可，最后再利用相关技术将片段合成为完整视频。
 
-**视频创作流程**：剧本创作  →  ***<u>剧本解析（剧本拆分）</u>***→ 视频生成（文生视频）→  视频合成渲染（FFmpeg）
+**视频创作流程**：客户端  → LLM 剧本创作  →  <u>***剧本解析（剧本拆分）***</u> → DM 视频生成（文生视频） →  视频合成渲染（FFmpeg）
 
-**==注意==**：本智能体不会参与剧本创作，不会调用模型生成视频，亦不会合成视频，以上流程中标注处就是本智能体的任务。
+**注意**：本智能体不会参与剧本创作，不会调用模型生成视频，亦不会合成视频，以上流程中标注处就是本智能体的任务。
 
 
 ## 核心功能
@@ -110,7 +110,7 @@ for shot in result['shots']:
     print(f"\n分镜 {shot['shot_id']}:")
     print(f"时间: {shot['start_time']}-{shot['end_time']}s")
     print(f"描述: {shot['description']}")
-    print(f"AI提示词: {shot['prompt_en']}")
+    print(f"AI提示词: {shot['ai_prompt']}")
 ```
 
 ### 2. 集成到Web应用（API）
@@ -264,7 +264,7 @@ result = generate_storyboard(script_text, style="cinematic")
       "end_time": 5.0,
       "duration": 5.0,
       "description": "城市公寓客厅，深夜场景。窗外大雨猛烈敲击玻璃...",
-      "prompt_en": "A dimly lit city apartment living room at midnight...",
+      "ai_prompt": "A dimly lit city apartment living room at midnight...",
       "characters": ["林然"],
       "dialogue": "",
       "camera_angle": "medium shot",

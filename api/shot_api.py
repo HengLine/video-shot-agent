@@ -47,9 +47,12 @@ class ShotModel(BaseModel):
     end_time: float
     duration: float
     description: str
-    prompt_en: str
+    ai_prompt: str
     characters: List[str]
+    initial_state: Optional[List[Dict[str, Any]]] = None
+    final_state: Optional[List[Dict[str, Any]]] = None
     dialogue: str
+    camera: Dict[str, Any] = {}
     camera_angle: str
     continuity_anchors: List[str]
 
@@ -127,3 +130,4 @@ def generate_storyboard_api(request: StoryboardRequest):
         print_log_exception()
         error(f"分镜生成失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
+

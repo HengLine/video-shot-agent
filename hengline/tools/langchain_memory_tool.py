@@ -230,6 +230,9 @@ class LangChainMemoryTool:
                 return results
             
             def embed_query(self, query):
+                if not query or not isinstance(query, str):
+                    # raise ValueError("查询文本不能为空且必须为字符串")
+                    return [0.0] * 1024
                 try:
                     # llama_index的OllamaEmbedding通常有get_text_embedding或embed方法
                     if hasattr(self.original_embeddings, 'get_text_embedding'):
@@ -659,18 +662,48 @@ class LangChainMemoryTool:
                         # 尝试从内容中提取状态信息
                         content = transition["content"]
                         if "状态: {" in content:
-                            # 提取JSON部分
-                            json_start = content.find("状态: {") + 5
-                            json_end = content.rfind("}") + 1
-                            if json_start > 5 and json_end > json_start:
-                                state_json = content[json_start:json_end]
-                                state = json.loads(state_json)
-                                suggestions.append({
-                                    "state": state,
-                                    "score": transition.get("metadata", {}).get("score", 1.0)
-                                })
+                            # 改进的JSON提取逻辑：使用正则表达式匹配完整的JSON对象
+                            import re
+                            # 匹配"状态: {"后面的第一个完整JSON对象
+                            json_pattern = r'状态: (\{[^}]*\})'
+                            match = re.search(json_pattern, content)
+                            if match:
+                                state_json = match.group(1)
+                                try:
+                                    state = json.loads(state_json)
+                                    suggestions.append({
+                                        "state": state,
+                                        "score": transition.get("metadata", {}).get("score", 1.0)
+                                    })
+                                except json.JSONDecodeError as json_e:
+                                    # 如果解析失败，尝试更宽松的方式
+                                    # 查找最外层的括号对
+                                    json_start = content.find("状态: {") + 5
+                                    # 使用栈来找到匹配的结束括号
+                                    brace_count = 0
+                                    json_end = -1
+                                    for i in range(json_start, len(content)):
+                                        if content[i] == '{':
+                                            brace_count += 1
+                                        elif content[i] == '}':
+                                            brace_count -= 1
+                                            if brace_count == 0:
+                                                json_end = i + 1
+                                                break
+                                    if json_end > json_start:
+                                        state_json = content[json_start:json_end]
+                                        try:
+                                            state = json.loads(state_json)
+                                            suggestions.append({
+                                                "state": state,
+                                                "score": transition.get("metadata", {}).get("score", 1.0)
+                                            })
+                                        except json.JSONDecodeError as json_e2:
+                                            error(f"解析JSON失败(宽松模式): {json_e2}")
+                                            error(f"问题JSON内容: {state_json[:100]}...")
                     except Exception as e:
-                        debug(f"处理转换建议失败: {e}")
+                        error(f"处理转换建议失败: {e}")
+                        error(f"问题内容: {content[:100]}...")
                 
                 # 按分数排序
                 suggestions.sort(key=lambda x: x["score"], reverse=True)

@@ -29,6 +29,87 @@ class ShotGeneratorAgent:
         self.llm = llm
         # 分镜生成提示词模板 - 从YAML加载或使用默认
         self.shot_generation_template = prompt_manager.get_shot_generator_prompt()
+        
+        # 标准化状态值映射表
+        self._pose_map = {
+            # 中文到英文的映射
+            "坐": "sitting",
+            "坐着": "sitting",
+            "站立": "standing",
+            "站着": "standing",
+            "行走": "walking",
+            "走": "walking",
+            "躺": "lying",
+            "躺着": "lying",
+            "跪": "kneeling",
+            "跪着": "kneeling",
+            "弯腰": "bending",
+            "弯腰": "bending",
+            # 英文到英文的映射（确保大小写一致）
+            "Sitting": "sitting",
+            "Standing": "standing",
+            "Walking": "walking",
+            "Lying": "lying",
+            "Kneeling": "kneeling",
+            "Bending": "bending"
+        }
+        
+        self._position_map = {
+            # 中文到英文的映射
+            "左侧": "left",
+            "左": "left",
+            "中央": "center",
+            "中间": "center",
+            "右侧": "right",
+            "右": "right",
+            "画面中央": "center",
+            "画面左侧": "left",
+            "画面右侧": "right",
+            # 英文到英文的映射
+            "Left": "left",
+            "Center": "center",
+            "Right": "right"
+        }
+    
+    def _standardize_pose(self, pose: str) -> str:
+        """标准化姿势值"""
+        return self._pose_map.get(pose, pose.lower() if isinstance(pose, str) else "unknown")
+    
+    def _standardize_position(self, position: str) -> str:
+        """标准化位置值"""
+        return self._position_map.get(position, position.lower() if isinstance(position, str) else "unknown")
+
+    def _extract_props_from_actions(self, actions: List[Dict[str, Any]]) -> List[str]:
+        """从动作描述中提取道具信息"""
+        props = set()
+        for action in actions:
+            action_text = action.get('action', '')
+            # 从动作中提取常见道具
+            if "茶几" in action_text:
+                props.add("茶几")
+            if "手机" in action_text:
+                props.add("手机")
+            if "相册" in action_text:
+                props.add("相册")
+            if "凉茶" in action_text:
+                props.add("凉茶")
+            if "毛毯" in action_text:
+                props.add("毛毯")
+            if "电视" in action_text:
+                props.add("电视")
+        return list(props)
+
+    def _standardize_state_values(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """标准化状态值"""
+        standardized = state.copy()
+        
+        if "pose" in standardized:
+            standardized["pose"] = self._standardize_pose(standardized["pose"])
+        
+        if "position" in standardized:
+            standardized["position"] = self._standardize_position(standardized["position"])
+        
+        return standardized
 
     def generate_shot(self,
                       segment: Dict[str, Any],
@@ -118,7 +199,6 @@ class ShotGeneratorAgent:
                 # 基础信息
                 "shot_id": str(shot_id),  # 确保是字符串类型
                 "time_range_sec": [(shot_id - 1) * 5, shot_id * 5],
-                "scene_context": scene_context,
                 "start_time": start_time,  # 添加必要的时间字段
                 "end_time": end_time,
                 "duration": duration,
@@ -133,7 +213,7 @@ class ShotGeneratorAgent:
                     "angle": "eye-level",
                     "movement": "static"
                 }),
-                "camera_angle": "medium_shot",  # 添加必要的相机角度字段
+                "camera_angle": shot_data.get("camera", {}).get("shot_type", "medium shot"),  # 添加必要的相机角度字段
 
                 # 角色相关
                 "characters_in_frame": self._extract_characters_in_frame(shot_data),
@@ -141,8 +221,8 @@ class ShotGeneratorAgent:
                 "dialogue": "",  # 添加对话字段
 
                 # 状态信息
-                "initial_state": shot_data.get("initial_state", []),
-                "final_state": shot_data.get("final_state", []),
+                "initial_state": [self._standardize_state_values(state) for state in shot_data.get("initial_state", [])],
+                "final_state": [self._standardize_state_values(state) for state in shot_data.get("final_state", [])],
                 "continuity_anchor": self._generate_continuity_anchor(shot_data),
                 "continuity_anchors": [],  # 添加必要的连续性锚点字段
                 # 确保final_continuity_state字段为字典类型
@@ -157,7 +237,21 @@ class ShotGeneratorAgent:
             error(f"分镜生成失败: {str(e)}")
             # 返回默认分镜
             default_shot = self._get_default_shot(segment, scene_context, style, shot_id)
-            # 确保默认分镜中也包含final_continuity_state字段
+            # 确保默认分镜中也包含所有必需字段
+            if "ai_prompt" not in default_shot:
+                default_shot["ai_prompt"] = ""
+            if "camera_angle" not in default_shot:
+                default_shot["camera_angle"] = "eye-level"
+            if "camera_movement" not in default_shot:
+                default_shot["camera_movement"] = "static"
+            if "camera_shot_type" not in default_shot:
+                default_shot["camera_shot_type"] = "medium shot"
+            if "initial_state" not in default_shot:
+                default_shot["initial_state"] = []
+            if "final_state" not in default_shot:
+                default_shot["final_state"] = []
+            if "continuity_anchor" not in default_shot:
+                default_shot["continuity_anchor"] = []
             if "final_continuity_state" not in default_shot:
                 default_shot["final_continuity_state"] = {}
             return default_shot
@@ -284,6 +378,11 @@ class ShotGeneratorAgent:
         # 生成中文描述
         description = f"场景：{scene_context.get('location', '')}，{scene_context.get('time', '')}，{scene_context.get('atmosphere', '')}。"
 
+        # 提取道具信息
+        props = self._extract_props_from_actions(actions)
+        if props:
+            description += f"场景中有：{', '.join(props)}。"
+
         # 按角色分组动作
         main_actions = [a for a in actions if "character" in a and a["character"] in main_characters]
         phone_actions = [a for a in actions if "character" in a and a["character"] in phone_characters]
@@ -305,6 +404,10 @@ class ShotGeneratorAgent:
         # 生成英文提示词
         style_prefix = self._get_style_prefix(style)
         ai_prompt = f"{style_prefix} A scene in {scene_context.get('location', 'a place')} at {scene_context.get('time', 'some time')}. "
+
+        # 添加场景中的道具信息
+        if props:
+            ai_prompt += f"Props in scene: {', '.join(props)}. "
 
         # 添加主要角色的英文描述
         for action in main_actions:
@@ -344,17 +447,26 @@ class ShotGeneratorAgent:
         for character in main_characters:
             char_constraints = continuity_constraints["characters"][character]
 
-            initial_state.append({
-                "character_name": character,
-                "pose": char_constraints.get("must_start_with_pose", "standing"),
-                "position": char_constraints.get("must_start_with_position", "center"),
-                "holding": char_constraints.get("must_start_with_holding", "nothing"),
-                "emotion": char_constraints.get("must_start_with_emotion", "neutral"),
-                "appearance": f"A person named {character}"
-            })
+            # 从角色约束中获取初始姿态，如果没有则根据场景上下文推断
+            initial_pose = char_constraints.get("must_start_with_pose", "standing")
+            
+            # 检查是否有"裹着毯子"、"沙发上"等关键词，调整初始姿态
+            if any(keyword in ''.join([a.get('action', '') for a in actions]) for keyword in ["裹着毯子", "沙发上", "蜷在沙发"]):
+                initial_pose = "sitting"
+
+            initial_state.append(
+                self._standardize_state_values({
+                    "character_name": character,
+                    "pose": initial_pose,
+                    "position": char_constraints.get("must_start_with_position", "center"),
+                    "holding": char_constraints.get("must_start_with_holding", "nothing"),
+                    "emotion": char_constraints.get("must_start_with_emotion", "neutral"),
+                    "appearance": f"A person named {character}"
+                })
+            )
 
             # 根据动作更新结束状态
-            final_pose = char_constraints.get("must_start_with_pose", "standing")
+            final_pose = initial_pose
             final_position = char_constraints.get("must_start_with_position", "center")
             final_emotion = char_constraints.get("must_start_with_emotion", "neutral")
             final_holding = char_constraints.get("must_start_with_holding", "nothing")
@@ -365,7 +477,7 @@ class ShotGeneratorAgent:
                 action_text = action.get('action', '')
                 if "dialogue" in action:
                     final_emotion = action.get('emotion', final_emotion)
-                if "坐下" in action_text or "坐" == action_text:
+                if "坐下" in action_text or "坐" == action_text or "蜷在" in action_text:
                     final_pose = "sitting"
                 elif "站" in action_text or "站立" == action_text:
                     final_pose = "standing"
@@ -382,14 +494,16 @@ class ShotGeneratorAgent:
                     # 视线方向根据描述调整
                     final_emotion = "focused"
 
-            final_state.append({
-                "character_name": character,
-                "pose": final_pose,
-                "position": final_position,
-                "gaze_direction": "forward" if "看" not in ''.join([a.get('action', '') for a in character_actions]) else "side",
-                "emotion": final_emotion,
-                "holding": final_holding
-            })
+            final_state.append(
+                self._standardize_state_values({
+                    "character_name": character,
+                    "pose": final_pose,
+                    "position": final_position,
+                    "gaze_direction": "forward" if "看" not in ''.join([a.get('action', '') for a in character_actions]) else "side",
+                    "emotion": final_emotion,
+                    "holding": final_holding
+                })
+            )
 
         # 处理电话那头角色的特殊状态
         for character in phone_characters:
@@ -549,7 +663,6 @@ class ShotGeneratorAgent:
             # 基础信息
             "shot_id": str(shot_id),  # 确保是字符串类型
             "time_range_sec": [(shot_id - 1) * 5, shot_id * 5],
-            "scene_context": scene_context,
             "start_time": start_time,  # 添加必要的时间字段
             "end_time": end_time,
             "duration": duration,
