@@ -155,6 +155,13 @@ class MultiAgentPipeline:
         info("开始运行分镜生成流程")
 
         try:
+            # 重置连续性守护智能体的状态，确保每次处理新剧本时都是全新的状态
+            self.continuity_guardian.reset_state()
+            
+            # 当更换剧本时，忽略传入的 prev_continuity_state
+            # 这样可以确保使用全新的状态处理新剧本
+            prev_continuity_state = None
+            
             # 创建初始状态
             initial_state: StoryboardWorkflowState = {
                 "script_text": script_text,

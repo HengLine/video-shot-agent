@@ -10,6 +10,8 @@ from typing import Dict, List, Any, Optional
 import os
 
 from hengline.config.continuity_guardian_config import ContinuityGuardianConfig
+from hengline.config.keyword_config import get_keyword_config
+from hengline.language_manage import Language
 from hengline.logger import debug, warning, info
 from hengline.tools.langchain_memory_tool import LangChainMemoryTool
 
@@ -25,8 +27,19 @@ class ContinuityGuardianAgent:
         self.character_states = self.config_manager.character_states
         # 加载连续性守护智能体配置
         self.config = self.config_manager.config
+        # 初始化关键词配置
+        self.keyword_config = get_keyword_config()
         # 初始化LangChain记忆工具（替代原有的向量记忆+状态机）
         self.memory_tool = LangChainMemoryTool()
+        
+    def reset_state(self):
+        """重置连续性守护智能体状态，用于更换剧本时"""
+        info("重置连续性守护智能体状态")
+        # 重置角色状态
+        self.config_manager.character_states = {}
+        self.character_states = self.config_manager.character_states
+        # 重置LangChain记忆
+        self.memory_tool.clear_memory()
 
     def generate_continuity_constraints(self,
                                         segment: Dict[str, Any],
@@ -511,5 +524,3 @@ class ContinuityGuardianAgent:
 
         # 检查是否是有效的过渡
         return curr_category in valid_transitions.get(prev_category, [])
-
-
