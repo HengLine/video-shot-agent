@@ -116,8 +116,16 @@ class ContinuityGuardianAgent:
                 # 使用LangChain记忆工具存储状态
                 self.memory_tool.store_state(updated_state, f"角色 {character_name} 更新状态")
             else:
-                # 如果没有状态，使用默认状态
-                updated_state = self.config_manager.get_character_state(character_name)
+                # 如果没有状态，使用默认状态并根据动作推断初始姿势
+                default_state = self.config_manager.get_character_state(character_name)
+                
+                # 根据动作推断初始姿势
+                inferred_state = self._infer_initial_state_from_actions(default_state, character_actions)
+                
+                # 使用LangChain记忆工具存储初始状态
+                self.memory_tool.store_state(inferred_state, f"角色 {character_name} 初始状态")
+                
+                updated_state = inferred_state
 
             # 生成约束
             constraints = self.config_manager._generate_character_constraints(character_name, updated_state)
@@ -144,6 +152,49 @@ class ContinuityGuardianAgent:
 
         debug(f"生成的连续性约束: {continuity_constraints}")
         return continuity_constraints
+        
+    def _infer_initial_state_from_actions(self, default_state: Dict[str, Any], actions: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        根据角色动作推断初始状态
+        
+        Args:
+            default_state: 默认状态
+            actions: 角色的所有动作
+            
+        Returns:
+            推断后的初始状态
+        """
+        inferred_state = default_state.copy()
+        
+        if not actions:
+            return inferred_state
+            
+        # 合并所有动作文本
+        all_actions_text = "".join(action.get("action", "") for action in actions)
+        
+        # 根据动作文本推断姿势
+        if any(keyword in all_actions_text for keyword in ["蜷在", "裹着", "躺在", "趴在"]):
+            inferred_state["pose"] = "躺"
+        elif any(keyword in all_actions_text for keyword in ["坐在", "坐在", "蜷在"]):
+            inferred_state["pose"] = "坐"
+        elif any(keyword in all_actions_text for keyword in ["站在", "站立"]):
+            inferred_state["pose"] = "站"
+            
+        # 根据动作文本推断手持物品
+        if any(keyword in all_actions_text for keyword in ["拿着手机", "打电话", "握着手机"]):
+            inferred_state["holding"] = "智能手机"
+        elif any(keyword in all_actions_text for keyword in ["拿着咖啡", "端着咖啡", "握着咖啡杯"]):
+            inferred_state["holding"] = "咖啡杯"
+            
+        # 根据动作文本推断位置
+        if any(keyword in all_actions_text for keyword in ["在沙发上", "坐在沙发", "蜷在沙发"]):
+            inferred_state["position"] = "沙发上"
+        elif any(keyword in all_actions_text for keyword in ["在窗户旁", "靠近窗户"]):
+            inferred_state["position"] = "窗户旁"
+        elif any(keyword in all_actions_text for keyword in ["在门口", "靠近门"]):
+            inferred_state["position"] = "门口"
+            
+        return inferred_state
 
     def extract_continuity_anchor(self,
                                   segment: Dict[str, Any],
@@ -219,7 +270,7 @@ class ContinuityGuardianAgent:
             if anchor["pose"] == "unknown" and "initial_state" in generated_shot:
                 for state in generated_shot["initial_state"]:
                     if state.get("character_name") == character_name:
-                        # 对于电话那头的角色，确保位置是off-screen
+                        # 对于电话那头，确保位置是off-screen
                         position = state.get("position", "unknown")
                         if "电话那头" in character_name or "off-screen" in character_name:
                             position = "off-screen"
@@ -455,3 +506,4 @@ class ContinuityGuardianAgent:
         # 检查是否是有效的过渡
         return curr_category in valid_transitions.get(prev_category, [])
 
+

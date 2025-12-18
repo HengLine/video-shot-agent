@@ -24,7 +24,7 @@ class ActionDurationEstimator:
     生产级动作时长估算器（修复版）
     - 对话时长 = max(字数 × 情绪因子, min_duration)
     - 角色因子仅在顶层应用一次
-    - 动作/对话内部逻辑与角色完全解耦
+    - 动作/对话内部逻辑与角色完全解耦合
     """
 
     def __init__(self, config_path: str = "../config/action_duration_config.yaml"):
@@ -111,10 +111,32 @@ class ActionDurationEstimator:
 
     def _estimate_dialogue(self, text: str, emotion: str, config: dict) -> float:
         """估算对话时长（与角色完全无关）"""
+        # 1. 首先检查是否有明确的时间标注
+        time_match = re.search(r'(\d+)秒|(\d+)分钟|(\d+)小时', text)
+        if time_match:
+            if time_match.group(1):  # 秒
+                return float(time_match.group(1))
+            elif time_match.group(2):  # 分钟
+                return float(time_match.group(2)) * 60
+            elif time_match.group(3):  # 小时
+                return float(time_match.group(3)) * 3600
+        
+        # 2. 检查是否有"三秒"、"两秒"这样的中文数字时间标注
+        chinese_time_match = re.search(r'(一|二|三|四|五|六|七|八|九|十|两|几)秒', text)
+        if chinese_time_match:
+            chinese_numbers = {
+                '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5,
+                '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+                '几': 3  # 不确定的"几秒"默认按3秒计算
+            }
+            return float(chinese_numbers.get(chinese_time_match.group(1), 1))
+        
+        # 3. 没有时间标注时，使用常规对话时长估算
         # 提取对话内容
-        quote_match = re.search(r'[“”"\'`](.*?)[“”"\'`]', text)
+        dialogue = ""
+        quote_match = re.search(r'[“”"\'`：:].*?[“”"\'`]', text)
         if quote_match:
-            dialogue = quote_match.group(1)
+            dialogue = quote_match.group(0).lstrip('“”"\'`：:').rstrip('“”"\'`')
         else:
             parts = re.split(r'[：:]', text, maxsplit=1)
             if len(parts) > 1:
@@ -142,6 +164,28 @@ class ActionDurationEstimator:
 
     def _estimate_action(self, text: str, emotion: str, config: dict) -> float:
         """估算动作基础时长（不含角色因子！）"""
+        
+        # 1. 首先检查是否有明确的时间标注
+        time_match = re.search(r'(\d+)秒|(\d+)分钟|(\d+)小时', text)
+        if time_match:
+            if time_match.group(1):  # 秒
+                return float(time_match.group(1))
+            elif time_match.group(2):  # 分钟
+                return float(time_match.group(2)) * 60
+            elif time_match.group(3):  # 小时
+                return float(time_match.group(3)) * 3600
+        
+        # 2. 检查是否有"三秒"、"两秒"这样的中文数字时间标注
+        chinese_time_match = re.search(r'(一|二|三|四|五|六|七|八|九|十|两|几)秒', text)
+        if chinese_time_match:
+            chinese_numbers = {
+                '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5,
+                '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+                '几': 3  # 不确定的"几秒"默认按3秒计算
+            }
+            return float(chinese_numbers.get(chinese_time_match.group(1), 1))
+        
+        # 3. 常规动作时长估算
         words = list(jieba.cut(text, cut_all=False))
         base_actions = config["base_actions"]
 
@@ -186,3 +230,7 @@ class ActionDurationEstimator:
             _config_path = Path(config_path)
         # 此处建议由调用方管理实例生命周期
         # cls.clear_cache()
+
+
+
+

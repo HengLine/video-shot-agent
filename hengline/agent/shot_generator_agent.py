@@ -78,7 +78,27 @@ class ShotGeneratorAgent:
     def _standardize_position(self, position: str) -> str:
         """标准化位置值"""
         return self._position_map.get(position, position.lower() if isinstance(position, str) else "unknown")
-    
+
+    def _extract_props_from_actions(self, actions: List[Dict[str, Any]]) -> List[str]:
+        """从动作描述中提取道具信息"""
+        props = set()
+        for action in actions:
+            action_text = action.get('action', '')
+            # 从动作中提取常见道具
+            if "茶几" in action_text:
+                props.add("茶几")
+            if "手机" in action_text:
+                props.add("手机")
+            if "相册" in action_text:
+                props.add("相册")
+            if "凉茶" in action_text:
+                props.add("凉茶")
+            if "毛毯" in action_text:
+                props.add("毛毯")
+            if "电视" in action_text:
+                props.add("电视")
+        return list(props)
+
     def _standardize_state_values(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """标准化状态值"""
         standardized = state.copy()
@@ -358,6 +378,11 @@ class ShotGeneratorAgent:
         # 生成中文描述
         description = f"场景：{scene_context.get('location', '')}，{scene_context.get('time', '')}，{scene_context.get('atmosphere', '')}。"
 
+        # 提取道具信息
+        props = self._extract_props_from_actions(actions)
+        if props:
+            description += f"场景中有：{', '.join(props)}。"
+
         # 按角色分组动作
         main_actions = [a for a in actions if "character" in a and a["character"] in main_characters]
         phone_actions = [a for a in actions if "character" in a and a["character"] in phone_characters]
@@ -379,6 +404,10 @@ class ShotGeneratorAgent:
         # 生成英文提示词
         style_prefix = self._get_style_prefix(style)
         ai_prompt = f"{style_prefix} A scene in {scene_context.get('location', 'a place')} at {scene_context.get('time', 'some time')}. "
+
+        # 添加场景中的道具信息
+        if props:
+            ai_prompt += f"Props in scene: {', '.join(props)}. "
 
         # 添加主要角色的英文描述
         for action in main_actions:
@@ -418,10 +447,17 @@ class ShotGeneratorAgent:
         for character in main_characters:
             char_constraints = continuity_constraints["characters"][character]
 
+            # 从角色约束中获取初始姿态，如果没有则根据场景上下文推断
+            initial_pose = char_constraints.get("must_start_with_pose", "standing")
+            
+            # 检查是否有"裹着毯子"、"沙发上"等关键词，调整初始姿态
+            if any(keyword in ''.join([a.get('action', '') for a in actions]) for keyword in ["裹着毯子", "沙发上", "蜷在沙发"]):
+                initial_pose = "sitting"
+
             initial_state.append(
                 self._standardize_state_values({
                     "character_name": character,
-                    "pose": char_constraints.get("must_start_with_pose", "standing"),
+                    "pose": initial_pose,
                     "position": char_constraints.get("must_start_with_position", "center"),
                     "holding": char_constraints.get("must_start_with_holding", "nothing"),
                     "emotion": char_constraints.get("must_start_with_emotion", "neutral"),
@@ -430,7 +466,7 @@ class ShotGeneratorAgent:
             )
 
             # 根据动作更新结束状态
-            final_pose = char_constraints.get("must_start_with_pose", "standing")
+            final_pose = initial_pose
             final_position = char_constraints.get("must_start_with_position", "center")
             final_emotion = char_constraints.get("must_start_with_emotion", "neutral")
             final_holding = char_constraints.get("must_start_with_holding", "nothing")
@@ -441,7 +477,7 @@ class ShotGeneratorAgent:
                 action_text = action.get('action', '')
                 if "dialogue" in action:
                     final_emotion = action.get('emotion', final_emotion)
-                if "坐下" in action_text or "坐" == action_text:
+                if "坐下" in action_text or "坐" == action_text or "蜷在" in action_text:
                     final_pose = "sitting"
                 elif "站" in action_text or "站立" == action_text:
                     final_pose = "standing"
