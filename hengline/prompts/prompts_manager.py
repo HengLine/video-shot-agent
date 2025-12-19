@@ -14,14 +14,9 @@ from hengline.logger import error
 
 
 class PromptManager:
-    def __init__(self, prompt_dir: Path = None):
-        # 如果没有提供prompt_dir，默认使用当前文件的父目录
-        if prompt_dir is None:
-            self.prompt_dir = Path(__file__).parent
-        else:
-            # 确保prompt_dir指向prompts目录
-            self.prompt_dir = prompt_dir / "prompts" if not str(prompt_dir).endswith("prompts") else prompt_dir
-
+    def __init__(self):
+        # 默认使用当前文件的父目录
+        self.prompt_dir = Path(__file__).parent / "zh"
         # 缓存已加载的提示词模板 - 最大缓存1024个提示词
         self._prompt_cache: Dict[str, Dict[str, Any]] = {}
         self._all_prompts_loaded = False
@@ -134,9 +129,9 @@ class PromptManager:
         raise KeyError(f"提示词模板 '{name}' 不存在")
 
 
-    def get_script_parser_prompt(self) -> str:
+    def get_script_parser_prompt(self, name) -> str:
         """获取剧本解析提示词模板"""
-        return self.get_prompt("script_parser_prompt")
+        return self.get_prompt(name)
 
     def get_shot_generator_prompt(self) -> ChatPromptTemplate | None:
         """获取镜头生成提示词模板"""

@@ -49,7 +49,7 @@ class ContinuityGuardianConfig:
         if self._language == Language.EN.value:
             config_file = 'en/continuity_guardian_config.yaml'
         else:
-            config_file = 'zh/continuity_guardian_config.yaml'
+            config_file = 'continuity_guardian_config.yaml'
         
         self.config_path = os.path.join(
             current_dir, 'config', config_file

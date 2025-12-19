@@ -14,7 +14,7 @@ from llama_index.core.retrievers import BaseRetriever
 
 from hengline.client.embedding_client import get_embedding_client
 from hengline.logger import debug, info, error, warning
-from hengline.tools.script_knowledge_tool import (
+from .script_knowledge_tool import (
     create_script_knowledge_base
 )
 from .script_parser_tool import (
