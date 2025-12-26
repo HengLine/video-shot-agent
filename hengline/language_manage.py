@@ -8,7 +8,8 @@ import os
 from enum import Enum
 from typing import Optional
 
-from hengline.logger import info, error
+from hengline.logger import error
+
 
 class Language(Enum):
     """
@@ -47,7 +48,7 @@ class Language(Enum):
 
 
 # 全局语言变量
-_current_language = Language.ZH
+_current_language = None
 
 
 def _init_language_from_env():

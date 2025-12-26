@@ -98,7 +98,7 @@ class OpenAIClient(BaseAIClient):
                 """
                 try:
                     # 从配置中获取默认参数
-                    default_temperature = config.get('temperature', 0.7)
+                    default_temperature = config.get('temperature', 0.1)
                     default_max_tokens = config.get('max_tokens', 2000)
                     default_model = config.get('default_model', cls.DEFAULT_MODEL)
 

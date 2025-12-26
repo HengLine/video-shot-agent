@@ -110,7 +110,7 @@ class ActionExtractor:
                         target = self._extract_target(sentence, keyword)
 
                         # 分析动作强度
-                        intensity = self.analyze_intensity(sentence, keyword)
+                        intensity = self.analyze_intensity(sentence)
 
                         # 创建动作对象
                         action_id = f"action_{start_counter + len(actions):03d}"
@@ -191,7 +191,7 @@ class ActionExtractor:
 
         return ""
 
-    def analyze_intensity(self, sentence: str, action_keyword: str) -> int:
+    def analyze_intensity(self, sentence: str) -> int:
         """
         分析动作强度
         """

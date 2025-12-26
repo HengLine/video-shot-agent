@@ -46,7 +46,7 @@ class StructuredSceneParser(ScriptParser):
         Returns:
             解析结果或None
         """
-        parser_prompt = prompt_manager.get_script_parser_prompt("structured_scene_parser")
+        parser_prompt = prompt_manager.get_script_parser_prompt("structured_scene")
 
         # 1. 构建提示词
         prompt = parser_prompt.format(script_text=script_text)
@@ -63,7 +63,7 @@ class StructuredSceneParser(ScriptParser):
 
         return result
 
-    def extract_with_local(self, script_text: str) -> Optional[Dict[str, Any]]:
+    def _extract_with_local(self, script_text: str) -> Optional[Dict[str, Any]]:
         """本地规则解析剧本"""
         # 1. 文本预处理
         cleaned_text = self.text_processor.clean_text(script_text)

@@ -47,7 +47,7 @@ class AIStoryboardParser(ScriptParser):
             3. 情绪和氛围的识别
             4. 动作序列的连贯性分析
         """
-        parser_prompt = prompt_manager.get_script_parser_prompt("ai_storyboard_parser")
+        parser_prompt = prompt_manager.get_script_parser_prompt("ai_storyboard")
 
         # 1. 构建提示词
         prompt = parser_prompt.format(script_text=script_text)
@@ -106,7 +106,7 @@ class AIStoryboardParser(ScriptParser):
             print("AI增强响应JSON解析失败，返回原始数据")
             return original_scenes
 
-    def extract_with_local(self, script_text: str) -> Optional[Dict[str, Any]]:
+    def _extract_with_local(self, script_text: str) -> Optional[Dict[str, Any]]:
         """本地规则解析剧本"""
         """
                 解析AI分镜剧本

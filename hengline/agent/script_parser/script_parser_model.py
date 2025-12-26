@@ -83,7 +83,19 @@ class UnifiedScript:
     characters: List[Character]  # 角色信息
     dialogues: List[Dialogue]  # 对话内容
     actions: List[Action]  # 动作描述
-    descriptions: List[str]  # 环境描述
+    descriptions: List[Dict]  # 环境描述
 
     # 解析质量
     parsing_confidence: Dict[str, float]
+    # 元数据
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def get_all_elements(self) -> List[Dict]:
+        """获取所有剧本元素"""
+        all_elements = []
+        all_elements.extend([{**d, 'type': 'scene'} for d in self.scenes])
+        all_elements.extend([{**d, 'type': 'character'} for d in self.characters])
+        all_elements.extend([{**d, 'type': 'dialogue'} for d in self.dialogues])
+        all_elements.extend([{**a, 'type': 'action'} for a in self.actions])
+        all_elements.extend([{**d, 'type': 'description'} for d in self.descriptions])
+        return all_elements

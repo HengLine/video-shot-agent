@@ -38,13 +38,12 @@ class NaturalLanguageParser(ScriptParser):
         Returns:
             解析结果或None
         """
-        parser_prompt = prompt_manager.get_script_parser_prompt("natural_language_parser")
+        parser_prompt = prompt_manager.get_script_parser_prompt("natural_language")
 
         # 构建完整提示词
-        prompt = parser_prompt.format(script_text=script_text)
-
+        prompt_format = parser_prompt.format(script_text=script_text)
         # 调用LLM
-        response = self._call_llm_with_retry(prompt)
+        response = self._call_llm_with_retry(prompt_format)
         debug(f"{ScriptType.NATURAL_LANGUAGE.value} 类型的 LLM 解析结果:\n {response}")
 
         # 解析LLM响应
@@ -52,7 +51,7 @@ class NaturalLanguageParser(ScriptParser):
 
         return parsed_result
 
-    def extract_with_local(self, script_text: str) -> Optional[Dict[str, Any]]:
+    def _extract_with_local(self, script_text: str) -> Optional[Dict[str, Any]]:
         """
             自然语言剧本本地解析器
 

@@ -5,16 +5,16 @@
 @Author: HengLine
 @Time: 2025/11
 """
-import sys
-import os
 import json
-from pathlib import Path
+import os
+import sys
+
+from hengline.client.client_factory import get_llm_client
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from hengline.agent.script_parser_agent import ScriptParserAgent
-from hengline.logger import debug, info
 
 
 def example_basic_script_parsing():
@@ -23,10 +23,10 @@ def example_basic_script_parsing():
     将简单的中文剧本转换为结构化动作序列
     """
     print("=== 基础剧本解析示例 ===")
-    
+
     # 初始化智能体（不需要LLM也可以工作）
-    parser_agent = ScriptParserAgent()
-    
+    parser_agent = ScriptParserAgent(get_llm_client())
+
     # 简单的中文剧本示例
     script_text = """
     李明坐在城市咖啡馆靠窗的位置，悠闲地喝着咖啡。下午3点的阳光透过窗户洒在他身上，他看起来很平静。
@@ -37,14 +37,14 @@ def example_basic_script_parsing():
     王小红在李明对面坐下，表情有些复杂。
     王小红：其实...我是来找你的。
     """
-    
+
     # 解析剧本
     structured_script = parser_agent.parse_script(script_text)
-    
+
     # 打印结果
     print("\n解析结果：")
     print(json.dumps(structured_script, ensure_ascii=False, indent=2))
-    
+
     return structured_script
 
 
@@ -54,9 +54,9 @@ def example_with_character_appearance():
     展示如何推断角色的年龄、穿着和外貌特征
     """
     print("\n=== 角色外观推断示例 ===")
-    
-    parser_agent = ScriptParserAgent()
-    
+
+    parser_agent = ScriptParserAgent(get_llm_client())
+
     # 包含更多角色描述线索的剧本
     script_text = """
     地点：市中心商务大厦，时间：上午10点
@@ -69,16 +69,16 @@ def example_with_character_appearance():
     
     张经理点点头，示意小李继续。
     """
-    
+
     structured_script = parser_agent.parse_script(script_text)
-    
+
     print("\n角色外观信息：")
     for scene in structured_script.get("scenes", []):
         characters_info = scene.get("characters_info", {})
         print(f"场景 '{scene['location']}' 中的角色信息：")
         for character, appearance in characters_info.items():
             print(f"  - {character}: {appearance}")
-    
+
     return structured_script
 
 
@@ -88,9 +88,9 @@ def example_emotion_recognition():
     展示如何从对话和动作中识别角色情绪
     """
     print("\n=== 情绪识别示例 ===")
-    
-    parser_agent = ScriptParserAgent()
-    
+
+    parser_agent = ScriptParserAgent(get_llm_client())
+
     # 包含丰富情绪表达的剧本
     script_text = """
     夜晚的街道上，风雨交加。
@@ -104,9 +104,9 @@ def example_emotion_recognition():
     陈小雨颤抖着，眼泪混着雨水流了下来。
     陈小雨：请...请不要伤害我，钱包给你。
     """
-    
+
     structured_script = parser_agent.parse_script(script_text)
-    
+
     print("\n情绪识别结果：")
     for scene in structured_script.get("scenes", []):
         print(f"场景：{scene['location']} ({scene['time']})")
@@ -116,7 +116,7 @@ def example_emotion_recognition():
                 print(f"  - {action['character']} (对话): {action['dialogue']} [情绪: {emotion}]")
             else:
                 print(f"  - {action['character']} (动作): {action['action']} [情绪: {emotion}]")
-    
+
     return structured_script
 
 
@@ -126,9 +126,9 @@ def example_complex_scene_parsing():
     处理包含多个场景和多条线索的剧本
     """
     print("\n=== 复杂场景解析示例 ===")
-    
-    parser_agent = ScriptParserAgent()
-    
+
+    parser_agent = ScriptParserAgent(get_llm_client())
+
     # 复杂剧本示例，包含多个场景转换
     script_text = """
     场景一：城市公园，早晨
@@ -143,55 +143,15 @@ def example_complex_scene_parsing():
     李总监深吸一口气，尽量让自己平静下来。
     李总监：去把销售部的王经理叫来，我要和他谈谈。
     """
-    
+
     structured_script = parser_agent.parse_script(script_text)
-    
+
     print("\n场景分割结果：")
     for i, scene in enumerate(structured_script.get("scenes", [])):
-        print(f"\n场景 {i+1}: {scene['location']} ({scene['time']})")
+        print(f"\n场景 {i + 1}: {scene['location']} ({scene['time']})")
         print(f"氛围: {scene.get('atmosphere', '未知')}")
         print(f"动作数量: {len(scene.get('actions', []))}")
-    
-    return structured_script
 
-
-def example_custom_configuration():
-    """
-    自定义配置示例
-    展示如何配置ScriptParserAgent以获得更好的解析结果
-    """
-    print("\n=== 自定义配置示例 ===")
-    
-    # 使用自定义配置初始化智能体
-    config_file_path = str(Path(__file__).parent.parent / "config" / "script_parser_config.yaml")
-    print(f"使用配置文件: {config_file_path}")
-    
-    parser_agent = ScriptParserAgent(
-        embedding_model_name="openai",  # 指定嵌入模型
-        storage_dir=str(Path(__file__).parent.parent / "data"),  # 指定存储目录
-        config_path=config_file_path  # 指定配置文件路径
-    )
-    
-    # 简单剧本示例
-    script_text = """
-    赵医生穿着白大褂，在诊室里认真地给病人看病。
-    赵医生：您最近的血压有些高，需要注意饮食。
-    病人：好的，医生，我会注意的。
-    """
-    
-    structured_script = parser_agent.parse_script(script_text)
-    
-    print("\n自定义配置解析结果：")
-    print(json.dumps(structured_script, ensure_ascii=False, indent=2))
-    
-    # 验证配置文件是否成功加载
-    print("\n配置加载验证:")
-    print(f"- 场景模式数量: {len(parser_agent.scene_patterns)}")
-    print(f"- 动作情绪映射数量: {len(parser_agent.action_emotion_map)}")
-    print(f"- 时间关键词数量: {len(parser_agent.time_keywords)}")
-    print(f"- 外观关键词数量: {len(parser_agent.appearance_keywords)}")
-    print(f"- 地点关键词数量: {len(getattr(parser_agent, 'location_keywords', {}))}")
-    
     return structured_script
 
 
@@ -201,9 +161,9 @@ def example_comprehensive_analysis():
     展示完整的剧本解析、情绪识别和角色外观推断流程
     """
     print("\n=== 综合分析示例 ===")
-    
-    parser_agent = ScriptParserAgent()
-    
+
+    parser_agent = ScriptParserAgent(get_llm_client())
+
     # 综合剧本示例
     script_text = """
     李明是一名28岁的程序员，穿着休闲装，戴着眼镜。他正在一家叫做"遇见"的咖啡馆里等朋友。
@@ -223,21 +183,21 @@ def example_comprehensive_analysis():
     王小红：李明...我...我愿意！
     李明高兴地握住王小红的手，两人都笑了。
     """
-    
+
     # 完整解析流程
     print("开始解析剧本...")
     structured_script = parser_agent.parse_script(script_text)
-    
+
     # 展示详细分析结果
     print("\n综合分析结果：")
-    
+
     # 1. 场景信息
     print("\n1. 场景信息:")
     for scene in structured_script.get("scenes", []):
         print(f"  - 地点: {scene['location']}")
         print(f"  - 时间: {scene['time']}")
         print(f"  - 氛围: {scene.get('atmosphere', '未知')}")
-    
+
     # 2. 角色信息
     print("\n2. 角色信息:")
     for scene in structured_script.get("scenes", []):
@@ -246,23 +206,23 @@ def example_comprehensive_analysis():
                 print(f"  - {character}:")
                 for k, v in info.items():
                     print(f"    {k}: {v}")
-    
+
     # 3. 情绪变化轨迹
     print("\n3. 情绪变化轨迹:")
     character_emotions = {}
-    
+
     for scene in structured_script.get("scenes", []):
         for action in scene.get("actions", []):
             character = action.get("character", "未知")
             emotion = action.get("emotion", "未知")
-            
+
             if character not in character_emotions:
                 character_emotions[character] = []
             character_emotions[character].append(emotion)
-    
+
     for character, emotions in character_emotions.items():
         print(f"  - {character}: {' → '.join(emotions)}")
-    
+
     return structured_script
 
 
@@ -271,16 +231,15 @@ def main():
     运行所有示例
     """
     print("\n===== 优化版剧本解析智能体示例 =====\n")
-    
+
     try:
         # 运行各个示例
         example_basic_script_parsing()
         example_with_character_appearance()
         example_emotion_recognition()
         example_complex_scene_parsing()
-        example_custom_configuration()
         example_comprehensive_analysis()
-        
+
         # 展示配置管理信息
         print("\n=== 配置管理信息 ===")
         print("配置文件位置: hengline/config/script_parser_config.yaml")
@@ -293,14 +252,14 @@ def main():
         print("6. location_keywords - 地点关键词映射")
         print("7. emotion_keywords - 情绪关键词扩展")
         print("8. atmosphere_keywords - 场景氛围关键词")
-        
+
         print("\n===== 所有示例运行完成 =====")
         print("提示：")
         print("1. 要获得最佳效果，请确保安装了jieba库（pip install jieba）")
         print("2. 配置LLM（如GPT-4o）可以获得更准确的情绪识别和角色外观推断")
         print("3. 对于生产环境，建议使用实际的embedding model进行知识库增强")
         print("4. 您可以直接编辑配置文件来添加或修改关键词和映射关系")
-        
+
     except Exception as e:
         print(f"运行示例时出错: {str(e)}")
 

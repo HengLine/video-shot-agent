@@ -145,7 +145,7 @@ class DeepSeekClient(BaseAIClient):
         config = config or {}
         # 从配置中获取默认值
         default_model = config.get('default_model', cls.DEFAULT_MODEL)
-        default_temperature = config.get('temperature', 0.7)
+        default_temperature = config.get('temperature', 0.1)
         default_max_tokens = config.get('max_tokens', 2000)
 
         return {
@@ -235,7 +235,7 @@ class DeepSeekClient(BaseAIClient):
         api_key = cls._get_api_key(config)
         base_url = config.get('base_url', cls.DEFAULT_BASE_URL)
         model = config.get('model', cls.DEFAULT_MODEL)
-        temperature = config.get('temperature', 0.7)
+        temperature = config.get('temperature', 0.1)
         max_tokens = config.get('max_tokens', 2000)
         timeout = config.get('timeout', 60)
 
@@ -291,7 +291,7 @@ class DeepSeekClient(BaseAIClient):
                     self.original = original
                     # 使用安全的方式访问属性，如果不存在则使用None或默认值
                     self.model = getattr(original, 'model', None)
-                    self.temperature = getattr(original, 'temperature', 0.7)
+                    self.temperature = getattr(original, 'temperature', 0.1)
                     self.max_tokens = getattr(original, 'max_tokens', 2000)
                     
                 def invoke(self, messages, **kwargs):

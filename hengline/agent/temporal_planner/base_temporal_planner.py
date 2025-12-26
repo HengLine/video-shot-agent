@@ -5,9 +5,11 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/12
 """
-from typing import List, Dict, Any
+from typing import Dict, Any
 
-from hengline.config.temporal_planner_config import get_planner_config
+from hengline.agent.script_parser.script_parser_model import UnifiedScript
+from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan
+from hengline.config.temporal_planner_config import get_planner_config, TemporalPlanningConfig
 from hengline.logger import debug
 from hengline.tools.action_duration_tool import ActionDurationEstimator
 from hengline.tools.langchain_memory_tool import LangChainMemoryTool
@@ -21,20 +23,22 @@ class TemporalPlanner:
         # 获取配置实例
         self.config = get_planner_config()
 
+        self.config = TemporalPlanningConfig()
+        # self.rule_planner = RuleTemporalPlanner()  # 预留用于未来可能的规则规划器集成
+
         # 初始化动作时长估算器
-        self.duration_estimator = ActionDurationEstimator(self.config.config_path)
+        self.duration_estimator = ActionDurationEstimator()
 
         # 初始化LangChain记忆工具（替代原有的向量记忆+状态机）
         self.memory_tool = LangChainMemoryTool()
 
-    def plan_timeline(self, structured_script: Dict[str, Any], target_duration: int = 5) -> List[Dict[str, Any]] | None:
+    def plan_timeline(self, structured_script: UnifiedScript) -> TimelinePlan | None:
         """
         规划剧本的时序分段
         
         Args:
             structured_script: 结构化的剧本
-            target_duration: 目标分段时长（秒）
-            
+
         Returns:
             分段计划列表
         """

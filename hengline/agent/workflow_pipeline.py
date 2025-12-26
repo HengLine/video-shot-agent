@@ -12,6 +12,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph
 
 from hengline.logger import debug, info, error
+from utils.log_utils import print_log_exception
 from .continuity_guardian_agent import ContinuityGuardianAgent
 from .shot_qa_agent import QAAgent
 from .script_parser_agent import ScriptParserAgent
@@ -25,7 +26,7 @@ from .workflow_states import StoryboardWorkflowState
 class MultiAgentPipeline:
     """多智能体协作流程"""
 
-    def __init__(self, llm=None):
+    def __init__(self, llm):
         """
         初始化多智能体流程
         
@@ -43,7 +44,7 @@ class MultiAgentPipeline:
         debug("初始化智能体组件")
 
         self.script_parser = ScriptParserAgent(llm=self.llm)
-        self.temporal_planner = TemporalPlannerAgent()
+        self.temporal_planner = TemporalPlannerAgent(llm=self.llm)
         self.continuity_guardian = ContinuityGuardianAgent()
         self.shot_generator = ShotGeneratorAgent(llm=self.llm)
         self.shot_qa = QAAgent(llm=self.llm)
@@ -201,6 +202,7 @@ class MultiAgentPipeline:
                 }
 
         except Exception as e:
+            print_log_exception()
             error(f"分镜生成流程失败: {str(e)}")
             # 返回错误响应
             return {

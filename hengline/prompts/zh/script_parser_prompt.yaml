@@ -2,7 +2,7 @@
 version: "1.2"
 
 # 自然语言转结构化分镜，提示词模板
-natural_language_parser:
+natural_language:
   name: "natural_language_prompt"
   description: "初始剧本解析，重点提取场景结构、角色和基本动作序列"
   template: |
@@ -19,9 +19,9 @@ natural_language_parser:
     5. 为每个动作标注类型和强度
     
     ## 输出严格的JSON格式：
-    {
+    {{
       "scenes": [
-        {
+        {{
           "scene_id": "scene_001",
           "description": "场景的主要内容描述",
           "location": "具体地点",
@@ -30,41 +30,41 @@ natural_language_parser:
           "characters": ["出现的角色名列表"],
           "dialogue_ids": ["本场景对话ID列表"],
           "action_ids": ["本场景动作ID列表"]
-        }
+        }}
       ],
       "characters": [
-        {
+        {{
           "name": "角色名",
-          "age": 估算年龄（如无法确定则为null）,
+          "age": 估算年龄（如无法确定具体年龄，可设置为“儿童/少年/青年/中年/老年/未知”，其中一个）,
           "gender": "性别（男/女/未知）",
           "role_hint": "角色提示（主角/配角/群众）"
-        }
+        }}
       ],
       "dialogues": [
-        {
+        {{
           "dialogue_id": "dialogue_001",
           "speaker": "说话者",
           "text": "对话内容",
           "emotion": "情绪（平静/愤怒/悲伤等）",
           "scene_ref": "所属场景ID"
-        }
+        }}
       ],
       "actions": [
-        {
-          "action_id": "action_001",
+        {{
+          "action_id": "动作编号（action_001，action_002）",
           "type": "动作类型（walk/run/sit/stand/look等）",
           "actor": "执行者",
           "description": "动作描述",
           "intensity": 强度（1-5，1最弱，5最强）,
           "scene_ref": "所属场景ID"
-        }
+        }}
       ],
-      "parsing_confidence": {
+      "parsing_confidence": {{
         "character_recognition": 0.9,
         "scene_segmentation": 0.8,
         "dialogue_extraction": 0.85
-      }
-    }
+      }}
+    }}
     
     ## 注意事项：
     - 保持原始文本的语义，不做修改
@@ -72,7 +72,7 @@ natural_language_parser:
     - 确保ID的唯一性和对应关系
 
 # AI分镜转标准格式，提示词模板
-ai_storyboard_parser:
+ai_storyboard:
   name: "ai_storyboard_prompt"
   description: "AI分镜转标准格式"
   template: |
@@ -125,7 +125,7 @@ ai_storyboard_parser:
     请输出纯净的JSON。
 
 
-screenplay_format_parser:
+screenplay_format:
   name: "screenplay_format_prompt"
   description: "标准剧本格式解析"
   template: |
@@ -227,7 +227,7 @@ screenplay_format_parser:
     5. 输出必须是纯净的JSON
     
 
-structured_scene_parser:
+structured_scene:
   name: "structured_scene_prompt"
   description: "结构化场景解析"
   template: |
@@ -344,34 +344,34 @@ script_parser_validator:
     4. 防止类似问题的规则
     
     输出JSON格式：
-    {
-      "validation_report": {
+    {{
+      "validation_report": {{
         "overall_status": "valid|needs_minor_fixes|needs_major_revision",
         "issues_found": [
-          {
+          {{
             "type": "问题类型",
             "description": "问题描述",
             "severity": "high|medium|low",
             "location": "问题位置",
             "suggestion": "修复建议"
-          }
+          }}
         ]
-      },
+      }},
     
-      "corrected_content": {
+      "corrected_content": {{
         "timeline_fixes": [
-          {"original": "原始时间", "corrected": "修正时间"}
+          {{"original": "原始时间", "corrected": "修正时间"}}
         ],
         "character_consistency_fixes": [
-          {"inconsistent_name": "不一致的名称", "standardized_to": "标准化名称"}
+          {{"inconsistent_name": "不一致的名称", "standardized_to": "标准化名称"}}
         ],
         "location_clarifications": [
-          {"vague_location": "模糊地点", "clarified_to": "明确地点"}
+          {{"vague_location": "模糊地点", "clarified_to": "明确地点"}}
         ]
-      },
+      }},
     
       "preventive_rules": [
         "预防规则1",
         "预防规则2"
       ]
-    }
+    }}

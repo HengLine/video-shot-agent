@@ -7,6 +7,7 @@
 import re
 from typing import List, Dict
 
+from hengline.logger import debug
 from hengline.agent.script_parser.script_parser_model import UnifiedScript
 
 

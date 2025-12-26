@@ -2,6 +2,8 @@ import sys
 import os
 import json
 
+from hengline.client.client_factory import get_llm_client
+
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -12,7 +14,7 @@ def test_scene_parser():
     script_text = "深夜11点，城市公寓内，窗外下着大雨。林然裹着毯子坐在沙发上，电视静音播放着老电影。手机突然震动，屏幕亮起\"未知号码\"。她犹豫了一下，还是接了起来。电话那头沉默了几秒，传来一个熟悉又陌生的男声：\"是我。\"林然的手微微发抖，轻声问：\"……陈默？你还好吗？\"对方停顿片刻，低声说：\"我回来了。\""
     
     # 创建解析器实例
-    parser_agent = ScriptParserAgent()
+    parser_agent = ScriptParserAgent(get_llm_client())
     
     # 解析剧本
     result = parser_agent.parse_script(script_text)

@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
         "timeout": 60,
         "default_model": "gpt-4o",
         "fallback_model": "",
-        "temperature": 0.7,
+        "temperature": 0.1,
         "max_tokens": 2000,
         "retry_count": 3
     },

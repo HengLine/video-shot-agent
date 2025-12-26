@@ -67,21 +67,6 @@ class ShotGeneratorAgent:
             **{kw: 'background' for kw in position_keywords.get('background', [])},
         }
         
-        # 添加英文位置映射
-        position_keywords_en = self.keyword_config.get_position_keywords(Language.EN)
-        self._position_map.update({
-            # 左侧位置映射
-            **{kw: 'left' for kw in position_keywords_en.get('left', [])},
-            # 中央位置映射
-            **{kw: 'center' for kw in position_keywords_en.get('center', [])},
-            # 右侧位置映射
-            **{kw: 'right' for kw in position_keywords_en.get('right', [])},
-            # 前景位置映射
-            **{kw: 'foreground' for kw in position_keywords_en.get('foreground', [])},
-            # 背景位置映射
-            **{kw: 'background' for kw in position_keywords_en.get('background', [])},
-        })
-        
         debug(f"初始化姿态映射: {self._pose_map}")
         debug(f"初始化位置映射: {self._position_map}")
     

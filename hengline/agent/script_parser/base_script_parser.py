@@ -20,6 +20,7 @@ from .script_extractor.script_emotion_extractor import emotion_extractor
 from .script_parser_model import UnifiedScript, Action, Dialogue, Character, Scene
 from .script_extractor.script_text_processor import TextProcessor
 
+
 class ScriptParser:
     """优化版剧本解析智能体"""
 
@@ -81,7 +82,7 @@ class ScriptParser:
                 raw_data = self._extract_with_llm(script_text)
             else:
                 # 使用本地解析
-                raw_data = self.extract_with_local(script_text)
+                raw_data = self._extract_with_local(script_text)
 
             # 转换为统一格式
             return self._convert_to_unified_format(raw_data, script_type), complexity_score
@@ -110,7 +111,7 @@ class ScriptParser:
         """
         pass
 
-    def extract_with_local(self, script_text: str) -> Optional[Dict[str, Any]]:
+    def _extract_with_local(self, script_text: str) -> Optional[Dict[str, Any]]:
         """ 本地解析剧本"""
         pass
 
@@ -128,7 +129,7 @@ class ScriptParser:
             return True
 
         # 规则3：特定格式强制使用AI
-        if script_type == ScriptType.NATURAL_LANGUAGE and complexity > 0.5:
+        if script_type == ScriptType.NATURAL_LANGUAGE and complexity > 0.2:
             # 自然语言特别适合AI理解
             return True
 
@@ -138,13 +139,14 @@ class ScriptParser:
 
         # 规则4：尝试本地解析，如果置信度低则用AI
         try:
-            local_result = self.extract_with_local(text)
-            confidence = local_result.get('parsing_confidence', 1.0)
-            if confidence < self.routing_rules["confidence_threshold"]:
+            local_result = self._extract_with_local(text)
+            confidence = local_result.get('parsing_confidence', {}).get('overall', 0.0) if local_result else 0.0
+            if float(confidence) < float(self.routing_rules["confidence_threshold"]):
                 return True
 
         except Exception as e:
             # 本地解析失败，回退到AI
+            print_log_exception()
             error(f"本地解析失败，回退到AI: {e}")
             return True
 
@@ -154,15 +156,15 @@ class ScriptParser:
         """调用LLM，支持重试"""
         for attempt in range(max_retries):
             try:
-                # self.llm.invoke(prompt)
-                response = self.llm.chat_complete(
-                    messages=[
-                        {"role": "system", "content": "你是一个专业的影视剧本解析分镜师，精通标准剧本格式，输出严格的JSON格式。"},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.1,
-                    response_format={"type": "json_object"}
-                )
+                # response = self.llm.chat_complete(
+                #     messages=[
+                #         {"role": "system", "content": "你是一个专业的影视剧本解析分镜师，精通标准剧本格式，输出严格的JSON格式。"},
+                #         {"role": "user", "content": prompt}
+                #     ],
+                #     temperature=0.1,
+                #     response_format={"type": "json_object"}
+                # )
+                response = self.llm.invoke(prompt)
                 return response
             except Exception as e:
                 if attempt == max_retries - 1:
@@ -192,10 +194,11 @@ class ScriptParser:
         # 构建角色
         characters = []
         for raw_char in raw_data.get("characters", []):
+            name = raw_char.get("name", "")
             char = Character(
-                name=raw_char.get("name", ""),
-                age=character_extractor.parse_age(raw_char),
-                gender=character_extractor.infer_gender(raw_char),
+                name=name,
+                age=character_extractor.infer_age(name, raw_char),
+                gender=character_extractor.infer_gender(name, raw_char),
                 role_hint=raw_char.get("role", ""),
                 description=raw_char.get("description", "")
             )

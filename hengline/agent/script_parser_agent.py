@@ -12,6 +12,7 @@ from .script_parser.ai_storyboard_parser import AIStoryboardParser
 from .script_parser.base_script_parser import TypeDetector
 from .script_parser.natural_language_parser import NaturalLanguageParser
 from .script_parser.screenplay_format_parser import ScreenplayFormatParser
+from .script_parser.script_parser_model import UnifiedScript
 from .script_parser.structured_scene_parser import StructuredSceneParser
 from .workflow_models import ScriptType
 from ..tools.script_validation_tool import BasicScriptValidator
@@ -20,26 +21,25 @@ from ..tools.script_validation_tool import BasicScriptValidator
 class ScriptParserAgent:
     """优化版剧本解析智能体"""
 
-    def __init__(self, llm_client=None, use_ai_for_complex: bool = True):
+    def __init__(self, llm):
         """
         初始化剧本解析智能体
         
         Args:
-            llm_client: 语言模型实例（推荐GPT-4o）
+            llm: 语言模型实例（推荐GPT-4o）
         """
 
         self.validator = BasicScriptValidator()
         self.type_detector = TypeDetector()
-        self.use_ai_for_complex = use_ai_for_complex
 
         self.parsers = {
-            ScriptType.NATURAL_LANGUAGE: NaturalLanguageParser(llm_client),
-            ScriptType.AI_STORYBOARD: AIStoryboardParser(llm_client),
-            ScriptType.STRUCTURED_SCENE: StructuredSceneParser(llm_client),
-            ScriptType.SCREENPLAY_FORMAT: ScreenplayFormatParser(llm_client)
+            ScriptType.NATURAL_LANGUAGE: NaturalLanguageParser(llm),
+            ScriptType.AI_STORYBOARD: AIStoryboardParser(llm),
+            ScriptType.STRUCTURED_SCENE: StructuredSceneParser(llm),
+            ScriptType.SCREENPLAY_FORMAT: ScreenplayFormatParser(llm)
         }
 
-    def parse_script(self, script_text: str) -> dict[str, Any] | None:
+    def parse_script(self, script_text: str) -> UnifiedScript | None:
         """
         优化版剧本解析函数
         将整段中文剧本转换为结构化动作序列
@@ -120,7 +120,7 @@ class ScriptParserAgent:
             if isinstance(char, dict) and char.get("name"):
                 validated["characters"].append({
                     "name": char["name"],
-                    "age": char.get("age"),
+                    "age": char.get("age", "未知"),
                     "gender": char.get("gender", "未知"),
                     "role_hint": char.get("role_hint", "角色"),
                     "description": char.get("description", "")

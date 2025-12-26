@@ -132,7 +132,7 @@ class QwenClient(BaseAIClient):
         config = config or {}
         # 从配置中获取默认值
         default_model = config.get('default_model', cls.DEFAULT_MODEL)
-        default_temperature = config.get('temperature', 0.7)
+        default_temperature = config.get('temperature', 0.1)
         default_max_tokens = config.get('max_tokens', 2000)
 
         return {
@@ -238,8 +238,9 @@ class QwenClient(BaseAIClient):
         # 获取API密钥和其他配置
         api_key = cls._get_api_key(config)
         model = config.get('model', cls.DEFAULT_MODEL)
-        temperature = config.get('temperature', 0.7)
-        
+        temperature = config.get('temperature', 0.1)
+        response_format = config.get('response_format', 'json_object')
+
         # 检查是否有API密钥可用
         has_api_key = api_key or 'DASHSCOPE_API_KEY' in os.environ
         
@@ -256,6 +257,7 @@ class QwenClient(BaseAIClient):
             llm_params = {
                 'model_name': model,
                 'temperature': temperature,
+                "response_format": {"type": response_format},
                 'callbacks': CallbackManager([])
             }
 

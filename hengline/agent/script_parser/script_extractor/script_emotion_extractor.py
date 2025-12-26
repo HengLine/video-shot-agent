@@ -6,7 +6,7 @@
 """
 class EmotionExtractor:
     """情绪提取器"""
-    def __int__(self):
+    def __init__(self):
 
         # 情绪关键词
         self.emotion_keywords = {
@@ -23,8 +23,13 @@ class EmotionExtractor:
             "激烈": ["激烈", "激烈", "争吵", "冲突", "战斗"],
             "平静": ["平静", "安静", "宁静", "祥和", "舒适", "安宁", "冷静", "淡定", "沉稳"],
         }
+        # 检查语气词
+        self.tone_words = {
+            "感叹": ["啊", "呀", "哇", "哦", "噢", "哟"],
+            "疑问": ["吗", "呢", "吧", "啊"],
+            "无奈": ["唉", "哎", "哼"],
+        }
 
-    @staticmethod
     def infer_mood(self, text: str) -> str:
         """推断氛围情绪"""
         for mood, keywords in self.emotion_keywords.items():
@@ -50,14 +55,7 @@ class EmotionExtractor:
                 if keyword in text:
                     return emotion
 
-        # 检查语气词
-        tone_words = {
-            "感叹": ["啊", "呀", "哇", "哦", "噢", "哟"],
-            "疑问": ["吗", "呢", "吧", "啊"],
-            "无奈": ["唉", "哎", "哼"],
-        }
-
-        for emotion, words in tone_words.items():
+        for emotion, words in self.tone_words.items():
             for word in words:
                 if word in text:
                     return emotion

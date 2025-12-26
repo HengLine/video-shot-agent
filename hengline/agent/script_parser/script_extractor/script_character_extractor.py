@@ -75,7 +75,7 @@ class CharacterExtractor:
         unique_characters = []
 
         for char in characters:
-            if char.name not in seen_names:
+            if char.name and char.name not in seen_names:
                 seen_names.add(char.name)
                 unique_characters.append(char)
 
@@ -216,7 +216,7 @@ class CharacterExtractor:
 
         return ""
 
-    def _infer_characters_from_context(self, text: str, found_names: Set[str]) -> List[Dict]:
+    def _infer_characters_from_context(self, text: str, found_names: Set[str]) -> List[Character]:
         """
         从上下文中推断角色
         """
@@ -238,13 +238,14 @@ class CharacterExtractor:
                 # 为代词创建临时角色名
                 temp_name = f"{pronoun}某人"
                 if temp_name not in found_names:
-                    character = {
-                        "name": temp_name,
-                        "age": None,
-                        "gender": "男" if pronoun == "他" else "女",
-                        "role_hint": role,
-                        "description": f"用'{pronoun}'代指的角色"
-                    }
+                    character = Character(
+                        name=temp_name,
+                        age=0,
+                        gender="男" if pronoun == "他" else "女",
+                        role_hint=role,
+                        description=f"用'{pronoun}'代指的角色"
+                    )
+
                     characters.append(character)
                     found_names.add(temp_name)
 

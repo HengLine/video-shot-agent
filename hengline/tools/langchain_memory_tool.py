@@ -74,8 +74,6 @@ class LangChainMemoryTool:
                         debug(f"chromadb版本: {chromadb.__version__}")
                     except ImportError:
                         warning("尝试使用chromadb，但未安装")
-                        # 跳过自动安装，避免可能的环境问题
-                        debug("跳过自动安装chromadb")
                         return
                     
                     # 初始化向量存储
@@ -703,8 +701,7 @@ class LangChainMemoryTool:
                                             error(f"问题JSON内容: {state_json[:100]}...")
                     except Exception as e:
                         error(f"处理转换建议失败: {e}")
-                        error(f"问题内容: {content[:100]}...")
-                
+
                 # 按分数排序
                 suggestions.sort(key=lambda x: x["score"], reverse=True)
                 

@@ -159,7 +159,7 @@ class OllamaClient(BaseAIClient):
         config = config or {}
         # 从配置中获取默认值
         default_model = config.get('default_model', cls.DEFAULT_MODEL)
-        default_temperature = config.get('temperature', 0.7)
+        default_temperature = config.get('temperature', 0.1)
         default_max_tokens = config.get('max_tokens', 2000)
         
         payload = {
@@ -171,7 +171,7 @@ class OllamaClient(BaseAIClient):
         # 如果未提供温度参数，使用配置中的默认值
         if temperature is not None:
             payload['temperature'] = temperature
-        elif default_temperature != 0.7:  # 仅当配置了非默认值时才设置
+        elif default_temperature != 0.1:  # 仅当配置了非默认值时才设置
             payload['temperature'] = default_temperature
             
         # 如果未提供最大令牌数，使用配置中的默认值
@@ -232,7 +232,7 @@ class OllamaClient(BaseAIClient):
         # 获取统一配置参数
         base_url = config.get('base_url', cls.DEFAULT_BASE_URL)
         model = config.get('default_model', config.get('model', cls.DEFAULT_MODEL))
-        temperature = config.get('temperature', 0.7)
+        temperature = config.get('temperature', 0.1)
         timeout = config.get('timeout', 180)
         max_tokens = config.get('max_tokens', 2000)
         

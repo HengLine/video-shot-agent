@@ -59,8 +59,8 @@ class PromptManager:
                             for prompt_key, prompt_data in data.items():
                                 if isinstance(prompt_data, dict):
                                     # 使用name字段或键名作为缓存键
-                                    cache_key = prompt_data.get("name", prompt_key)
-                                    self._prompt_cache[cache_key] = prompt_data
+                                    # cache_key = prompt_data.get("name", prompt_key)
+                                    self._prompt_cache[prompt_key] = prompt_data
                         # 处理旧格式
                         elif isinstance(data, dict) and "name" in data:
                             self._prompt_cache[data["name"]] = data

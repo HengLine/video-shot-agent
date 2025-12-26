@@ -283,7 +283,7 @@ class KeywordConfig:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             
             # 更新配置文件路径
-            if self._language == Language.EN.value:
+            if self._language == Language.EN:
                 self._config_file = os.path.join(current_dir, 'en', 'keyword_config.yaml')
             else:
                 # 默认使用中文配置

@@ -62,7 +62,7 @@ class ScriptParserConfig:
         # 检查缓存是否存在
         if cache_key in self._config_cache:
             # 根据语言选择配置文件路径
-            if self._language == Language.EN.value:
+            if self._language == Language.EN:
                 # 英文配置文件放在en子目录下
                 config_path = os.path.join(os.path.dirname(__file__), 'en', f'{config_filename}')
             else:
@@ -84,7 +84,7 @@ class ScriptParserConfig:
         self._config_cache[cache_key] = config_data
         
         # 更新缓存时间和文件修改时间
-        if self._language == Language.EN.value:
+        if self._language == Language.EN:
             config_path = os.path.join(os.path.dirname(__file__), 'en', f'{config_filename}')
         else:
             config_path = os.path.join(os.path.dirname(__file__), 'zh', config_filename)
@@ -327,7 +327,7 @@ class ScriptParserConfig:
         """
         try:
             # 根据语言选择配置文件路径
-            if self._language == Language.EN.value:
+            if self._language == Language.EN:
                 # 英文配置文件放在en子目录下
                 config_path = os.path.join(os.path.dirname(__file__), 'en', config_filename)
             else:

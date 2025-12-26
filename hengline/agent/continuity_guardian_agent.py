@@ -5,9 +5,8 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-import time
-from typing import Dict, List, Any, Optional
 import os
+from typing import Dict, List, Any, Optional
 
 from hengline.config.continuity_guardian_config import ContinuityGuardianConfig
 from hengline.config.keyword_config import get_keyword_config
@@ -31,7 +30,7 @@ class ContinuityGuardianAgent:
         self.keyword_config = get_keyword_config()
         # 初始化LangChain记忆工具（替代原有的向量记忆+状态机）
         self.memory_tool = LangChainMemoryTool()
-        
+
     def reset_state(self):
         """重置连续性守护智能体状态，用于更换剧本时"""
         info("重置连续性守护智能体状态")
@@ -102,18 +101,18 @@ class ContinuityGuardianAgent:
                 "character": character_name,
                 "segment": segment.get("id", "unknown")
             }
-            
+
             # 存储当前状态到LangChain记忆
             self.memory_tool.store_state(current_state, "连续性守护智能体当前状态")
-            
+
             # 获取状态转换建议
             suggestions = self.memory_tool.get_state_transition_suggestions(current_state)
-            
+
             # 使用配置管理器生成约束
             initial_state = self.config_manager.get_character_state(character_name)
-            constraints = self.config_manager._generate_character_constraints(character_name, initial_state)
+            constraints = self.config_manager.generate_character_constraints(character_name, initial_state)
             continuity_constraints["characters"][character_name] = constraints
-            
+
             # 保存初始状态到记忆
             self.config_manager.character_states[character_name] = initial_state
 
@@ -131,17 +130,17 @@ class ContinuityGuardianAgent:
             else:
                 # 如果没有状态，使用默认状态并根据动作推断初始姿势
                 default_state = self.config_manager.get_character_state(character_name)
-                
+
                 # 根据动作推断初始姿势
                 inferred_state = self._infer_initial_state_from_actions(default_state, character_actions)
-                
+
                 # 使用LangChain记忆工具存储初始状态
                 self.memory_tool.store_state(inferred_state, f"角色 {character_name} 初始状态")
-                
+
                 updated_state = inferred_state
 
             # 生成约束
-            constraints = self.config_manager._generate_character_constraints(character_name, updated_state)
+            constraints = self.config_manager.generate_character_constraints(character_name, updated_state)
             continuity_constraints["characters"][character_name] = constraints
 
             # 更新记忆中的状态
@@ -165,7 +164,7 @@ class ContinuityGuardianAgent:
 
         debug(f"生成的连续性约束: {continuity_constraints}")
         return continuity_constraints
-        
+
     def _infer_initial_state_from_actions(self, default_state: Dict[str, Any], actions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         根据角色动作推断初始状态
@@ -178,19 +177,19 @@ class ContinuityGuardianAgent:
             推断后的初始状态
         """
         inferred_state = default_state.copy()
-        
+
         if not actions:
             return inferred_state
-            
+
         # 合并所有动作文本
         all_actions_text = "".join(action.get("action", "") for action in actions)
-        
+
         # 获取各种关键词
         pose_keywords = self.keyword_config.get_pose_keywords(Language.ZH)
         gaze_keywords = self.keyword_config.get_gaze_keywords(Language.ZH)
         # 获取位置关键词
         position_keywords = self.keyword_config.get_position_keywords(Language.ZH)
-        
+
         # 根据动作文本推断姿势
         if any(keyword in all_actions_text for keyword in ["蜷在", "裹着", "躺在", "趴在"]):
             inferred_state["pose"] = "躺"
@@ -198,13 +197,13 @@ class ContinuityGuardianAgent:
             inferred_state["pose"] = "坐"
         elif any(keyword in all_actions_text for keyword in ["站在", "站立"]):
             inferred_state["pose"] = "站"
-            
+
         # 根据动作文本推断手持物品
         if any(keyword in all_actions_text for keyword in ["拿着手机", "打电话", "握着手机"]):
             inferred_state["holding"] = "智能手机"
         elif any(keyword in all_actions_text for keyword in ["拿着咖啡", "端着咖啡", "握着咖啡杯"]):
             inferred_state["holding"] = "咖啡杯"
-            
+
         # 根据动作文本推断位置
         if any(keyword in all_actions_text for keyword in ["在沙发上", "坐在沙发", "蜷在沙发"]):
             inferred_state["position"] = "沙发上"
@@ -212,7 +211,7 @@ class ContinuityGuardianAgent:
             inferred_state["position"] = "窗户旁"
         elif any(keyword in all_actions_text for keyword in ["在门口", "靠近门"]):
             inferred_state["position"] = "门口"
-            
+
         return inferred_state
 
     def extract_continuity_anchor(self,
@@ -307,7 +306,7 @@ class ContinuityGuardianAgent:
             if "电话那头" in character_name or "off-screen" in character_name:
                 anchor["position"] = "off-screen"
                 anchor["pose"] = "off-screen"
-            
+
             # 存储到LangChain记忆
             anchor_state = {
                 "character": character_name,
@@ -351,7 +350,7 @@ class ContinuityGuardianAgent:
         for character_name, constraints in current_constraints["characters"].items():
             if character_name in prev_anchor_map:
                 prev_state = prev_anchor_map[character_name]
-                
+
                 # 构建当前期望状态
                 current_state = {
                     "pose": constraints.get("must_start_with_pose", "unknown"),
@@ -360,7 +359,7 @@ class ContinuityGuardianAgent:
                     "gaze_direction": constraints.get("must_start_with_gaze", "unknown"),
                     "holding": constraints.get("must_start_with_holding", "unknown")
                 }
-                
+
                 # 使用LangChain记忆工具检索相似状态
                 prev_state_dict = {
                     "character": character_name,
@@ -370,14 +369,14 @@ class ContinuityGuardianAgent:
                     "gaze_direction": prev_state.get("gaze_direction", "unknown"),
                     "holding": prev_state.get("holding", "unknown")
                 }
-                
+
                 # 使用记忆工具获取状态转换建议
                 suggestions = self.memory_tool.get_state_transition_suggestions(prev_state_dict)
-                
+
                 # 简化验证逻辑，只检查字段是否完全匹配
                 is_valid = True
                 invalid_fields = []
-                
+
                 # 比较每个字段
                 for field in ["pose", "position", "emotion", "gaze_direction", "holding"]:
                     if prev_state_dict[field] != current_state[field]:
@@ -386,7 +385,7 @@ class ContinuityGuardianAgent:
                         field_name = self._get_field_name(field)
                         issues.append(f"角色 {character_name} 的 {field_name} 不连续: {prev_state_dict[field]} -> {current_state[field]}")
                         suggestions.append(f"建议将角色 {character_name} 的 {field_name} 修改为: {prev_state_dict[field]}")
-                
+
                 state_transition_results.append({
                     "character": character_name,
                     "is_valid": is_valid,
@@ -467,7 +466,7 @@ class ContinuityGuardianAgent:
             # 更新情绪
             if "emotion" in action:
                 desired_state["emotion"] = action["emotion"]
-        
+
         # 简化处理，直接使用期望状态
         updated_state = desired_state
 
@@ -493,7 +492,7 @@ class ContinuityGuardianAgent:
             "recommended_angle": camera_rules.get('default_angle', "平视角度"),
             "must_maintain_consistency": camera_rules.get('maintain_consistency', True)
         }
-        
+
     def _get_field_name(self, field: str) -> str:
         """获取字段的中文名称"""
         field_names = {

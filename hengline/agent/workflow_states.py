@@ -8,6 +8,7 @@
 import uuid
 from typing import Dict, List, Any, Optional, TypedDict
 
+from hengline.agent.script_parser.script_parser_model import UnifiedScript
 from hengline.agent.workflow_models import VideoStyle
 
 
@@ -22,7 +23,7 @@ class InputState(TypedDict):
 
 class ScriptParsingState(TypedDict):
     """剧本解析相关状态"""
-    structured_script: Optional[Dict[str, Any]]  # 结构化剧本
+    structured_script: UnifiedScript  # 结构化剧本
     memory: dict  # 自定义 memory 字段
 
 

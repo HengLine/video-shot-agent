@@ -120,7 +120,7 @@ class NaturalLanguageSceneSegmenter:
     def extract_location(text: str) -> str:
         """提取地点信息"""
         location_patterns = [
-            r'在([^，。！？]{2,10}?)[里中内]',  # 在XXX里/中/内
+            r'在([^，。！？]{2,10}?)[里中内上]',  # 在XXX里/中/内
             r'到([^，。！？]{2,10}?)去?',  # 到XXX去
             r'来到([^，。！？]{2,10})',  # 来到XXX
             r'([^，。！？]{2,10}?)门口',  # XXX门口

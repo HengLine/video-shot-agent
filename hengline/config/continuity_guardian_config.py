@@ -49,7 +49,7 @@ class ContinuityGuardianConfig:
         if self._language == Language.EN.value:
             config_file = 'en/continuity_guardian_config.yaml'
         else:
-            config_file = 'continuity_guardian_config.yaml'
+            config_file = 'zh/continuity_guardian_config.yaml'
         
         self.config_path = os.path.join(
             current_dir, 'config', config_file
@@ -139,7 +139,7 @@ class ContinuityGuardianConfig:
         # 添加外观信息到角色状态
         self.character_states[character_name]["appearance"] = appearance
 
-    def _generate_character_constraints(self, character_name: str, state: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_character_constraints(self, character_name: str, state: Dict[str, Any]) -> Dict[str, Any]:
         """生成角色连续性约束"""
         constraints = {
             "must_start_with_pose": state.get("pose", "unknown"),

@@ -3,6 +3,8 @@
 模型客户端工厂模块
 负责根据配置创建不同类型的模型客户端
 """
+from utils.log_utils import print_log_exception
+
 """
 @FileName: client_factory.py
 @Description: 客户端工厂模块，负责统一调用不同厂商的客户端实现
@@ -19,7 +21,7 @@ from hengline.client.ollama_client import OllamaClient
 # 导入各个厂商的客户端实现
 from hengline.client.openai_client import OpenAIClient
 from hengline.client.qwen_client import QwenClient
-from hengline.logger import error, debug, warning
+from hengline.logger import error, debug, warning, info
 
 
 class ClientFactory:
@@ -137,6 +139,42 @@ class ClientFactory:
 
 # 创建全局工厂实例
 ai_client_factory = ClientFactory()
+
+def get_llm_client() -> Optional[Any]:
+    """
+    获取LangChain兼容的LLM客户端的便捷函数
+
+    Returns:
+        配置好的LangChain LLM实例，或None如果不支持
+    """
+    try:
+        from config.config import get_ai_config
+
+        # 获取配置
+        ai_config = get_ai_config()
+        provider = ai_config.get("provider", "openai").lower()
+        model = ai_config.get("default_model", "gpt-4o")
+        temperature = ai_config.get("temperature", 0.1)
+
+        info(f"使用AI提供商: {provider}, 模型: {model}")
+
+        # 创建完整的LLM配置
+        llm_config = {
+            'model': model,
+            'temperature': temperature,
+            **ai_config  # 包含API密钥等配置
+        }
+
+        # 使用client_factory获取对应的LangChain LLM实例
+        llm = ai_client_factory.get_langchain_llm(provider=provider, config=llm_config)
+
+        if not llm:
+            warning(f"AI模型初始化失败（未能获取 {provider} 的LLM实例），系统将自动使用规则引擎模式继续工作")
+
+        return llm
+    except Exception as e:
+        print_log_exception()
+        error(f"AI模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
 
 
 def get_ai_client(provider: Optional[str] = None, config: Optional[Dict[str, Any]] = None) -> Any:

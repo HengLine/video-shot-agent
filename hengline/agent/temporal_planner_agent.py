@@ -5,44 +5,55 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-from typing import List, Dict, Any
 
+from hengline.agent.script_parser.script_parser_model import UnifiedScript
 from hengline.agent.temporal_planner.base_temporal_planner import TemporalPlanner
+from hengline.agent.temporal_planner.llm_temporal_planner import LLMTemporalPlanner
 from hengline.agent.temporal_planner.local_temporal_planner import RuleTemporalPlanner
+from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan
 from hengline.logger import debug, error
+from utils.log_utils import print_log_exception
 
 
 class TemporalPlannerAgent(TemporalPlanner):
-    """时序规划智能体"""
+    """时序规划智能体
 
-    def __init__(self):
+    输入：统一格式的剧本解析结果
+    输出：精确的5秒时间分片方案
+
+    核心任务：
+    1. 为每个剧本元素（对话、动作、描述）估算合理时长
+    2. 智能分割为5秒粒度的视频片段
+    3. 确保时间分配的合理性和连贯性
+    4. 标记关键时间节点和情绪转折点
+
+    """
+
+    def __init__(self, llm):
         """初始化时序规划智能体"""
         # 初始化PromptManager，使用正确的提示词目录路径
         super().__init__()
 
-        self.rule_planner = RuleTemporalPlanner()  # 预留用于未来可能的规则规划器集成
-        debug(f"时序规划智能体初始化完成，加载了 {len(self.config.base_actions)} 个基础动作配置")
+        # 初始化各个组件
+        self.rule_planner = RuleTemporalPlanner()
+        self.llm_planner = LLMTemporalPlanner(llm)
 
-    def plan_timeline(self, structured_script: Dict[str, Any], target_duration: int = 5) -> List[Dict[str, Any]] | None:
+    def plan_timeline(self, structured_script: UnifiedScript) -> TimelinePlan | None:
         """
         规划剧本的时序分段
         
         Args:
             structured_script: 结构化的剧本
-            target_duration: 目标分段时长（秒）
-            
+
         Returns:
             分段计划列表
         """
         debug("开始根据规则规划时序")
-        if target_duration:
-            self.config.target_segment_duration = target_duration
-
         try:
-            optimized_segments = self.rule_planner.plan_timeline(structured_script, target_duration)
-            debug(f"时序规划完成，生成了 {len(optimized_segments)} 个分段")
-            return optimized_segments
+
+            return self.rule_planner.plan_timeline(structured_script)
 
         except Exception as e:
+            print_log_exception()
             error(f"执行时序规划异常: {e}")
             return None

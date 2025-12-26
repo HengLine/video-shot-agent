@@ -6,12 +6,13 @@
 @Time: 2025/10 - 2025/11
 """
 import uuid
+from dataclasses import asdict
 from datetime import datetime
 from typing import Dict, List, Any
 
 from hengline.logger import debug, info, warning, error
-from utils.log_utils import print_log_exception
 from hengline.tools.result_storage_tool import create_result_storage
+from utils.log_utils import print_log_exception
 from .workflow_models import VideoStyle
 from .workflow_states import StoryboardWorkflowState
 
@@ -39,24 +40,18 @@ class WorkflowNodes:
         self.llm = llm
         self.storage = create_result_storage()
 
-
-
     def parse_script_node(self, graph_state: StoryboardWorkflowState) -> Dict[str, Any]:
         """解析剧本文本节点"""
         debug("解析剧本文本节点执行中")
         try:
             structured_script = self.script_parser.parse_script(graph_state["script_text"])
 
-            # 使用LLM增强解析结果（如果有）
-            # if self.llm:
-            #     structured_script = self.script_parser.enhance_with_llm(structured_script)
-
-            debug(f"剧本解析完成，场景数: {len(structured_script.get('scenes', []))}")
+            debug(f"剧本解析完成，场景数: {len(structured_script.scenes)}")
 
             # 保存剧本解析结果
             task_id = graph_state.get("task_id")
             try:
-                self.storage.save_result(task_id, structured_script, "script_parser_result.json")
+                self.storage.save_result(task_id, asdict(structured_script), "script_parser_result.json")
                 info(f"剧本解析结果已保存到: data/output/{task_id}/script_parser_result.json")
             except Exception as save_error:
                 warning(f"保存剧本解析结果失败: {str(save_error)}")
@@ -66,7 +61,7 @@ class WorkflowNodes:
 
         except Exception as e:
             print_log_exception()
-            error(f"剧本解析失败: {str(e)}")
+            error(f"剧本解析节点异常: {str(e)}")
             return {
                 "error": str(e)
             }
@@ -77,10 +72,9 @@ class WorkflowNodes:
         try:
             # 进行时序规划
             segments = self.temporal_planner.plan_timeline(
-                state["structured_script"],
-                state["duration_per_shot"]
+                state["structured_script"]
             )
-            
+
             # 保存时序规划结果
             task_id = state.get("task_id")
             try:
@@ -93,9 +87,9 @@ class WorkflowNodes:
                 info(f"时序规划结果已保存到: data/output/{task_id}/temporal_planner_result.json")
             except Exception as save_error:
                 warning(f"保存时序规划结果失败: {str(save_error)}")
-            
+
             debug(f"时序规划完成，分段数: {len(segments)}")
-            
+
             return {
                 "segments": segments,
                 "current_segment_index": 0
@@ -140,7 +134,7 @@ class WorkflowNodes:
 
             # 获取场景上下文，增加安全检查
             scene_id = segment.get("scene_id", 0)
-            scenes = state.get("structured_script", {}).get("scenes", [])
+            scenes = state.get("structured_script", {}).scenes
             scene_context = scenes[scene_id] if scene_id < len(scenes) else {}
 
             try:
@@ -159,7 +153,7 @@ class WorkflowNodes:
                     state["style"],
                     shot_id
                 )
-                
+
                 # 保存分镜生成结果
                 task_id = state.get("task_id")
                 try:
@@ -189,6 +183,7 @@ class WorkflowNodes:
                 "retry_count": state.get("retry_count", 0)
             }
         except Exception as e:
+            print_log_exception()
             error(f"生成分镜节点发生严重错误: {str(e)}")
             # 创建最基本的默认分镜，确保系统能够继续运行
             default_segment = {
@@ -218,10 +213,10 @@ class WorkflowNodes:
             # 记录不同级别的问题
             if qa_result.get("warnings"):
                 info(f"分镜有警告: {qa_result.get('warnings')}")
-            
+
             if qa_result.get("critical_issues"):
                 info(f"分镜审查失败(关键错误): {qa_result.get('critical_issues')}")
-            
+
             # 对默认分镜放宽要求
             if shot.get("warnings") and "使用默认分镜生成器" in shot.get("warnings", []):
                 info("对默认分镜放宽审查标准")
@@ -266,7 +261,7 @@ class WorkflowNodes:
         """检查是否需要重试节点，优化重试机制"""
         retry_count = state["retry_count"]
         max_retries = state["max_retries"]
-        
+
         # 获取当前审查结果
         qa_results = state.get("qa_results", [])
         current_qa = qa_results[-1] if qa_results else None
@@ -288,23 +283,23 @@ class WorkflowNodes:
             # 将当前分镜添加到shots列表
             shots = state["shots"].copy()
             current_shot = state.get("current_shot").copy()
-            
+
             # 保留警告信息
             if current_qa:
                 if "review_result" not in current_shot:
                     current_shot["review_result"] = {}
                 current_shot["review_result"]["is_valid"] = current_qa.get("is_valid", False)
-                
+
                 # 合并警告信息
                 all_warnings = []
                 if current_qa.get("warnings"):
                     all_warnings.extend(current_qa.get("warnings"))
                 if current_shot.get("warnings"):
                     all_warnings.extend(current_shot.get("warnings"))
-                
+
                 if all_warnings:
                     current_shot["warnings"] = list(set(all_warnings))  # 去重
-            
+
             shots.append(current_shot)
             return {
                 "shots": shots
@@ -369,7 +364,7 @@ class WorkflowNodes:
         debug("审查分镜序列连续性节点执行中")
         try:
             sequence_qa = self.shot_qa.review_shot_sequence(state["shots"])
-            
+
             # 分类错误类型
             if sequence_qa.get("has_continuity_issues", False):
                 # 检查是否有critical_issues字段（新格式）
@@ -381,18 +376,18 @@ class WorkflowNodes:
                     # 对旧格式结果进行分级
                     critical_issues = []
                     warnings = []
-                    
+
                     for issue in sequence_qa.get("continuity_issues", []):
                         # 判断问题严重程度
                         if any(keyword in issue.lower() for keyword in ["严重", "致命", "无法修复", "位置冲突"]):
                             critical_issues.append(issue)
                         else:
                             warnings.append(issue)
-                
+
                 # 记录警告
                 if warnings:
                     info(f"分镜序列有警告: {warnings}")
-                
+
                 # 更新序列审查结果
                 if critical_issues:
                     warning(f"分镜序列审查失败(关键问题): {critical_issues}")
@@ -401,7 +396,7 @@ class WorkflowNodes:
                     # 只有警告的情况下，不认为存在连续性问题
                     info("分镜序列有警告但通过审查")
                     sequence_qa = {"has_continuity_issues": False, "warnings": warnings}
-            
+
             # 保存序列审查结果
             task_id = state.get("task_id")
             try:
@@ -412,7 +407,7 @@ class WorkflowNodes:
                 info(f"序列审查结果已保存")
             except Exception as save_error:
                 warning(f"保存序列审查结果失败: {str(save_error)}")
-            
+
             return {
                 "sequence_qa": sequence_qa
             }
@@ -431,7 +426,7 @@ class WorkflowNodes:
             shots = state["shots"]
             qa_result = state["sequence_qa"]
             fixed_shots = self._fix_continuity_issues(shots, qa_result)
-            
+
             # 保存连续性修复结果
             task_id = state.get("task_id")
             try:
@@ -443,7 +438,7 @@ class WorkflowNodes:
                 info(f"连续性修复结果已保存")
             except Exception as save_error:
                 warning(f"保存连续性修复结果失败: {str(save_error)}")
-                
+
             debug(f"已修复连续性问题，共调整 {len(fixed_shots)} 个分镜")
 
             return {
@@ -467,13 +462,13 @@ class WorkflowNodes:
                 state["duration_per_shot"],
                 state["sequence_qa"]
             )
-            
+
             # 生成最终的分镜头剧本
             # 从结果中提取所需信息
             title = state.get("title", "分镜头剧本")
             shots = state["shots"]
             qa_results = state.get("qa_results", [])
-            
+
             # 提取角色和场景位置信息
             characters = set()
             locations = set()
@@ -483,7 +478,7 @@ class WorkflowNodes:
                 scene_context = shot.get("scene_context", {})
                 if scene_context.get("location"):
                     locations.add(scene_context["location"])
-            
+
             final_storyboard = {
                 "title": title,
                 "scenes": shots,
@@ -491,19 +486,19 @@ class WorkflowNodes:
                 "characters": list(characters),
                 "locations": list(locations)
             }
-            
+
             # 保存最终结果
             task_id = state.get("task_id")
             try:
                 self.storage.save_result(task_id, result, "final_result.json")
                 info(f"最终结果已保存到: data/output/{task_id}/final_result.json")
-                
+
                 # 保存最终分镜头剧本
                 self.storage.save_result(task_id, final_storyboard, "final_storyboard.json")
                 info(f"最终分镜头剧本已保存到: data/output/{task_id}/final_storyboard.json")
             except Exception as save_error:
                 warning(f"保存最终结果失败: {str(save_error)}")
-            
+
             return {
                 "result": result,
                 "final_storyboard": final_storyboard
@@ -521,7 +516,7 @@ class WorkflowNodes:
         actions = segment.get("actions", [])
         characters = []
         dialogue = ""
-        
+
         # 从场景上下文获取更多信息
         scene_context = segment.get("scene_context", {})
         location = scene_context.get("location", "未知位置")
@@ -537,7 +532,7 @@ class WorkflowNodes:
                     dialogue += f"{character_name}: {action['dialogue']}\n"
         else:
             characters = ["默认角色"]
-        
+
         # 生成角色状态信息，提高默认分镜质量
         initial_state = []
         final_state = []
@@ -545,7 +540,7 @@ class WorkflowNodes:
             # 为每个角色分配不同位置
             positions = ["left", "center", "right"]
             position = positions[idx % len(positions)]
-            
+
             # 创建初始状态
             initial_state.append({
                 "character_name": character,
@@ -554,7 +549,7 @@ class WorkflowNodes:
                 "holding": "nothing",
                 "emotion": "neutral"
             })
-            
+
             # 创建结束状态（与初始状态相同，保持连续性）
             final_state.append({
                 "character_name": character,

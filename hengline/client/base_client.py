@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Callable
 
 from hengline.client.openai_compat import OpenAICompatibleWrapper, BaseOpenAIResponse
-from hengline.logger import info, error
+from hengline.logger import info, error, warning
 
 
 class BaseAIClient(ABC):
@@ -94,7 +94,6 @@ class BaseAIClient(ABC):
             # 这样可以允许在无API密钥的情况下进行基本功能测试
             import os
             if os.environ.get("DEV_MODE") == "true":
-                from hengline.logger import warning
                 warning(f"警告：未配置{cls.PROVIDER_NAME}的API密钥，但在开发模式下允许继续")
             else:
                 error(f"未配置{cls.PROVIDER_NAME}的API密钥")
@@ -256,7 +255,7 @@ class BaseAIClient(ABC):
         payload = {
             "model": model or cls.DEFAULT_MODEL,
             "messages": messages,
-            "temperature": temperature if temperature is not None else 0.7,
+            "temperature": temperature if temperature is not None else 0.1,
             "max_tokens": max_tokens if max_tokens is not None else 2000,
         }
 
