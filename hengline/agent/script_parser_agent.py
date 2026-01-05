@@ -39,7 +39,7 @@ class ScriptParserAgent:
             ScriptType.SCREENPLAY_FORMAT: ScreenplayFormatParser(llm)
         }
 
-    def parse_script(self, script_text: str) -> UnifiedScript | None:
+    def process(self, script_text: str) -> UnifiedScript | None:
         """
         优化版剧本解析函数
         将整段中文剧本转换为结构化动作序列

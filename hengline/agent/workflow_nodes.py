@@ -44,7 +44,7 @@ class WorkflowNodes:
         """解析剧本文本节点"""
         debug("解析剧本文本节点执行中")
         try:
-            structured_script = self.script_parser.parse_script(graph_state["script_text"])
+            structured_script = self.script_parser.process(graph_state["script_text"])
 
             debug(f"剧本解析完成，场景数: {len(structured_script.scenes)}")
 
@@ -71,7 +71,7 @@ class WorkflowNodes:
         debug("规划时间线节点执行中")
         try:
             # 进行时序规划
-            segments = self.temporal_planner.plan_timeline(
+            segments = self.temporal_planner.process(
                 state["structured_script"]
             )
 
@@ -139,7 +139,7 @@ class WorkflowNodes:
 
             try:
                 # 生成连续性约束
-                continuity_constraints = self.continuity_guardian.generate_continuity_constraints(
+                continuity_constraints = self.continuity_guardian.process(
                     segment,
                     state.get("current_continuity_state"),
                     scene_context

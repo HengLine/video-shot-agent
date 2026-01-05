@@ -7,7 +7,6 @@
 """
 
 from hengline.agent.script_parser.script_parser_model import UnifiedScript
-from hengline.agent.temporal_planner.base_temporal_planner import TemporalPlanner
 from hengline.agent.temporal_planner.llm_temporal_planner import LLMTemporalPlanner
 from hengline.agent.temporal_planner.local_temporal_planner import RuleTemporalPlanner
 from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan
@@ -15,7 +14,7 @@ from hengline.logger import debug, error
 from utils.log_utils import print_log_exception
 
 
-class TemporalPlannerAgent(TemporalPlanner):
+class TemporalPlannerAgent:
     """时序规划智能体
 
     输入：统一格式的剧本解析结果
@@ -31,14 +30,11 @@ class TemporalPlannerAgent(TemporalPlanner):
 
     def __init__(self, llm):
         """初始化时序规划智能体"""
-        # 初始化PromptManager，使用正确的提示词目录路径
-        super().__init__()
-
         # 初始化各个组件
         self.rule_planner = RuleTemporalPlanner()
         self.llm_planner = LLMTemporalPlanner(llm)
 
-    def plan_timeline(self, structured_script: UnifiedScript) -> TimelinePlan | None:
+    def process(self, structured_script: UnifiedScript) -> TimelinePlan | None:
         """
         规划剧本的时序分段
         
