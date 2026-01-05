@@ -9,9 +9,7 @@ from enum import Enum
 from typing import List, Dict, Tuple, Optional
 
 from hengline.agent.temporal_planner.temporal_planner_model import TimeSegment
-from .model.continuity_guardian_autofix import AutoFix
-from .model.continuity_guardian_report import StateSnapshot, ContinuityIssue, ValidationReport
-from .model.continuity_rule_guardian import ContinuityRuleSet, GenerationHints
+from .model.continuity_rule_guardian import GenerationHints
 from .model.continuity_state_guardian import CharacterState, PropState, EnvironmentState
 from .model.continuity_transition_guardian import KeyframeAnchor, TransitionInstruction
 from .model.continuity_visual_guardian import VisualMatchRequirements, SpatialRelation, VisualSignature
@@ -95,27 +93,3 @@ class AnchoredSegment:
 
     # 生成提示
     generation_hints: GenerationHints  # 给Sora的生成提示
-
-
-@dataclass
-class AnchoredTimeline:
-    """带强约束的连续性规划"""
-
-    # 核心：带约束的时间片段
-    anchored_segments: List[AnchoredSegment]
-
-    # 连续性规则系统
-    continuity_rules: ContinuityRuleSet
-
-    # 状态跟踪快照
-    state_snapshots: Dict[str, StateSnapshot]  # key: timestamp
-
-    # 验证报告
-    validation_report: ValidationReport
-
-    # 问题与修复
-    detected_issues: List[ContinuityIssue]
-    auto_fixes: List[AutoFix]
-
-    # 质量指标
-    continuity_score: float  # 0-1，连贯性评分

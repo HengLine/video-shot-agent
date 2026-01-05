@@ -6,6 +6,7 @@
 """
 from typing import Dict
 
+from hengline.logger import warning
 from hengline.agent.script_parser.script_parser_model import UnifiedScript
 from hengline.agent.temporal_planner.duration_plan.duration_calculator import RuleDurationCalculator
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation
@@ -31,6 +32,9 @@ class DurationEstimator:
         估算所有元素的时长
         """
         estimations = {}
+        if not script_input:
+            warning("DurationEstimator: 没有提供脚本输入，无法进行时长估算。")
+            return estimations
 
         # 1. 估算对话时长
         if script_input.dialogues:

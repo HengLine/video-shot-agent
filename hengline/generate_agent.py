@@ -35,7 +35,7 @@ def generate_storyboard(
         包含分镜列表的完整结果
     """
     # 创建并运行多智能体管道
-    pipeline = MultiAgentPipeline(llm=llm if llm else get_llm_client())
+    pipeline = MultiAgentPipeline(llm=llm if llm else get_llm_client(), task_id=task_id)
     return pipeline.run_pipeline(
         script_text=script_text,
         style=style,

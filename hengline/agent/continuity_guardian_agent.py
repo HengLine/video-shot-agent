@@ -5,896 +5,651 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-from collections import defaultdict
+import json
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional, Any
+from pathlib import Path
+from typing import Dict, List, Optional, Any
 
 import numpy as np
 
-from hengline import debug, error
-from hengline.agent.continuity_guardian.analyzer.continuit_Issue_resolver import ContinuityIssueResolver
-from hengline.agent.continuity_guardian.analyzer.visual_consistency_analyzer import VisualConsistencyAnalyzer
-from hengline.agent.continuity_guardian.continuity_guardian_model import ContinuityLevel
-from hengline.agent.continuity_guardian.model.continuity_guardian_autofix import AutoFix
-from hengline.agent.continuity_guardian.model.continuity_guardian_report import ValidationReport, ContinuityIssue, StateSnapshot
-from hengline.agent.continuity_guardian.model.continuity_rule_guardian import ContinuityRuleSet, GenerationHints
-from hengline.agent.continuity_guardian.model.continuity_state_guardian import CharacterState, PropState, EnvironmentState
-from hengline.agent.continuity_guardian.model.continuity_transition_guardian import KeyframeAnchor, TransitionInstruction
-from hengline.agent.continuity_guardian.model.continuity_visual_guardian import SpatialRelation
-from hengline.config.continuity_guardian_config import ContinuityGuardianConfig
-from hengline.config.keyword_config import get_keyword_config
-from hengline.logger import info
-from hengline.tools.langchain_memory_tool import LangChainMemoryTool
+from .continuity_guardian.continuity_guardian_manager import IntegratedContinuityGuardian
+from .continuity_guardian.model.continuity_guard_guardian import GuardianConfig, AnalysisDepth, GuardMode
+from hengline.logger import info, error, debug
 
 
 class ContinuityGuardianAgent:
-    """连续性守护智能体"""
+    """连续性守护智能体 - 总接口"""
 
-    def __init__(self):
-        """初始化连续性守护智能体"""
-        # 初始化配置管理器
-        self.config_manager = ContinuityGuardianConfig()
-        # 角色状态记忆
-        self.character_states = self.config_manager.character_states
-        # 加载连续性守护智能体配置
-        self.config = self.config_manager.config
-        # 初始化关键词配置
-        self.keyword_config = get_keyword_config()
-        # 初始化LangChain记忆工具（替代原有的向量记忆+状态机）
-        self.memory_tool = LangChainMemoryTool()
+    def __init__(self, task_id: str, config: Optional[Dict] = None):
+        """
+        初始化连续性守护智能体
 
-        # 核心组件
-        self.rule_set = ContinuityRuleSet()
-        self.visual_analyzer = VisualConsistencyAnalyzer()
-        self.issue_resolver = ContinuityIssueResolver(self.rule_set)
-        self.auto_fixer = AutoFix(self.rule_set)
+        Args:
+            task_id: 任务ID
+            config: 配置字典，可选
+        """
+        self.task_id = task_id
 
-        # 状态管理
-        self.state_history: List[StateSnapshot] = []
-        self.current_state: Optional[StateSnapshot] = None
-        self.previous_state: Optional[StateSnapshot] = None  # 前一个状态
-        self.keyframe_anchors: Dict[str, KeyframeAnchor] = {}
-        self.transition_log: List[TransitionInstruction] = []
-
-        # 问题与解决管理
-        self.validation_reports: Dict[str, ValidationReport] = {}
-        self.continuity_scores: List[Tuple[datetime, float]] = []
-        self.issue_tracker: Dict[str, List[ContinuityIssue]] = defaultdict(list)
-        self.resolution_history: List[Dict[str, Any]] = []  # 解决历史
-        self.auto_fix_attempts: List[Dict[str, Any]] = []  # 自动修复尝试记录
-
-        # 缓存与优化
-        self.generation_hints_cache: Dict[str, GenerationHints] = {}
-        self.feature_cache: Dict[str, Dict[str, Any]] = {}
-
-        # 性能监控
-        self.processing_stats: Dict[str, Any] = {
-            "total_frames_processed": 0,
-            "total_issues_found": 0,
-            "total_issues_resolved": 0,
-            "average_processing_time_ms": 0.0,
-            "frame_processing_times": []
+        # 解析配置
+        self.config = self._parse_config(config) or {
+            "mode": "adaptive",
+            "analysis_depth": "standard",
+            "enable_auto_fix": True,
+            "validation_frequency": 5
         }
 
-        # 初始化
-        self._initialize_agent()
-
-    def _initialize_agent(self):
-        """初始化智能体"""
-        # 加载配置规则
-        if "rules" in self.config:
-            for rule_name, rule_config in self.config["rules"].items():
-                self.rule_set.rules[rule_name] = rule_config
-
-        # 设置监控阈值
-        self.continuity_threshold = self.config.get("continuity_threshold", 0.7)
-        self.critical_threshold = self.config.get("critical_threshold", 0.5)
-
-        # 初始化默认关键帧
-        self._initialize_default_keyframes()
-
-    def reset_state(self):
-        """重置连续性守护智能体状态，用于更换剧本时"""
-        info("重置连续性守护智能体状态")
-        # 重置角色状态
-        self.config_manager.character_states = {}
-        self.character_states = self.config_manager.character_states
-        # 重置LangChain记忆
-        self.memory_tool.clear_memory()
-
-    def _initialize_default_keyframes(self):
-        """初始化默认关键帧"""
-        # 创建项目开始关键帧
-        start_anchor = KeyframeAnchor("project_start", 0.0)
-        start_anchor.continuity_checks.append({
-            "type": "project_initialization",
-            "timestamp": datetime.now(),
-            "description": "项目初始化关键帧"
-        })
-        self.keyframe_anchors["project_start"] = start_anchor
-
-    def process(self, frame_data: Dict[str, Any],
-                context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """处理帧数据的完整流程
-
-        Args:
-            frame_data: 帧数据，包含场景、角色、道具等信息
-            context: 上下文信息，如时间间隔、场景变化等
-
-        Returns:
-            处理结果，包含状态快照、验证报告、连续性分数等
-        """
-        process_start = datetime.now()
-
-        # 1. 捕获当前状态
-        current_snapshot = self.capture_state(frame_data)
-
-        # 2. 如果有历史状态，进行连续性验证
-        validation_report = None
-        continuity_score = 1.0
-
-        if self.previous_state:
-            validation_report = self.validate_continuity(
-                self.previous_state,
-                current_snapshot,
-                context or {}
-            )
-
-            # 3. 计算连续性分数
-            continuity_score = self._calculate_continuity_score(validation_report)
-            self.continuity_scores.append((current_snapshot.timestamp, continuity_score))
-
-            info(f" 连续性分数: {continuity_score:.3f}")
-
-            # 4. 处理检测到的问题
-            if validation_report.issues:
-                self._handle_detected_issues(validation_report, current_snapshot)
-
-            # 5. 检查是否需要创建关键帧
-            if self._should_create_keyframe(current_snapshot, validation_report):
-                self._create_auto_keyframe(current_snapshot)
-
-        else:
-            debug(" 第一个帧，跳过连续性检查")
-
-        # 6. 更新状态历史
-        self.previous_state = self.current_state
-        self.current_state = current_snapshot
-        self.state_history.append(current_snapshot)
-
-        # 7. 生成处理结果
-        result = self._generate_process_result(
-            process_start,
-            current_snapshot,
-            validation_report,
-            continuity_score
-        )
-
-        return result
-
-    def capture_state(self, frame_data: Dict[str, Any]) -> StateSnapshot:
-        """从帧数据捕获状态快照
-
-        Args:
-            frame_data: 包含场景、角色、道具等信息的字典
-
-        Returns:
-            状态快照对象
-        """
-        print(f"   📸 捕获状态 - 场景: {frame_data.get('scene_id', 'unknown')}")
-
-        # 提取场景信息
-        scene_id = frame_data.get("scene_id", f"scene_{len(self.state_history)}")
-        frame_number = frame_data.get("frame_number", len(self.state_history))
-
-        # 提取角色状态
-        characters = self._extract_character_states(frame_data)
-
-        # 提取道具状态
-        props = self._extract_prop_states(frame_data)
-
-        # 提取环境状态
-        environment = self._extract_environment_state(frame_data)
-
-        # 提取空间关系
-        spatial_relations = self._extract_spatial_relations(frame_data, characters, props)
-
-        # 提取视觉特征（如果提供了图像数据）
-        visual_features = {}
-        if "image_data" in frame_data or "visual_features" in frame_data:
-            visual_features = self._extract_visual_features(frame_data)
-
-        # 创建状态快照
-        snapshot = StateSnapshot(
-            timestamp=datetime.now(),
-            scene_id=scene_id,
-            frame_number=frame_number,
-            characters=characters,
-            props=props,
-            environment=environment,
-            spatial_relations=spatial_relations,
-            metadata={
-                "source_data": {k: v for k, v in frame_data.items()
-                                if k not in ["characters", "props", "environment"]},
-                "visual_features": visual_features,
-                "processing_timestamp": datetime.now().isoformat()
-            }
-        )
-
-        return snapshot
-
-    def _extract_character_states(self, frame_data: Dict[str, Any]) -> Dict[str, CharacterState]:
-        """从帧数据提取角色状态"""
-        characters = {}
-
-        for char_data in frame_data.get("characters", []):
-            char_id = char_data.get("id", f"char_{len(characters)}")
-
-            # 创建或获取现有角色状态
-            if char_id in self.current_state.characters if self.current_state else False:
-                char_state = self.current_state.characters[char_id]
-                # 更新状态
-                char_state.appearance.update(char_data.get("appearance", {}))
-                char_state.outfit = char_data.get("outfit", char_state.outfit)
-                char_state.emotional_state = char_data.get("emotional_state",
-                                                           char_state.emotional_state)
-                char_state.position = char_data.get("position", char_state.position)
-                char_state.orientation = char_data.get("orientation", char_state.orientation)
-            else:
-                # 创建新角色状态
-                char_state = CharacterState(
-                    character_id=char_id,
-                    name=char_data.get("name", f"Character_{char_id}")
-                )
-                char_state.appearance = char_data.get("appearance", {})
-                char_state.outfit = char_data.get("outfit", {})
-                char_state.emotional_state = char_data.get("emotional_state", "neutral")
-                char_state.position = char_data.get("position")
-                char_state.orientation = char_data.get("orientation", 0.0)
-
-            # 更新库存
-            if "inventory" in char_data:
-                char_state.inventory = char_data["inventory"]
-
-            # 更新物理状态
-            if "physical_state" in char_data:
-                char_state.physical_state.update(char_data["physical_state"])
-
-            characters[char_id] = char_state
-
-        return characters
-
-    def _extract_prop_states(self, frame_data: Dict[str, Any]) -> Dict[str, PropState]:
-        """从帧数据提取道具状态"""
-        props = {}
-
-        for prop_data in frame_data.get("props", []):
-            prop_id = prop_data.get("id", f"prop_{len(props)}")
-
-            if prop_id in self.current_state.props if self.current_state else False:
-                prop_state = self.current_state.props[prop_id]
-                # 更新状态
-                prop_state.position = prop_data.get("position", prop_state.position)
-                prop_state.orientation = prop_data.get("orientation", prop_state.orientation)
-                prop_state.state = prop_data.get("state", prop_state.state)
-                prop_state.owner = prop_data.get("owner", prop_state.owner)
-            else:
-                # 创建新道具状态
-                prop_state = PropState(
-                    prop_id=prop_id,
-                    name=prop_data.get("name", f"Prop_{prop_id}")
-                )
-                prop_state.position = prop_data.get("position")
-                prop_state.orientation = prop_data.get("orientation", (0.0, 0.0, 0.0))
-                prop_state.state = prop_data.get("state", "default")
-                prop_state.owner = prop_data.get("owner")
-
-            # 记录交互
-            if "interaction" in prop_data:
-                prop_state.record_interaction(
-                    prop_data["interaction"].get("character_id"),
-                    prop_data["interaction"].get("action", "interact")
-                )
-
-            props[prop_id] = prop_state
-
-        return props
-
-    def _extract_environment_state(self, frame_data: Dict[str, Any]) -> EnvironmentState:
-        """从帧数据提取环境状态"""
-        env_data = frame_data.get("environment", {})
-        scene_id = frame_data.get("scene_id", "unknown")
-
-        if self.current_state and self.current_state.environment.scene_id == scene_id:
-            env_state = self.current_state.environment
-            # 更新环境状态
-            env_state.time_of_day = env_data.get("time_of_day", env_state.time_of_day)
-            env_state.weather = env_data.get("weather", env_state.weather)
-            env_state.lighting = env_data.get("lighting", env_state.lighting)
-        else:
-            # 创建新环境状态
-            env_state = EnvironmentState(scene_id)
-            env_state.time_of_day = env_data.get("time_of_day", "day")
-            env_state.weather = env_data.get("weather", "clear")
-            env_state.lighting = env_data.get("lighting", {})
-
-        # 更新其他环境属性
-        if "ambient_sounds" in env_data:
-            env_state.ambient_sounds = env_data["ambient_sounds"]
-
-        if "active_effects" in env_data:
-            env_state.active_effects = env_data["active_effects"]
-
-        return env_state
-
-    def _extract_spatial_relations(self, frame_data: Dict[str, Any],
-                                   characters: Dict[str, CharacterState],
-                                   props: Dict[str, PropState]) -> SpatialRelation:
-        """提取空间关系"""
-        spatial_relation = SpatialRelation()
-
-        # 从帧数据中提取显式空间关系
-        for relation_data in frame_data.get("spatial_relations", []):
-            spatial_relation.add_relationship(
-                relation_data.get("entity1"),
-                relation_data.get("relation"),
-                relation_data.get("entity2"),
-                relation_data.get("confidence", 1.0)
-            )
-
-        # 自动计算隐式空间关系（基于位置）
-        self._compute_implicit_spatial_relations(spatial_relation, characters, props)
-
-        return spatial_relation
-
-    def _compute_implicit_spatial_relations(self, spatial_relation: SpatialRelation,
-                                            characters: Dict[str, CharacterState],
-                                            props: Dict[str, PropState]):
-        """计算隐式空间关系"""
-        all_entities = list(characters.values()) + list(props.values())
-
-        for i, entity1 in enumerate(all_entities):
-            for j, entity2 in enumerate(all_entities):
-                if i >= j:
-                    continue
-
-                # 计算距离关系
-                if hasattr(entity1, 'position') and entity1.position and \
-                        hasattr(entity2, 'position') and entity2.position:
-
-                    distance = self._calculate_distance(entity1.position, entity2.position)
-
-                    # 添加距离关系
-                    if distance < 1.0:
-                        relation = "touching"
-                    elif distance < 3.0:
-                        relation = "near"
-                    elif distance < 10.0:
-                        relation = "far"
-                    else:
-                        relation = "distant"
-
-                    spatial_relation.add_relationship(
-                        getattr(entity1, 'character_id', getattr(entity1, 'prop_id', 'unknown')),
-                        relation,
-                        getattr(entity2, 'character_id', getattr(entity2, 'prop_id', 'unknown')),
-                        confidence=0.8
-                    )
-
-    def _extract_visual_features(self, frame_data: Dict[str, Any]) -> Dict[str, Any]:
-        """提取视觉特征"""
-        visual_features = {}
-
-        # 如果提供了图像数据
-        if "image_data" in frame_data:
-            try:
-                visual_features = self.visual_analyzer.extract_visual_features(
-                    frame_data["image_data"]
-                )
-            except Exception as e:
-                print(f"   ⚠️ 视觉特征提取失败: {e}")
-
-        # 如果提供了预计算的视觉特征
-        elif "visual_features" in frame_data:
-            visual_features = frame_data["visual_features"]
-
-        return visual_features
-
-    def validate_continuity(self, previous_snapshot: StateSnapshot,
-                            current_snapshot: StateSnapshot,
-                            context: Dict[str, Any]) -> ValidationReport:
-        """验证两个状态快照之间的连续性
-
-        Args:
-            previous_snapshot: 前一个状态快照
-            current_snapshot: 当前状态快照
-            context: 验证上下文
-
-        Returns:
-            验证报告
-        """
-        print(f"   🔍 验证连续性: {previous_snapshot.scene_id} → {current_snapshot.scene_id}")
-
-        # 创建验证报告
-        report_id = f"validation_{previous_snapshot.frame_number}_{current_snapshot.frame_number}"
-        report = ValidationReport(report_id)
-
-        # 1. 检查场景连续性
-        self._validate_scene_continuity(previous_snapshot, current_snapshot, report, context)
-
-        # 2. 检查角色连续性
-        self._validate_character_continuity(previous_snapshot, current_snapshot, report)
-
-        # 3. 检查道具连续性
-        self._validate_prop_continuity(previous_snapshot, current_snapshot, report)
-
-        # 4. 检查环境连续性
-        self._validate_environment_continuity(previous_snapshot, current_snapshot, report)
-
-        # 5. 检查空间连续性
-        self._validate_spatial_continuity(previous_snapshot, current_snapshot, report)
-
-        # 6. 检查视觉连续性
-        self._validate_visual_continuity(previous_snapshot, current_snapshot, report)
-
-        # 7. 检查时间连续性
-        self._validate_temporal_continuity(previous_snapshot, current_snapshot, report, context)
-
-        # 更新报告摘要
-        report.summary["total_checks"] = sum([
-            report.summary["critical_issues"],
-            report.summary["major_issues"],
-            report.summary["minor_issues"],
-            report.summary["cosmetic_issues"]
-        ])
-        report.summary["passed"] = max(0, 10 - report.summary["total_checks"])
-
-        # 存储报告
-        self.validation_reports[report_id] = report
-
-        return report
-
-    def _validate_scene_continuity(self, prev: StateSnapshot, curr: StateSnapshot,
-                                   report: ValidationReport, context: Dict[str, Any]):
-        """验证场景连续性"""
-        scene_change = prev.scene_id != curr.scene_id
-
-        if scene_change:
-            # 检查是否有合法的场景转换
-            if "scene_transition" not in context:
-                issue = ContinuityIssue(
-                    issue_id=f"scene_jump_{prev.scene_id}_{curr.scene_id}",
-                    level=ContinuityLevel.MAJOR,
-                    description=f"场景从 '{prev.scene_id}' 跳转到 '{curr.scene_id}' 缺少过渡"
-                )
-                report.add_issue(issue)
-
-    def _validate_character_continuity(self, prev: StateSnapshot, curr: StateSnapshot,
-                                       report: ValidationReport):
-        """验证角色连续性"""
-        prev_chars = prev.characters
-        curr_chars = curr.characters
-
-        # 检查角色消失/出现
-        disappeared = set(prev_chars.keys()) - set(curr_chars.keys())
-        appeared = set(curr_chars.keys()) - set(prev_chars.keys())
-
-        for char_id in disappeared:
-            issue = ContinuityIssue(
-                issue_id=f"char_disappear_{char_id}",
-                level=ContinuityLevel.CRITICAL,
-                description=f"角色 '{char_id}' 无故消失"
-            )
-            issue.entity_type = "character"
-            issue.entity_id = char_id
-            report.add_issue(issue)
-
-        for char_id in appeared:
-            issue = ContinuityIssue(
-                issue_id=f"char_appear_{char_id}",
-                level=ContinuityLevel.MAJOR,
-                description=f"角色 '{char_id}' 无故出现"
-            )
-            issue.entity_type = "character"
-            issue.entity_id = char_id
-            report.add_issue(issue)
-
-        # 检查现有角色的连续性
-        common_chars = set(prev_chars.keys()) & set(curr_chars.keys())
-        for char_id in common_chars:
-            prev_char = prev_chars[char_id]
-            curr_char = curr_chars[char_id]
-
-            # 检查外貌变化
-            if prev_char.appearance != curr_char.appearance:
-                changes = self._find_differences(prev_char.appearance, curr_char.appearance)
-                issue = ContinuityIssue(
-                    issue_id=f"char_appearance_change_{char_id}",
-                    level=ContinuityLevel.CRITICAL,
-                    description=f"角色 '{char_id}' 外貌变化: {changes}"
-                )
-                issue.entity_type = "character"
-                issue.entity_id = char_id
-                issue.auto_fixable = len(changes) == 1  # 单一变化可自动修复
-                report.add_issue(issue)
-
-            # 检查服装变化
-            if prev_char.outfit != curr_char.outfit:
-                changes = self._find_differences(prev_char.outfit, curr_char.outfit)
-                issue = ContinuityIssue(
-                    issue_id=f"char_outfit_change_{char_id}",
-                    level=ContinuityLevel.MAJOR,
-                    description=f"角色 '{char_id}' 服装变化: {changes}"
-                )
-                issue.entity_type = "character"
-                issue.entity_id = char_id
-                report.add_issue(issue)
-
-            # 检查位置跳跃
-            if prev_char.position and curr_char.position:
-                distance = self._calculate_distance(prev_char.position, curr_char.position)
-                if distance > 5.0:  # 超过5单位距离认为是跳跃
-                    issue = ContinuityIssue(
-                        issue_id=f"char_position_jump_{char_id}",
-                        level=ContinuityLevel.MAJOR,
-                        description=f"角色 '{char_id}' 位置跳跃: {distance:.1f} 单位"
-                    )
-                    issue.entity_type = "character"
-                    issue.entity_id = char_id
-                    issue.auto_fixable = True
-                    report.add_issue(issue)
-
-    def _validate_prop_continuity(self, prev: StateSnapshot, curr: StateSnapshot,
-                                  report: ValidationReport):
-        """验证道具连续性"""
-        prev_props = prev.props
-        curr_props = curr.props
-
-        # 检查道具状态变化
-        for prop_id in set(prev_props.keys()) & set(curr_props.keys()):
-            prev_prop = prev_props[prop_id]
-            curr_prop = curr_props[prop_id]
-
-            # 检查状态变化
-            if prev_prop.state != curr_prop.state:
-                issue = ContinuityIssue(
-                    issue_id=f"prop_state_change_{prop_id}",
-                    level=ContinuityLevel.MAJOR,
-                    description=f"道具 '{prop_id}' 状态从 '{prev_prop.state}' 变为 '{curr_prop.state}'"
-                )
-                issue.entity_type = "prop"
-                issue.entity_id = prop_id
-                report.add_issue(issue)
-
-            # 检查位置变化
-            if prev_prop.position and curr_prop.position:
-                distance = self._calculate_distance(prev_prop.position, curr_prop.position)
-                if distance > 2.0 and prev_prop.owner is None:  # 无人持有的道具不应移动
-                    issue = ContinuityIssue(
-                        issue_id=f"prop_position_change_{prop_id}",
-                        level=ContinuityLevel.MAJOR,
-                        description=f"无人持有的道具 '{prop_id}' 移动了 {distance:.1f} 单位"
-                    )
-                    issue.entity_type = "prop"
-                    issue.entity_id = prop_id
-                    issue.auto_fixable = True
-                    report.add_issue(issue)
-
-    def _validate_environment_continuity(self, prev: StateSnapshot, curr: StateSnapshot,
-                                         report: ValidationReport):
-        """验证环境连续性"""
-        prev_env = prev.environment
-        curr_env = curr.environment
-
-        # 检查时间变化
-        if prev_env.time_of_day != curr_env.time_of_day:
-            issue = ContinuityIssue(
-                issue_id="time_of_day_change",
-                level=ContinuityLevel.MINOR,
-                description=f"时间从 {prev_env.time_of_day} 变为 {curr_env.time_of_day}"
-            )
-            issue.entity_type = "environment"
-            report.add_issue(issue)
-
-        # 检查天气变化
-        if prev_env.weather != curr_env.weather:
-            issue = ContinuityIssue(
-                issue_id="weather_change",
-                level=ContinuityLevel.MINOR,
-                description=f"天气从 {prev_env.weather} 变为 {curr_env.weather}"
-            )
-            issue.entity_type = "environment"
-            report.add_issue(issue)
-
-        # 检查光照变化
-        if prev_env.lighting != curr_env.lighting:
-            changes = self._find_differences(prev_env.lighting, curr_env.lighting)
-            if changes and "intensity" in str(changes).lower():
-                issue = ContinuityIssue(
-                    issue_id="lighting_intensity_change",
-                    level=ContinuityLevel.MINOR,
-                    description=f"光照强度变化: {changes}"
-                )
-                issue.entity_type = "environment"
-                report.add_issue(issue)
-
-    def _validate_spatial_continuity(self, prev: StateSnapshot, curr: StateSnapshot,
-                                     report: ValidationReport):
-        """验证空间连续性"""
-        # 检查房间布局变化
-        if prev.scene_id == curr.scene_id:
-            # 相同场景下检查空间关系一致性
-            prev_relations = prev.spatial_relations.relationships
-            curr_relations = curr.spatial_relations.relationships
-
-            for rel_key in set(prev_relations.keys()) & set(curr_relations.keys()):
-                prev_rel = prev_relations[rel_key]
-                curr_rel = curr_relations[rel_key]
-
-                if prev_rel and curr_rel and prev_rel[-1][0] != curr_rel[-1][0]:
-                    issue = ContinuityIssue(
-                        issue_id=f"spatial_relation_change_{rel_key}",
-                        level=ContinuityLevel.MINOR,
-                        description=f"空间关系 '{rel_key}' 从 '{prev_rel[-1][0]}' 变为 '{curr_rel[-1][0]}'"
-                    )
-                    report.add_issue(issue)
-
-    def _validate_visual_continuity(self, prev: StateSnapshot, curr: StateSnapshot,
-                                    report: ValidationReport):
-        """验证视觉连续性"""
-        prev_features = prev.metadata.get("visual_features", {})
-        curr_features = curr.metadata.get("visual_features", {})
-
-        if prev_features and curr_features:
-            try:
-                comparison = self.visual_analyzer.compare_frames(prev_features, curr_features)
-
-                # 检查视觉相似度
-                if comparison.get("overall_similarity", 1.0) < 0.7:
-                    issue = ContinuityIssue(
-                        issue_id="visual_inconsistency",
-                        level=ContinuityLevel.MAJOR,
-                        description=f"视觉不一致性: 相似度 {comparison['overall_similarity']:.2f}"
-                    )
-                    report.add_issue(issue)
-
-                # 检查颜色跳跃
-                if comparison.get("color_similarity", 1.0) < 0.6:
-                    issue = ContinuityIssue(
-                        issue_id="color_inconsistency",
-                        level=ContinuityLevel.MINOR,
-                        description=f"颜色不一致: 相似度 {comparison['color_similarity']:.2f}"
-                    )
-                    report.add_issue(issue)
-
-            except Exception as e:
-                print(f"   ⚠️ 视觉连续性检查失败: {e}")
-
-    def _validate_temporal_continuity(self, prev: StateSnapshot, curr: StateSnapshot,
-                                      report: ValidationReport, context: Dict[str, Any]):
-        """验证时间连续性"""
-        time_gap = context.get("time_gap", 0)
-
-        if time_gap > 3600:  # 1小时
-            issue = ContinuityIssue(
-                issue_id="large_time_gap",
-                level=ContinuityLevel.MINOR,
-                description=f"时间间隔较大: {time_gap / 3600:.1f} 小时"
-            )
-            report.add_issue(issue)
-
-    def _find_differences(self, dict1: Dict, dict2: Dict) -> List[str]:
-        """找出两个字典的差异"""
-        differences = []
-
-        all_keys = set(dict1.keys()) | set(dict2.keys())
-        for key in all_keys:
-            val1 = dict1.get(key)
-            val2 = dict2.get(key)
-
-            if val1 != val2:
-                differences.append(f"{key}: {val1} -> {val2}")
-
-        return differences
-
-    def _calculate_distance(self, pos1: Tuple[float, float, float],
-                            pos2: Tuple[float, float, float]) -> float:
-        """计算三维空间距离"""
-        if not pos1 or not pos2:
-            return float('inf')
-        return np.sqrt(sum((a - b) ** 2 for a, b in zip(pos1, pos2)))
-
-    def _calculate_continuity_score(self, validation_report: ValidationReport) -> float:
-        """计算连续性分数"""
-        if not validation_report:
-            return 1.0
-
-        # 基于问题严重程度加权计算
-        severity_weights = {
-            ContinuityLevel.CRITICAL: 0.5,
-            ContinuityLevel.MAJOR: 0.3,
-            ContinuityLevel.MINOR: 0.1,
-            ContinuityLevel.COSMETIC: 0.05
+        # 初始化核心引擎
+        self.guardian = None
+        self._initialized = False
+
+        info(f"连续性守护智能体初始化 - task_id: {task_id}")
+
+    def _parse_config(self, config_dict: Optional[Dict]) -> GuardianConfig:
+        """解析配置字典为GuardianConfig对象"""
+        if config_dict is None:
+            config_dict = {}
+
+        # 基础配置
+        base_config = {
+            "task_id": self.task_id,
+            "mode": GuardMode(config_dict.get("mode", "adaptive")),
+            "analysis_depth": AnalysisDepth(config_dict.get("analysis_depth", "standard")),
+            "enable_auto_fix": config_dict.get("enable_auto_fix", True),
+            "max_state_history": config_dict.get("max_state_history", 1000),
+            "validation_frequency": config_dict.get("validation_frequency", 10),
+            "enable_real_time_validation": config_dict.get("enable_real_time_validation", True),
+            "enable_machine_learning": config_dict.get("enable_machine_learning", False),
+            "generate_reports": config_dict.get("generate_reports", True),
+            "report_save_path": config_dict.get("report_save_path", f"./reports/{self.task_id}"),
+            "parallel_processing": config_dict.get("parallel_processing", True),
+            "max_workers": config_dict.get("max_workers", 4)
         }
 
-        total_score = 1.0
-        for issue in validation_report.issues:
-            weight = severity_weights.get(issue.level, 0.1)
+        return GuardianConfig(**base_config)
 
-            # 如果问题可自动修复，惩罚减半
-            if issue.auto_fixable:
-                weight *= 0.5
+    def initialize(self):
+        """初始化智能体（延迟初始化）"""
+        if not self._initialized:
+            self.guardian = IntegratedContinuityGuardian(self.task_id, self.config)
+            self._initialized = True
+            info("连续性守护智能体初始化完成")
+        return self
 
-            total_score -= weight
+    def process(self, frame_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        处理单个视频帧/场景
 
-        # 确保分数在合理范围内
-        return max(0.0, min(1.0, total_score))
+        Args:
+            frame_data: 帧数据，包含场景信息
 
-    def _handle_detected_issues(self, validation_report: ValidationReport,
-                                current_snapshot: StateSnapshot):
-        """处理检测到的问题"""
-        print(f"   ⚠️ 检测到 {len(validation_report.issues)} 个连续性问题")
+        Returns:
+            处理结果字典
+        """
+        if not self._initialized:
+            self.initialize()
 
-        # 按场景记录问题
-        scene_key = current_snapshot.scene_id
-        if scene_key not in self.issue_tracker:
-            self.issue_tracker[scene_key] = []
-        self.issue_tracker[scene_key].extend(validation_report.issues)
-
-        # 尝试自动修复
-        for issue in validation_report.issues:
-            if issue.auto_fixable:
-                self._attempt_auto_fix(issue, current_snapshot)
-
-    def _attempt_auto_fix(self, issue: ContinuityIssue, current_snapshot: StateSnapshot):
-        """尝试自动修复"""
         try:
-            fix_suggestion = self.auto_fixer.suggest_fix(issue, current_snapshot)
-            if fix_suggestion and fix_suggestion.get("confidence", 0) > 0.7:
-                print(f"   🔧 自动修复建议: {issue.description}")
-                print(f"      动作: {fix_suggestion.get('action')}")
-                print(f"      置信度: {fix_suggestion.get('confidence'):.2f}")
+            # 调用集成守护器处理场景
+            result = self.guardian.process_scene(frame_data)
 
-                # 记录修复尝试
-                self.resolution_history.append({
-                    "timestamp": datetime.now(),
-                    "issue_id": issue.issue_id,
-                    "action": fix_suggestion.get("action"),
-                    "confidence": fix_suggestion.get("confidence"),
-                    "success": False  # 实际应用中需要执行修复
-                })
+            # 添加智能体标识
+            result["agent_info"] = {
+                "agent_version": "1.0.0",
+                "task_id": self.task_id
+            }
+
+            debug(f"帧处理完成 - 帧号: {result.get('frame_number', 'unknown')}")
+            return result
+
         except Exception as e:
-            error(f" 自动修复失败: {e}")
+            error(f"处理帧数据失败: {e}")
+            return self._create_error_response(frame_data, str(e))
 
-    def _should_create_keyframe(self, snapshot: StateSnapshot,
-                                validation_report: ValidationReport) -> bool:
-        """判断是否应该创建关键帧"""
-        # 如果有严重问题，创建关键帧
-        if validation_report and any(
-                issue.level == ContinuityLevel.CRITICAL
-                for issue in validation_report.issues
-        ):
-            return True
+    def process_sequence(self, frame_sequence: List[Dict]) -> Dict[str, Any]:
+        """
+        处理帧序列
 
-        # 如果是新场景，创建关键帧
-        if not self.previous_state or self.previous_state.scene_id != snapshot.scene_id:
-            return True
+        Args:
+            frame_sequence: 帧序列列表
 
-        # 如果距离上次关键帧超过一定帧数
-        last_keyframes = [k for k in self.keyframe_anchors.values()
-                          if hasattr(k, 'timestamp')]
-        if last_keyframes:
-            last_keyframe_time = max(k.timestamp for k in last_keyframes
-                                     if hasattr(k, 'timestamp'))
-            frame_interval = snapshot.frame_number - last_keyframe_time
-            if frame_interval > 100:  # 每100帧创建一个关键帧
-                return True
+        Returns:
+            序列处理结果
+        """
+        if not self._initialized:
+            self.initialize()
 
-        return False
-
-    def _create_auto_keyframe(self, snapshot: StateSnapshot):
-        """创建自动关键帧"""
-        keyframe_id = f"auto_kf_{snapshot.scene_id}_{snapshot.frame_number}"
-        timestamp = snapshot.frame_number
-
-        anchor = KeyframeAnchor(keyframe_id, timestamp)
-
-        # 复制当前状态到关键帧
-        for character in snapshot.characters.values():
-            anchor.add_character_state(character)
-
-        for prop in snapshot.props.values():
-            anchor.add_prop_state(prop)
-
-        anchor.environment = snapshot.environment
-
-        # 添加连续性检查记录
-        anchor.continuity_checks.append({
-            "type": "auto_created",
-            "reason": "scene_change_or_issue_detected",
-            "timestamp": datetime.now()
-        })
-
-        self.keyframe_anchors[keyframe_id] = anchor
-
-    def _generate_process_result(self, process_start: datetime,
-                                 snapshot: StateSnapshot,
-                                 validation_report: ValidationReport,
-                                 continuity_score: float) -> Dict[str, Any]:
-        """生成处理结果"""
-        result = {
-            "timestamp": datetime.now().isoformat(),
-            "processing_time_ms": (datetime.now() - process_start).total_seconds() * 1000,
-            "frame_info": {
-                "scene_id": snapshot.scene_id,
-                "frame_number": snapshot.frame_number,
-                "character_count": len(snapshot.characters),
-                "prop_count": len(snapshot.props)
-            },
-            "continuity_score": continuity_score,
-            "continuity_assessment": self._get_continuity_assessment(continuity_score),
-            "has_issues": validation_report is not None and len(validation_report.issues) > 0,
+        sequence_results = {
+            "total_frames": len(frame_sequence),
+            "processed_frames": 0,
+            "frame_results": [],
+            "sequence_summary": {},
+            "continuity_score": 0.0,
+            "issues_by_frame": [],
             "recommendations": []
         }
 
-        # 添加验证报告摘要
-        if validation_report:
-            result["validation_summary"] = {
-                "total_issues": len(validation_report.issues),
-                "critical_issues": validation_report.summary["critical_issues"],
-                "major_issues": validation_report.summary["major_issues"],
-                "minor_issues": validation_report.summary["minor_issues"]
+        for i, frame_data in enumerate(frame_sequence):
+            try:
+                frame_result = self.process(frame_data)
+                sequence_results["frame_results"].append(frame_result)
+                sequence_results["processed_frames"] += 1
+
+                # 收集问题
+                if frame_result.get("continuity_report"):
+                    issues = self._extract_issues_from_report(frame_result["continuity_report"])
+                    if issues:
+                        sequence_results["issues_by_frame"].append({
+                            "frame_index": i,
+                            "frame_id": frame_data.get("scene_id", f"frame_{i}"),
+                            "issues": issues
+                        })
+
+                info(f"序列处理进度: {i + 1}/{len(frame_sequence)}")
+
+            except Exception as e:
+                error(f"处理序列第{i}帧失败: {e}")
+                error_result = self._create_error_response(frame_data, str(e))
+                sequence_results["frame_results"].append(error_result)
+
+        # 生成序列摘要
+        sequence_results["sequence_summary"] = self._generate_sequence_summary(sequence_results)
+        sequence_results["continuity_score"] = self._calculate_sequence_continuity_score(sequence_results)
+        sequence_results["recommendations"] = self._generate_sequence_recommendations(sequence_results)
+
+        return sequence_results
+
+    def analyze_transition(self, from_scene: Dict, to_scene: Dict) -> Dict[str, Any]:
+        """
+        分析场景转场
+
+        Args:
+            from_scene: 来源场景数据
+            to_scene: 目标场景数据
+
+        Returns:
+            转场分析结果
+        """
+        if not self._initialized:
+            self.initialize()
+
+        try:
+            # 使用转场管理器分析
+            transition_result = self.guardian.analyze_transition(from_scene, to_scene)
+
+            # 增强结果
+            enhanced_result = {
+                "transition_analysis": transition_result,
+                "continuity_assessment": self._assess_transition_continuity(transition_result),
+                "suggestions": self._generate_transition_suggestions(transition_result),
+                "risk_level": self._evaluate_transition_risk(transition_result)
             }
 
-            # 添加建议
-            if validation_report.issues:
-                result["recommendations"].append("检查并修复检测到的连续性问题")
+            return enhanced_result
 
-        # 根据分数添加建议
-        if continuity_score < self.critical_threshold:
-            result["recommendations"].append("连续性分数严重偏低，建议重新检查场景设计")
-        elif continuity_score < self.continuity_threshold:
-            result["recommendations"].append("连续性分数偏低，建议优化过渡和一致性")
+        except Exception as e:
+            error(f"转场分析失败: {e}")
+            return {"error": str(e), "from_scene": from_scene.get("scene_id"), "to_scene": to_scene.get("scene_id")}
 
-        return result
+    def generate_constraints(self, scene_data: Dict,
+                             scene_type: str = "general") -> Dict[str, Any]:
+        """
+        为场景生成连续性约束
 
-    def _get_continuity_assessment(self, score: float) -> str:
-        """获取连续性评估描述"""
-        if score >= 0.9:
-            return "优秀"
-        elif score >= 0.8:
-            return "良好"
-        elif score >= 0.7:
-            return "一般"
-        elif score >= 0.6:
-            return "需要注意"
-        else:
-            return "需要修复"
+        Args:
+            scene_data: 场景数据
+            scene_type: 场景类型
 
-    # 其他辅助方法（从之前的代码中保留）
-    def generate_hints(self, target_scene: str,
-                       hint_type: str = "comprehensive") -> GenerationHints:
-        """生成提示（复用之前的方法）"""
-        cache_key = f"{target_scene}_{hint_type}"
-        if cache_key in self.generation_hints_cache:
-            return self.generation_hints_cache[cache_key]
+        Returns:
+            约束生成结果
+        """
+        if not self._initialized:
+            self.initialize()
 
-        hints = GenerationHints()
+        try:
+            # 使用约束生成器
+            constraints = self.guardian.constraint_generator.generate_constraints_for_scene(
+                scene_data=scene_data,
+                previous_scene=None,
+                scene_type=scene_type
+            )
 
-        if self.current_state:
-            for char_id, character in self.current_state.characters.items():
-                hints.continuity_constraints.append(
-                    f"Maintain appearance of {character.name}"
-                )
+            # 验证约束
+            validation = self.guardian.constraint_generator.validate_constraints(scene_data, constraints)
 
-        self.generation_hints_cache[cache_key] = hints
-        return hints
+            return {
+                "constraints": constraints,
+                "validation": validation,
+                "summary": self.guardian.constraint_generator.get_constraint_summary(constraints),
+                "optimization_suggestions": self._optimize_constraints(constraints, scene_data)
+            }
 
-    def get_continuity_health_report(self) -> Dict[str, Any]:
-        """获取连续性健康报告（复用之前的方法）"""
-        # 复用之前的方法，此处省略重复代码
+        except Exception as e:
+            error(f"约束生成失败: {e}")
+            return {"error": str(e), "scene_id": scene_data.get("scene_id")}
+
+    def validate_physics(self, scene_data: Dict) -> Dict[str, Any]:
+        """
+        验证场景物理合理性
+
+        Args:
+            scene_data: 场景数据
+
+        Returns:
+            物理验证结果
+        """
+        if not self._initialized:
+            self.initialize()
+
+        try:
+            # 使用物理验证器
+            physics_data = self.guardian._extract_physics_data(scene_data)
+            validation_result = self.guardian.physics_validator.validate_scene_physics(physics_data)
+
+            return {
+                "plausibility_score": validation_result["overall_plausibility_score"],
+                "issues": validation_result["issues"],
+                "warnings": validation_result["warnings"],
+                "detailed_analysis": validation_result.get("detailed_analysis", {}),
+                "improvement_suggestions": self._generate_physics_improvements(validation_result)
+            }
+
+        except Exception as e:
+            error(f"物理验证失败: {e}")
+            return {"error": str(e), "scene_id": scene_data.get("scene_id")}
+
+    def get_continuity_report(self, detailed: bool = True) -> Dict[str, Any]:
+        """
+        获取连续性报告
+
+        Args:
+            detailed: 是否获取详细报告
+
+        Returns:
+            连续性报告
+        """
+        if not self._initialized:
+            self.initialize()
+
+        try:
+            # 获取守护器状态
+            status = self.guardian.get_system_status()
+
+            # 生成报告
+            report = {
+                "session_info": {
+                    "task_id": self.task_id,
+                    "frames_processed": status.get("frames_processed", 0),
+                    "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                },
+                "performance_summary": status.get("performance", {}),
+                "issue_statistics": self._collect_issue_statistics(),
+                "continuity_score": self._calculate_overall_continuity_score(),
+                "recommendations": self._generate_system_recommendations(status)
+            }
+
+            if detailed:
+                report["detailed_analysis"] = {
+                    "scene_complexity_distribution": self._analyze_scene_complexity(),
+                    "common_issue_patterns": self._identify_common_issues(),
+                    "learning_progress": self._get_learning_progress() if self.config.enable_machine_learning else None
+                }
+
+            return report
+
+        except Exception as e:
+            error(f"生成连续性报告失败: {e}")
+            return {"error": str(e), "task_id": self.task_id}
+
+    def export_session(self, export_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        导出会话数据
+
+        Args:
+            export_path: 导出路径，可选
+
+        Returns:
+            导出结果
+        """
+        if not self._initialized:
+            self.initialize()
+
+        try:
+            if export_path is None:
+                export_path = f"./exports/{self.task_id}.json"
+
+            # 创建导出目录
+            export_dir = Path(export_path).parent
+            export_dir.mkdir(parents=True, exist_ok=True)
+
+            # 收集导出数据
+            export_data = {
+                "metadata": {
+                    "export_time": datetime.now().isoformat(),
+                    "agent_version": "1.0.0",
+                    "task_id": self.task_id
+                },
+                "config": self.config.to_dict(),
+                "session_summary": self.get_continuity_report(detailed=False),
+                "state_data": self._export_state_data(),
+                "learning_data": self._export_learning_data() if self.config.enable_machine_learning else None
+            }
+
+            # 保存到文件
+            with open(export_path, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+            info(f"会话数据已导出: {export_path}")
+
+            return {
+                "success": True,
+                "export_path": export_path,
+                "export_size": Path(export_path).stat().st_size,
+                "export_time": datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            error(f"导出会话失败: {e}")
+            return {"success": False, "error": str(e)}
+
+    def reset_session(self, task_id: Optional[str] = None):
+        """
+        重置会话
+
+        Args:
+            task_id: 新项目名称，可选
+        """
+
+        if task_id:
+            self.task_id = task_id
+
+        self.guardian = None
+        self._initialized = False
+
+        info(f"会话已重置: {task_id}")
+
+        # 重新初始化
+        self.initialize()
+
+    # 辅助方法
+    def _create_error_response(self, frame_data: Dict, error_message: str) -> Dict[str, Any]:
+        """创建错误响应"""
         return {
-            "task_id": "123",
+            "success": False,
+            "error": error_message,
+            "frame_data": {
+                "scene_id": frame_data.get("scene_id", "unknown"),
+                "frame_number": frame_data.get("frame_number", "unknown")
+            },
             "timestamp": datetime.now().isoformat(),
-            "continuity_health": "good"
+            "agent_info": {
+                "agent_version": "1.0.0",
+                "task_id": self.task_id
+            }
         }
+
+    def _extract_issues_from_report(self, report_data: Any) -> List[Dict]:
+        """从报告中提取问题"""
+        issues = []
+
+        if isinstance(report_data, str):
+            # 如果是字符串报告，尝试解析
+            try:
+                if "关键问题:" in report_data:
+                    # 简单解析文本报告
+                    lines = report_data.split('\n')
+                    for line in lines:
+                        if line.strip() and (']' in line or ':' in line):
+                            issues.append({"description": line.strip()})
+            except:
+                pass
+        elif isinstance(report_data, dict):
+            # 如果是字典，直接提取
+            if "issues" in report_data:
+                issues = report_data["issues"]
+
+        return issues[:10]  # 限制数量
+
+    def _generate_sequence_summary(self, sequence_results: Dict) -> Dict[str, Any]:
+        """生成序列摘要"""
+        total_issues = sum(len(frame.get("issues", [])) for frame in sequence_results["issues_by_frame"])
+        processed_frames = sequence_results["processed_frames"]
+
+        return {
+            "total_frames": sequence_results["total_frames"],
+            "successfully_processed": processed_frames,
+            "success_rate": processed_frames / max(1, sequence_results["total_frames"]),
+            "total_issues_found": total_issues,
+            "average_issues_per_frame": total_issues / max(1, processed_frames),
+            "processing_time_summary": self._calculate_processing_time_summary(sequence_results)
+        }
+
+    def _calculate_sequence_continuity_score(self, sequence_results: Dict) -> float:
+        """计算序列连续性分数"""
+        if not sequence_results["frame_results"]:
+            return 0.0
+
+        scores = []
+        for result in sequence_results["frame_results"]:
+            if result.get("success", True):
+                # 如果有物理验证分数，使用它
+                physics_score = result.get("physics_validation", {}).get("plausibility_score", 1.0)
+
+                # 如果有问题，扣分
+                issue_penalty = len(result.get("issues", [])) * 0.1
+                score = max(0.0, physics_score - issue_penalty)
+                scores.append(score)
+
+        return np.mean(scores) if scores else 0.0
+
+    def _generate_sequence_recommendations(self, sequence_results: Dict) -> List[str]:
+        """生成序列级别的推荐"""
+        recommendations = []
+
+        # 基于问题频率
+        issue_frames = len(sequence_results["issues_by_frame"])
+        if issue_frames > sequence_results["total_frames"] * 0.3:
+            recommendations.append(f"检测到 {issue_frames} 帧有问题，建议检查数据源质量")
+
+        # 基于连续性分数
+        continuity_score = sequence_results["continuity_score"]
+        if continuity_score < 0.7:
+            recommendations.append(f"序列连续性分数较低 ({continuity_score:.2f})，建议优化场景设计")
+
+        # 基于处理性能
+        time_summary = sequence_results["sequence_summary"].get("processing_time_summary", {})
+        avg_time = time_summary.get("average", 0)
+        if avg_time > 0.5:
+            recommendations.append(f"平均处理时间较长 ({avg_time:.3f}秒)，建议简化场景或调整配置")
+
+        return recommendations[:5]
+
+    def _calculate_processing_time_summary(self, sequence_results: Dict) -> Dict[str, float]:
+        """计算处理时间摘要"""
+        times = []
+        for result in sequence_results["frame_results"]:
+            if "processing_time" in result:
+                times.append(result["processing_time"])
+
+        if not times:
+            return {"average": 0, "min": 0, "max": 0}
+
+        return {
+            "average": np.mean(times),
+            "min": min(times),
+            "max": max(times),
+            "total": sum(times)
+        }
+
+    def _assess_transition_continuity(self, transition_result: Dict) -> Dict[str, Any]:
+        """评估转场连续性"""
+        analysis = transition_result.get("transition_analysis", {})
+        issues = transition_result.get("validation_issues", [])
+
+        continuity_score = 1.0
+        severity_factors = {
+            "high": 0.3,
+            "medium": 0.15,
+            "low": 0.05
+        }
+
+        for issue in issues:
+            severity = issue.get("severity", "low")
+            continuity_score -= severity_factors.get(severity, 0.05)
+
+        continuity_score = max(0.0, min(1.0, continuity_score))
+
+        return {
+            "continuity_score": continuity_score,
+            "issue_count": len(issues),
+            "transition_type_appropriateness": self._evaluate_transition_type(analysis.get("type", "unknown")),
+            "temporal_consistency": analysis.get("temporal_gap", 0) < 10.0  # 时间间隔小于10秒
+        }
+
+    def _evaluate_transition_type(self, transition_type: str) -> str:
+        """评估转场类型适当性"""
+        appropriateness = {
+            "cut": "适合快节奏场景切换",
+            "fade": "适合时间/场景过渡",
+            "dissolve": "适合梦境/回忆",
+            "cross_dissolve": "通用过渡",
+            "match_cut": "适合动作连续性"
+        }
+
+        return appropriateness.get(transition_type, "未知类型")
+
+    def _generate_transition_suggestions(self, transition_result: Dict) -> List[str]:
+        """生成转场建议"""
+        suggestions = []
+        analysis = transition_result.get("transition_analysis", {})
+        issues = transition_result.get("validation_issues", [])
+
+        # 基于转场类型
+        transition_type = analysis.get("type", "")
+        if transition_type == "cut":
+            suggestions.append("硬切适合快速节奏，确保剪辑点在动作自然断点")
+        elif transition_type == "fade":
+            suggestions.append("淡入淡出适合表现时间流逝，持续时间建议1-2秒")
+
+        # 基于问题
+        for issue in issues[:3]:  # 前3个问题
+            if "suggestion" in issue:
+                suggestions.append(issue["suggestion"])
+
+        return suggestions[:5]
+
+    def _evaluate_transition_risk(self, transition_result: Dict) -> str:
+        """评估转场风险"""
+        issues = transition_result.get("validation_issues", [])
+        high_severity = sum(1 for issue in issues if issue.get("severity") == "high")
+
+        if high_severity > 2:
+            return "high"
+        elif high_severity > 0 or len(issues) > 5:
+            return "medium"
+        else:
+            return "low"
+
+    def _optimize_constraints(self, constraints: List[Dict], scene_data: Dict) -> List[str]:
+        """优化约束建议"""
+        suggestions = []
+
+        # 检查约束数量
+        if len(constraints) > 20:
+            suggestions.append(f"约束数量较多 ({len(constraints)}个)，建议合并相似约束")
+
+        # 检查约束优先级分布
+        priority_count = {}
+        for constraint in constraints:
+            priority = constraint.get("priority", "medium")
+            priority_count[priority] = priority_count.get(priority, 0) + 1
+
+        if priority_count.get("critical", 0) > len(constraints) * 0.3:
+            suggestions.append("关键优先级约束过多，考虑将部分降级")
+
+        return suggestions
+
+    def _generate_physics_improvements(self, validation_result: Dict) -> List[str]:
+        """生成物理改进建议"""
+        improvements = []
+
+        issues = validation_result.get("issues", [])
+        for issue in issues[:5]:  # 前5个问题
+            if "suggested_fix" in issue:
+                improvements.append(issue["suggested_fix"])
+
+        score = validation_result.get("plausibility_score", 1.0)
+        if score < 0.7:
+            improvements.append(f"物理合理性分数较低 ({score:.2f})，建议检查物理参数设置")
+
+        return improvements
+
+    def _collect_issue_statistics(self) -> Dict[str, Any]:
+        """收集问题统计"""
+        # 这里需要实际的实现来收集历史问题统计
+        # 简化实现
+        return {
+            "total_issues_detected": 0,
+            "issues_by_severity": {"critical": 0, "major": 0, "minor": 0},
+            "common_issue_types": [],
+            "auto_fix_rate": 0.0
+        }
+
+    def _calculate_overall_continuity_score(self) -> float:
+        """计算总体连续性分数"""
+        # 这里需要实际的实现来计算总体分数
+        # 简化实现
+        return 0.85
+
+    def _generate_system_recommendations(self, status: Dict) -> List[str]:
+        """生成系统级推荐"""
+        recommendations = []
+
+        # 基于性能
+        performance = status.get("performance", {})
+        avg_time = performance.get("avg_processing_time", 0)
+        if avg_time > 0.3:
+            recommendations.append(f"平均处理时间 {avg_time:.3f}秒，建议优化配置或简化场景")
+
+        # 基于配置
+        if not self.config.enable_machine_learning:
+            recommendations.append("机器学习功能未启用，启用后可以提供更好的预测和优化")
+
+        return recommendations[:3]
+
+    def _analyze_scene_complexity(self) -> Dict[str, int]:
+        """分析场景复杂度分布"""
+        # 这里需要实际的实现来分析历史场景复杂度
+        # 简化实现
+        return {
+            "simple": 0,
+            "moderate": 0,
+            "complex": 0,
+            "epic": 0
+        }
+
+    def _identify_common_issues(self) -> List[Dict]:
+        """识别常见问题模式"""
+        # 这里需要实际的实现来识别问题模式
+        # 简化实现
+        return []
+
+    def _get_learning_progress(self) -> Dict[str, Any]:
+        """获取学习进度"""
+        # 这里需要实际的实现来获取学习进度
+        # 简化实现
+        return {"enabled": True, "patterns_learned": 0}
+
+    def _export_state_data(self) -> Dict[str, Any]:
+        """导出状态数据"""
+        if self.guardian and self.guardian.state_tracker:
+            return {
+                "entities_tracked": len(self.guardian.state_tracker.entity_registry),
+                "total_state_records": sum(len(h) for h in self.guardian.state_tracker.state_history.values())
+            }
+        return {}
+
+    def _export_learning_data(self) -> Dict[str, Any]:
+        """导出学习数据"""
+        if self.guardian and self.guardian.continuity_learner:
+            return self.guardian.continuity_learner.get_learning_statistics()
+        return {}

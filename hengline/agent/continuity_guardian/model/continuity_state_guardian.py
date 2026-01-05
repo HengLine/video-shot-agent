@@ -4,8 +4,11 @@
 @Author: HengLine
 @Time: 2026/1/4 17:32
 """
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
+
+from hengline.agent.continuity_guardian.model.continuity_visual_guardian import SpatialRelation
 
 
 class CharacterState:
@@ -117,3 +120,26 @@ class PropState:
             "timestamp": datetime.now()
         })
 
+
+@dataclass
+class StateSnapshot:
+    """状态快照"""
+    timestamp: datetime
+    scene_id: str
+    frame_number: int
+    characters: Dict[str, CharacterState]
+    props: Dict[str, PropState]
+    environment: EnvironmentState
+    spatial_relations: SpatialRelation
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            "timestamp": self.timestamp.isoformat(),
+            "scene_id": self.scene_id,
+            "frame_number": self.frame_number,
+            "character_count": len(self.characters),
+            "prop_count": len(self.props),
+            "metadata": self.metadata
+        }

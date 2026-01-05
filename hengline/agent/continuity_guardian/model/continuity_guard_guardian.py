@@ -37,7 +37,7 @@ class AnalysisDepth(Enum):
 class GuardianConfig:
     """连续性守护器配置"""
     # 基础配置
-    project_id: str = "default_project"
+    task_id: str = "123"
     mode: GuardMode = GuardMode.ADAPTIVE
     analysis_depth: AnalysisDepth = AnalysisDepth.STANDARD
     enable_auto_fix: bool = True
@@ -76,7 +76,7 @@ class GuardianConfig:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
-            "project_id": self.project_id,
+            "task_id": self.task_id,
             "mode": self.mode.value,
             "analysis_depth": self.analysis_depth.value,
             "enable_auto_fix": self.enable_auto_fix,

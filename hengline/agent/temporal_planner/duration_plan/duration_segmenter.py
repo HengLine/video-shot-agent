@@ -104,6 +104,10 @@ class DurationSegmenter:
         timeline_events = []
         current_time = 0.0
 
+        if not script_input:
+            warning("脚本输入为空，无法转换为时间线事件")
+            return timeline_events
+
         # 获取所有元素
         all_elements = script_input.get_all_elements()
 

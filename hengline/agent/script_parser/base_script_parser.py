@@ -43,7 +43,8 @@ class ScriptParser:
             "max_lines_for_local": 20,  # 少于50行用本地
             "complexity_threshold": 0.7,  # 复杂度阈值
             "confidence_threshold": 0.8,  # 置信度阈值
-            "fallback_to_ai": True  # 本地失败时回退到AI
+            "fallback_to_ai": True,  # 本地失败时回退到AI
+            "preferred_parser": ParserType.LLM_PARSER  # 优先解析器
         }
 
         self.parser_config = {
@@ -119,6 +120,10 @@ class ScriptParser:
         """
         决策是否使用AI解析器
         """
+        # 优先使用AI解析器
+        if self.routing_rules["preferred_parser"] == ParserType.LLM_PARSER:
+            return True
+
         # 规则1：行数太多（可能复杂）
         line_count = text.count('\n') + 1
         if line_count > self.routing_rules["max_lines_for_local"]:

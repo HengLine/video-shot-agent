@@ -5,9 +5,10 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-from typing import Any, Dict
+from typing import Dict
 
 from hengline.logger import debug, error, warning
+from utils.log_utils import print_log_exception
 from .script_parser.ai_storyboard_parser import AIStoryboardParser
 from .script_parser.base_script_parser import TypeDetector
 from .script_parser.natural_language_parser import NaturalLanguageParser
@@ -62,31 +63,35 @@ class ScriptParserAgent:
         unified_script, complexity_score = script_parser.convert_script_format(script_text, script_type)
 
         # 4. 基础验证
-        is_valid, issues = self.validator.validate(unified_script)
+        try:
+            is_valid, issues = self.validator.validate(unified_script)
 
-        # 添加验证结果到元数据
-        if not hasattr(unified_script, 'metadata'):
-            unified_script.metadata = {}
+            # 添加验证结果到元数据
+            if not hasattr(unified_script, 'metadata'):
+                unified_script.metadata = {}
 
-        unified_script.metadata.update({
-            "validation": {
-                "is_valid": is_valid,
-                "issue_count": len(issues),
-                "issues_by_severity": {
-                    "error": len([i for i in issues if i["severity"] == "error"]),
-                    "warning": len([i for i in issues if i["severity"] == "warning"]),
-                    "info": len([i for i in issues if i["severity"] == "info"])
-                },
-                "complexity_score": complexity_score
-            }
-        })
+            unified_script.metadata.update({
+                "validation": {
+                    "is_valid": is_valid,
+                    "issue_count": len(issues),
+                    "issues_by_severity": {
+                        "error": len([i for i in issues if i["severity"] == "error"]),
+                        "warning": len([i for i in issues if i["severity"] == "warning"]),
+                        "info": len([i for i in issues if i["severity"] == "info"])
+                    },
+                    "complexity_score": complexity_score
+                }
+            })
 
-        # 7. 如果有严重错误，记录但继续处理
-        if not is_valid:
-            warning(f"警告: 发现验证错误，但继续处理")
-            for issue in issues:
-                if issue["severity"] == "error":
-                    error(f"  错误: {issue['message']}")
+            # 7. 如果有严重错误，记录但继续处理
+            if not is_valid:
+                warning(f"警告: 发现验证错误，但继续处理")
+                for issue in issues:
+                    if issue["severity"] == "error":
+                        error(f"  错误: {issue['message']}")
+        except Exception as e:
+            print_log_exception()
+            error(f"剧本验证失败: {e}")
 
         return unified_script
 

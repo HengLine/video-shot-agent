@@ -1,368 +1,264 @@
+# -*- coding: utf-8 -*-
 """
-@FileName: test_continuity_guardian.py
-@Description: 
+@FileName: continuity_guardian_agent.py
+@Description: 连续性守护智能体，负责跟踪角色状态，生成/验证连续性锚点
 @Author: HengLine
-@Time: 2026/1/4 22:41
+@Time: 2025/10 - 2025/11
 """
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
 
-from hengline.agent.continuity_guardian.detector.change_detector import ChangeDetector
-from hengline.agent.continuity_guardian.detector.consistency_checker import ConsistencyChecker
-from hengline.agent.continuity_guardian.analyzer.spatial_Index_analyzer import SpatialIndex
-from hengline.agent.continuity_guardian.analyzer.temporal_graph_analyzer import TemporalGraph
-from hengline.agent.continuity_guardian.validator.bounding_validator import BoundingVolumeType
-from hengline.agent.continuity_guardian.validator.collision_validator import CollisionType, CollisionDetector
-from hengline.agent.continuity_guardian.validator.material_validator import MaterialDatabase
-from hengline.agent.continuity_guardian.validator.motion_validator import MotionAnalyzer
+from hengline.agent import ContinuityGuardianAgent
 
 
-# 测试函数
-def test_collision_detector():
-    """测试碰撞检测器"""
-    detector = CollisionDetector()
+# 工作流调用接口
+class ContinuityWorkflowInterface:
+    """连续性工作流调用接口"""
 
-    # 创建测试实体
-    entities = [
-        {
-            "id": "entity1",
-            "position": (0, 0, 0),
-            "bounding_volume": {
-                "type": BoundingVolumeType.SPHERE,
-                "radius": 1.0
-            }
-        },
-        {
-            "id": "entity2",
-            "position": (1.5, 0, 0),
-            "bounding_volume": {
-                "type": BoundingVolumeType.SPHERE,
-                "radius": 1.0
-            }
-        },
-        {
-            "id": "entity3",
-            "position": (10, 10, 10),
-            "bounding_volume": {
-                "type": BoundingVolumeType.SPHERE,
-                "radius": 1.0
-            }
-        }
-    ]
+    @staticmethod
+    def create_agent(project_name: str, config: Optional[Dict] = None) -> ContinuityGuardianAgent:
+        """
+        创建连续性守护智能体
 
-    collisions = detector.detect_collisions(entities)
-    print("碰撞检测结果:")
-    for collision in collisions:
-        if collision["type"] != CollisionType.NO_COLLISION:
-            print(f"  碰撞: {collision['entities'][0]} ↔ {collision['entities'][1]}")
-            print(f"  类型: {collision['type'].value}")
-            print(f"  穿透深度: {collision['penetration_depth']:.3f}")
+        Args:
+            project_name: 项目名称
+            config: 配置字典
 
-    return collisions
+        Returns:
+            初始化后的智能体
+        """
+        agent = ContinuityGuardianAgent(project_name, config)
+        agent.initialize()
+        return agent
+
+    @staticmethod
+    def process_video_scene(agent: ContinuityGuardianAgent,
+                            scene_data: Dict) -> Dict[str, Any]:
+        """
+        处理视频场景
+
+        Args:
+            agent: 连续性守护智能体
+            scene_data: 场景数据
+
+        Returns:
+            处理结果
+        """
+        return agent.process(scene_data)
+
+    @staticmethod
+    def process_video_sequence(agent: ContinuityGuardianAgent,
+                               scene_sequence: List[Dict]) -> Dict[str, Any]:
+        """
+        处理视频序列
+
+        Args:
+            agent: 连续性守护智能体
+            scene_sequence: 场景序列
+
+        Returns:
+            序列处理结果
+        """
+        return agent.process_sequence(scene_sequence)
+
+    @staticmethod
+    def analyze_scene_transition(agent: ContinuityGuardianAgent,
+                                 from_scene: Dict,
+                                 to_scene: Dict) -> Dict[str, Any]:
+        """
+        分析场景转场
+
+        Args:
+            agent: 连续性守护智能体
+            from_scene: 来源场景
+            to_scene: 目标场景
+
+        Returns:
+            转场分析结果
+        """
+        return agent.analyze_transition(from_scene, to_scene)
+
+    @staticmethod
+    def generate_continuity_constraints(agent: ContinuityGuardianAgent,
+                                        scene_data: Dict,
+                                        scene_type: str = "general") -> Dict[str, Any]:
+        """
+        生成连续性约束
+
+        Args:
+            agent: 连续性守护智能体
+            scene_data: 场景数据
+            scene_type: 场景类型
+
+        Returns:
+            约束生成结果
+        """
+        return agent.generate_constraints(scene_data, scene_type)
+
+    @staticmethod
+    def validate_scene_physics(agent: ContinuityGuardianAgent,
+                               scene_data: Dict) -> Dict[str, Any]:
+        """
+        验证场景物理
+
+        Args:
+            agent: 连续性守护智能体
+            scene_data: 场景数据
+
+        Returns:
+            物理验证结果
+        """
+        return agent.validate_physics(scene_data)
+
+    @staticmethod
+    def get_continuity_report(agent: ContinuityGuardianAgent,
+                              detailed: bool = True) -> Dict[str, Any]:
+        """
+        获取连续性报告
+
+        Args:
+            agent: 连续性守护智能体
+            detailed: 是否详细
+
+        Returns:
+            连续性报告
+        """
+        return agent.get_continuity_report(detailed)
+
+    @staticmethod
+    def export_agent_session(agent: ContinuityGuardianAgent,
+                             export_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        导出智能体会话
+
+        Args:
+            agent: 连续性守护智能体
+            export_path: 导出路径
+
+        Returns:
+            导出结果
+        """
+        return agent.export_session(export_path)
+
+    @staticmethod
+    def reset_agent_session(agent: ContinuityGuardianAgent,
+                            new_project_name: Optional[str] = None):
+        """
+        重置智能体会话
+
+        Args:
+            agent: 连续性守护智能体
+            new_project_name: 新项目名称
+        """
+        agent.reset_session(new_project_name)
 
 
-def test_motion_analyzer():
-    """测试运动分析器"""
-    analyzer = MotionAnalyzer()
+# 快速使用函数
+def quick_continuity_check(scene_data: Dict,
+                           config: Optional[Dict] = None) -> Dict[str, Any]:
+    """
+    快速连续性检查
 
-    # 创建测试轨迹（抛物线）
-    trajectory = []
-    for t in range(0, 10):
-        x = t
-        y = -0.5 * t ** 2 + 5 * t  # 抛物线
-        z = 0
-        trajectory.append((x, y, z))
+    Args:
+        scene_data: 场景数据
+        config: 配置字典
 
-    analysis = analyzer.analyze_motion(trajectory)
-    print("\n运动分析结果:")
-    print(f"轨迹类型: {analysis['trajectory_type'].value}")
-    print(f"总距离: {analysis['total_distance']:.2f}米")
-    print(f"平均速度: {analysis['average_speed']:.2f}米/秒")
-    print(f"最大加速度: {analysis['acceleration_profile']['max_acceleration']:.2f}米/秒²")
-    print(f"平滑度: {analysis['smoothness_metrics']['overall_smoothness']:.2f}")
-    print(f"检测到的模式: {', '.join(analysis['motion_patterns'])}")
+    Returns:
+        检查结果
+    """
+    agent = ContinuityGuardianAgent("quick_check", config)
+    agent.initialize()
 
-    return analysis
+    result = agent.process(scene_data)
 
-
-def test_material_database():
-    """测试材料数据库"""
-    db = MaterialDatabase()
-
-    # 获取材料
-    steel = db.get_material_properties("steel")
-    print(f"\n钢材属性:")
-    print(f"  密度: {steel.density} kg/m³")
-    print(f"  摩擦系数: {steel.friction}")
-    print(f"  恢复系数: {steel.restitution}")
-
-    # 搜索材料
-    results = db.search_materials({
-        "density_min": 2000,
-        "density_max": 3000
-    })
-    print(f"\n密度在2000-3000 kg/m³之间的材料:")
-    for material in results:
-        print(f"  {material.name}: {material.density} kg/m³")
-
-    # 推荐材料
-    recommendation = db.get_recommended_material({
-        "target_density": 800,
-        "target_friction": 0.4,
-        "density_weight": 0.4,
-        "friction_weight": 0.3
-    })
-    if recommendation:
-        print(f"\n推荐材料: {recommendation.name}")
-        print(f"  匹配分数计算依据...")
-
-    # 获取材料卡片
-    card = db.get_material_card("rubber")
-    print(f"\n橡胶材料卡片:\n{card}")
-
-    return db
-
-
-def test_spatial_index():
-    """测试空间索引"""
-    index = SpatialIndex(cell_size=2.0)
-
-    # 添加实体
-    index.update_position("entity1", 0, 0, 0)
-    index.update_position("entity2", 1, 1, 0)
-    index.update_position("entity3", 5, 5, 0)
-    index.update_position("entity4", 1.2, 0.8, 0)
-
-    # 设置边界体
-    index.set_bounding_volume("entity1", BoundingVolumeType.SPHERE, radius=1.0)
-    index.set_bounding_volume("entity2", BoundingVolumeType.SPHERE, radius=0.8)
-
-    # 查找附近的实体
-    nearby = index.find_nearby_entities("entity1", radius=3.0)
-    print(f"\nentity1附近3米内的实体: {nearby}")
-
-    # 获取空间关系
-    relationships = index.get_spatial_relationships("entity1")
-    print(f"\nentity1的空间关系:")
-    for rel in relationships:
-        print(f"  与 {rel['entity2']}: 距离 {rel['distance']:.2f}米, 类型 {rel['type']}")
-
-    # 射线投射
-    hits = index.ray_cast((0, 5, 0), (0, -1, 0), max_distance=10)
-    print(f"\n射线投射结果:")
-    for hit in hits:
-        print(f"  击中 {hit['entity_id']}, 距离 {hit['distance']:.2f}米")
-
-    # 可视化
-    visualization = index.visualize_spatial_distribution()
-    print(f"\n空间分布可视化:\n{visualization}")
-
-    return index
-
-
-def test_change_detector():
-    """测试变化检测器"""
-    detector = ChangeDetector()
-
-    # 测试状态变化
-    old_state = {
-        "position": [0, 0, 0],
-        "rotation": [0, 0, 0],
-        "color": [1, 0, 0],
-        "intensity": 0.5,
-        "material": "steel"
+    # 提取关键信息
+    summary = {
+        "scene_id": scene_data.get("scene_id", "unknown"),
+        "continuity_score": result.get("physics_validation", {}).get("plausibility_score", 0.0),
+        "issues_found": len(result.get("issues_by_frame", [])),
+        "constraints_generated": result.get("constraints_generated", 0),
+        "processing_time": result.get("processing_time", 0)
     }
 
-    new_state = {
-        "position": [1, 0, 0],  # 位置变化
-        "rotation": [10, 0, 0],  # 旋转变化
-        "color": [1, 0.1, 0],  # 轻微颜色变化
-        "intensity": 0.8,  # 强度变化
-        "material": "steel",  # 材料不变
-        "new_property": "added"  # 新增属性
+    return summary
+
+
+# 使用示例
+def demonstrate_workflow():
+    """演示工作流调用"""
+    print("连续性守护智能体工作流演示")
+    print("=" * 60)
+
+    # 1. 创建智能体
+    config = {
+        "mode": "adaptive",
+        "analysis_depth": "standard",
+        "enable_auto_fix": True,
+        "validation_frequency": 5
     }
 
-    changes = detector.detect_changes(old_state, new_state)
-    print(f"\n变化检测结果:")
-    print(f"  改变的属性: {changes['changed_attributes']}")
-    print(f"  未改变的属性: {changes['unchanged_attributes']}")
-    print(f"  总体变化等级: {changes['overall_change_level']}")
-    print(f"  变化分数: {changes['change_score']:.3f}")
+    agent = ContinuityWorkflowInterface.create_agent(
+        "demo_movie_project",
+        config
+    )
 
-    print(f"\n显著变化:")
-    for change in changes['significant_changes']:
-        print(f"  {change['attribute']}: {change['change']}, 幅度: {change.get('magnitude', 'N/A')}")
+    print("1. 智能体创建完成")
 
-    # 设置基线和检测漂移
-    detector.set_baseline("test_entity", old_state)
-    drift = detector.detect_drift_from_baseline("test_entity", new_state)
-    print(f"\n相对于基线的漂移:")
-    print(f"  漂移分数: {drift['drift_score']:.3f}")
-    print(f"  漂移等级: {drift['drift_level']}")
-
-    return changes
-
-
-def test_consistency_checker():
-    """测试一致性检查器"""
-    checker = ConsistencyChecker()
-
-    # 创建测试状态序列
-    states = [
-        {
-            "timestamp": datetime(2024, 1, 1, 10, 0, 0),
-            "position": [0, 0, 0],
-            "velocity": [0, 0, 0],
-            "material": "steel",
-            "density": 7800
-        },
-        {
-            "timestamp": datetime(2024, 1, 1, 10, 0, 1),
-            "position": [0.5, 0, 0],  # 合理移动
-            "velocity": [0.5, 0, 0],
-            "material": "steel",
-            "density": 7800
-        },
-        {
-            "timestamp": datetime(2024, 1, 1, 10, 0, 3),  # 时间跳过2秒
-            "position": [10, 0, 0],  # 瞬移
-            "velocity": [5, 0, 0],
-            "material": "wood",  # 材料突变
-            "density": 600
+    # 2. 准备测试场景
+    test_scene = {
+        "scene_id": "test_scene_001",
+        "scene_type": "action",
+        "frame_number": 1,
+        "characters": [
+            {
+                "id": "hero",
+                "name": "主角",
+                "position": [0, 0, 0],
+                "velocity": [1, 0, 0],
+                "action": "running"
+            }
+        ],
+        "environment": {
+            "time_of_day": "day",
+            "weather": "clear"
         }
-    ]
+    }
 
-    report = checker.check_consistency(states)
-    print(f"\n一致性检查报告:")
-    print(f"  总体一致性分数: {report['overall_consistency_score']:.3f}")
+    # 3. 处理场景
+    result = ContinuityWorkflowInterface.process_video_scene(agent, test_scene)
+    print(f"2. 场景处理完成 - 处理时间: {result.get('processing_time', 0):.3f}秒")
 
-    print(f"\n规则违反:")
-    for rule_name, violations in report['rule_violations'].items():
-        if violations:
-            print(f"  {rule_name}: {len(violations)} 个违反")
-            for violation in violations[:2]:  # 显示前2个
-                print(f"    - {violation['issue']}: {violation['details']}")
-
-    print(f"\n不一致性:")
-    for inconsistency in report['inconsistencies'][:3]:  # 显示前3个
-        print(f"  - {inconsistency['issue']}: {inconsistency['details']}")
-
-    print(f"\n建议:")
-    for recommendation in report['recommendations']:
-        print(f"  - {recommendation}")
-
-    # 生成完整报告
-    full_report = checker.generate_consistency_report()
-    print(f"\n完整报告摘要:\n{full_report[:500]}...")
-
-    return report
-
-
-def test_temporal_graph():
-    """测试时间图"""
-    graph = TemporalGraph(max_events=100)
-
-    # 添加事件
-    base_time = datetime(2024, 1, 1, 10, 0, 0)
-
-    event1 = graph.add_event(
-        "entity1",
-        base_time,
-        {"position": [0, 0, 0], "state": "idle"},
-        "state_update"
+    # 4. 生成约束
+    constraints_result = ContinuityWorkflowInterface.generate_continuity_constraints(
+        agent, test_scene, "action"
     )
+    print(f"3. 约束生成完成 - 生成 {constraints_result.get('summary', {}).get('total_constraints', 0)} 个约束")
 
-    event2 = graph.add_event(
-        "entity1",
-        base_time + timedelta(seconds=1),
-        {"position": [1, 0, 0], "state": "moving"},
-        "state_update"
-    )
+    # 5. 验证物理
+    physics_result = ContinuityWorkflowInterface.validate_scene_physics(agent, test_scene)
+    print(f"4. 物理验证完成 - 合理性分数: {physics_result.get('plausibility_score', 0):.2f}")
 
-    event3 = graph.add_event(
-        "entity2",
-        base_time + timedelta(seconds=2),
-        {"position": [5, 0, 0], "state": "idle"},
-        "state_update"
-    )
+    # 6. 获取报告
+    report = ContinuityWorkflowInterface.get_continuity_report(agent, detailed=False)
+    print(f"5. 连续性报告生成完成 - 连续性分数: {report.get('continuity_score', 0):.2f}")
 
-    # 添加关系
-    graph.add_relationship(event1, event2, "causes", strength=0.8)
+    # 7. 导出会话
+    export_result = ContinuityWorkflowInterface.export_agent_session(agent)
+    if export_result.get("success"):
+        print(f"6. 会话导出完成 - 保存到: {export_result.get('export_path')}")
 
-    # 获取事件
-    entity_events = graph.get_entity_events("entity1")
-    print(f"\nentity1的事件数: {len(entity_events)}")
+    print("\n" + "=" * 60)
+    print("工作流演示完成")
 
-    # 分析时间模式
-    analysis = graph.analyze_temporal_patterns("entity1")
-    print(f"\nentity1的时间模式分析:")
-    print(f"  总事件数: {analysis['total_events']}")
-    print(f"  时间跨度: {analysis['time_span']:.1f}秒")
-    print(f"  平均间隔: {analysis['interval_stats']['mean']:.2f}秒")
-    print(f"  规律性分数: {analysis['regularity_score']:.2f}")
-
-    # 预测下一个事件
-    prediction = graph.predict_next_event("entity1", base_time + timedelta(seconds=5))
-    if prediction:
-        print(f"\n预测下一个事件:")
-        print(f"  预测时间: {prediction['predicted_time']}")
-        print(f"  置信度: {prediction['confidence']:.2f}")
-
-    # 获取摘要
-    summary = graph.get_temporal_graph_summary()
-    print(f"\n时间图摘要:\n{summary}")
-
-    return graph
+    return agent, result
 
 
 if __name__ == "__main__":
-    print("开始测试辅助类...")
-    print("=" * 60)
+    # 运行演示
+    agent, result = demonstrate_workflow()
 
-    # 运行所有测试
-    test_results = {}
-
-    try:
-        print("\n1. 测试碰撞检测器:")
-        test_results["collision"] = test_collision_detector()
-    except Exception as e:
-        print(f"碰撞检测器测试失败: {e}")
-
-    try:
-        print("\n2. 测试运动分析器:")
-        test_results["motion"] = test_motion_analyzer()
-    except Exception as e:
-        print(f"运动分析器测试失败: {e}")
-
-    try:
-        print("\n3. 测试材料数据库:")
-        test_results["material"] = test_material_database()
-    except Exception as e:
-        print(f"材料数据库测试失败: {e}")
-
-    try:
-        print("\n4. 测试空间索引:")
-        test_results["spatial"] = test_spatial_index()
-    except Exception as e:
-        print(f"空间索引测试失败: {e}")
-
-    try:
-        print("\n5. 测试变化检测器:")
-        test_results["change"] = test_change_detector()
-    except Exception as e:
-        print(f"变化检测器测试失败: {e}")
-
-    try:
-        print("\n6. 测试一致性检查器:")
-        test_results["consistency"] = test_consistency_checker()
-    except Exception as e:
-        print(f"一致性检查器测试失败: {e}")
-
-    try:
-        print("\n7. 测试时间图:")
-        test_results["temporal"] = test_temporal_graph()
-    except Exception as e:
-        print(f"时间图测试失败: {e}")
-
-    print("\n" + "=" * 60)
-    print("所有测试完成!")
-    print(f"成功测试了 {len(test_results)} 个辅助类")
+    # 显示结果摘要
+    print("\n结果摘要:")
+    print(f"  场景ID: {result.get('frame_data', {}).get('scene_id', 'unknown')}")
+    print(f"  物理合理性: {result.get('physics_validation', {}).get('plausibility_score', 0):.2f}")
+    print(f"  约束数量: {result.get('constraints_generated', 0)}")
+    print(f"  处理时间: {result.get('processing_time', 0):.3f}秒")

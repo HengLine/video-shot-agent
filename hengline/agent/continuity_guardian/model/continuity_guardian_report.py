@@ -4,37 +4,13 @@
 @Author: HengLine
 @Time: 2026/1/4 17:41
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 
-from .continuity_state_guardian import CharacterState, PropState, EnvironmentState
-from .continuity_visual_guardian import SpatialRelation
-from ..continuity_guardian_model import ContinuityLevel
-
-
-@dataclass
-class StateSnapshot:
-    """状态快照"""
-    timestamp: datetime
-    scene_id: str
-    frame_number: int
-    characters: Dict[str, CharacterState]
-    props: Dict[str, PropState]
-    environment: EnvironmentState
-    spatial_relations: SpatialRelation
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
-        return {
-            "timestamp": self.timestamp.isoformat(),
-            "scene_id": self.scene_id,
-            "frame_number": self.frame_number,
-            "character_count": len(self.characters),
-            "prop_count": len(self.props),
-            "metadata": self.metadata
-        }
+from .continuity_rule_guardian import ContinuityRuleSet
+from .continuity_state_guardian import StateSnapshot
+from ..continuity_guardian_model import ContinuityLevel, AnchoredSegment
 
 
 class ContinuityIssue:
@@ -102,3 +78,92 @@ class ValidationReport:
                 f"Major Issues: {self.summary['major_issues']}\n"
                 f"Minor Issues: {self.summary['minor_issues']}\n"
                 f"Cosmetic Issues: {self.summary['cosmetic_issues']}")
+
+
+class AutoFix:
+    """自动修复引擎"""
+
+    def __init__(self, rule_set: ContinuityRuleSet):
+        self.rule_set = rule_set
+        self.fix_strategies: Dict[str, callable] = {}
+        self._register_default_strategies()
+
+    def _register_default_strategies(self):
+        """注册默认修复策略"""
+        self.fix_strategies["character_appearance"] = self._fix_character_appearance
+        self.fix_strategies["prop_position"] = self._fix_prop_position
+        self.fix_strategies["environment_consistency"] = self._fix_environment_consistency
+
+    def _fix_character_appearance(self, issue: ContinuityIssue, current_state: StateSnapshot) -> Dict[str, Any]:
+        """修复角色外貌"""
+        fix_details = {
+            "action": "adjust_appearance",
+            "entity_id": issue.entity_id,
+            "changes": {},
+            "confidence": 0.8
+        }
+        return fix_details
+
+    def _fix_prop_position(self, issue: ContinuityIssue, current_state: StateSnapshot) -> Dict[str, Any]:
+        """修复道具位置"""
+        fix_details = {
+            "action": "reposition_prop",
+            "entity_id": issue.entity_id,
+            "target_position": None,
+            "confidence": 0.9
+        }
+        return fix_details
+
+    def _fix_environment_consistency(self, issue: ContinuityIssue, current_state: StateSnapshot) -> Dict[str, Any]:
+        """修复环境一致性"""
+        fix_details = {
+            "action": "adjust_environment",
+            "parameter": issue.description.split(":")[-1].strip(),
+            "confidence": 0.7
+        }
+        return fix_details
+
+    def suggest_fix(self, issue: ContinuityIssue, current_state: StateSnapshot) -> Optional[Dict[str, Any]]:
+        """建议修复方案"""
+        if not issue.auto_fixable:
+            return None
+
+        # 根据问题类型选择修复策略
+        fix_type = self._determine_fix_type(issue)
+        if fix_type in self.fix_strategies:
+            return self.fix_strategies[fix_type](issue, current_state)
+        return None
+
+    def _determine_fix_type(self, issue: ContinuityIssue) -> str:
+        """确定修复类型"""
+        # 简化的类型判断逻辑
+        if "character" in issue.description.lower():
+            return "character_appearance"
+        elif "prop" in issue.description.lower():
+            return "prop_position"
+        elif "environment" in issue.description.lower():
+            return "environment_consistency"
+        return ""
+
+
+@dataclass
+class AnchoredTimeline:
+    """带强约束的连续性规划"""
+    # 核心：带约束的时间片段
+    anchored_segments: List[AnchoredSegment]
+
+    # 连续性规则系统
+    continuity_rules: ContinuityRuleSet
+
+    # 状态跟踪快照
+    state_snapshots: Dict[str, StateSnapshot]  # key: timestamp
+
+    # 验证报告
+    validation_report: ValidationReport
+
+    # 问题与修复
+    detected_issues: List[ContinuityIssue]
+    auto_fixes: List[AutoFix]
+
+    # 质量指标
+    continuity_score: float  # 0-1，连贯性评分

@@ -26,7 +26,7 @@ from .workflow_states import StoryboardWorkflowState
 class MultiAgentPipeline:
     """多智能体协作流程"""
 
-    def __init__(self, llm):
+    def __init__(self, llm, task_id):
         """
         初始化多智能体流程
         
@@ -34,6 +34,7 @@ class MultiAgentPipeline:
             llm: 语言模型实例
         """
         self.llm = llm
+        self.task_id = task_id
         # 先初始化memory，确保在_init_workflow中可以使用
         self.memory = MemorySaver()
         self._init_agents()
@@ -45,7 +46,7 @@ class MultiAgentPipeline:
 
         self.script_parser = ScriptParserAgent(llm=self.llm)
         self.temporal_planner = TemporalPlannerAgent(llm=self.llm)
-        self.continuity_guardian = ContinuityGuardianAgent()
+        self.continuity_guardian = ContinuityGuardianAgent(self.task_id)
         self.shot_generator = ShotGeneratorAgent(llm=self.llm)
         self.shot_qa = QAAgent(llm=self.llm)
 
@@ -156,9 +157,6 @@ class MultiAgentPipeline:
         info("开始运行分镜生成流程")
 
         try:
-            # 重置连续性守护智能体的状态，确保每次处理新剧本时都是全新的状态
-            self.continuity_guardian.reset_state()
-            
             # 当更换剧本时，忽略传入的 prev_continuity_state
             # 这样可以确保使用全新的状态处理新剧本
             prev_continuity_state = None
