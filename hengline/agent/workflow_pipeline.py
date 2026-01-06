@@ -14,7 +14,7 @@ from langgraph.graph import StateGraph
 from hengline.logger import debug, info, error
 from utils.log_utils import print_log_exception
 from .continuity_guardian_agent import ContinuityGuardianAgent
-from .shot_qa_agent import QAAgent
+from .shot_qa_agent import QAReviewAgent
 from .script_parser_agent import ScriptParserAgent
 from .shot_generator_agent import ShotGeneratorAgent
 from .temporal_planner_agent import TemporalPlannerAgent
@@ -48,7 +48,7 @@ class MultiAgentPipeline:
         self.temporal_planner = TemporalPlannerAgent(llm=self.llm)
         self.continuity_guardian = ContinuityGuardianAgent(self.task_id)
         self.shot_generator = ShotGeneratorAgent(llm=self.llm)
-        self.shot_qa = QAAgent(llm=self.llm)
+        self.shot_qa = QAReviewAgent(llm=self.llm)
 
         # 初始化工作流节点集合
         self.workflow_nodes = WorkflowNodes(

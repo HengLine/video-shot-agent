@@ -13,6 +13,7 @@ from typing import Dict, List, Any
 from hengline.logger import debug, info, warning, error
 from hengline.tools.result_storage_tool import create_result_storage
 from utils.log_utils import print_log_exception
+from .shot_qa.model.review_models import QualityReviewInput
 from .workflow_models import VideoStyle
 from .workflow_states import StoryboardWorkflowState
 
@@ -207,8 +208,13 @@ class WorkflowNodes:
             segment = state.get("current_segment")
             shot = state.get("current_shot")
 
+            review_param = QualityReviewInput(
+                sora_shots=[shot],
+                anchored_timeline=segment
+            )
+
             # 审查分镜
-            qa_result = self.shot_qa.review_single_shot(shot, segment)
+            qa_result = self.shot_qa.review(review_param)
 
             # 记录不同级别的问题
             if qa_result.get("warnings"):

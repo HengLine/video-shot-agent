@@ -146,13 +146,13 @@ class SoraShot:
 @dataclass
 class SoraReadyShots:
     """Sora就绪的分镜指令"""
-    shot_sequence: List[SoraShot]
-    technical_settings: TechnicalSettings
-    style_consistency: StyleGuide
-    constraints_summary: Dict[str, List[str]]
-    generation_metadata: GenerationMetadata
-    visual_appeal_score: float
-    constraint_satisfaction: float
+    shot_sequence: List[SoraShot]       # 镜头序列
+    technical_settings: TechnicalSettings   # 技术设置
+    style_consistency: StyleGuide       # 风格一致性
+    constraints_summary: Dict[str, List[str]]   # 约束总结
+    generation_metadata: GenerationMetadata     # 生成元数据
+    visual_appeal_score: float      # 视觉吸引力评分
+    constraint_satisfaction: float  # 约束满足度评分
     timestamp: datetime = field(default_factory=datetime.now)
 
     def to_json(self) -> Dict[str, Any]:

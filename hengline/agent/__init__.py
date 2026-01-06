@@ -10,7 +10,7 @@ from .script_parser_agent import ScriptParserAgent
 from .temporal_planner_agent import TemporalPlannerAgent
 from .continuity_guardian_agent import ContinuityGuardianAgent
 from .shot_generator_agent import ShotGeneratorAgent
-from .shot_qa_agent import QAAgent
+from .shot_qa_agent import QAReviewAgent
 from .workflow_pipeline import MultiAgentPipeline
 
 __all__ = [
@@ -18,6 +18,6 @@ __all__ = [
     "TemporalPlannerAgent",
     "ContinuityGuardianAgent",
     "ShotGeneratorAgent",
-    "QAAgent",
+    "QAReviewAgent",
     "MultiAgentPipeline",
 ]

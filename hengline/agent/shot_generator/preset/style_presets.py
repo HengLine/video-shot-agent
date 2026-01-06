@@ -1,14 +1,10 @@
 """
 @FileName: style_presets.py
-@Description: 
+@Description: 风格预设配置
 @Author: HengLine
 @Time: 2026/1/5 23:44
 """
 from hengline.agent.shot_generator.model.style_models import StyleGuide, LightingStyle
-
-"""
-风格预设配置
-"""
 
 # 电影感现代风格
 CINEMATIC_MODERN = StyleGuide(
