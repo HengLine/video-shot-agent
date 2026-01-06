@@ -5,7 +5,17 @@
 @Time: 2025/12/20 18:35
 """
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import List, Dict, Any, Optional, Tuple
+
+class ContentType(str, Enum):
+    DIALOGUE_INTIMATE = "dialogue_intimate"  # 亲密对话场景
+    ACTION_FAST = "action_fast"  # 快速动作场景
+    EMOTIONAL_REVEAL = "emotional_reveal"  # 情感揭示时刻
+    ESTABLISHING_SHOT = "establishing_shot"  # 场景建立镜头
+    TRANSITION_SCENE = "transition_scene"  # 过渡场景
+    MONTAGE = "montage"  # 蒙太奇序列
+    FLASHBACK = "flashback"  # 闪回场景
 
 
 @dataclass
@@ -19,6 +29,39 @@ class DurationEstimation:
     adjustment_notes: str = ""
 
 
+"""
+复杂度判断标准：
+    simple（简单）:
+    - 单个主体
+    - 静态或简单移动
+    - 单一背景
+    - 示例：人物坐着说话
+    
+    medium（中等）:
+    - 1-2个主体
+    - 中等移动
+    - 背景有细节
+    - 示例：两人边走边谈
+    
+    complex（复杂）:
+    - 多个主体（3+）
+    - 复杂互动
+    - 环境交互
+    - 示例：人群中的追逐
+    
+    very_complex（非常复杂）:
+    - 大量细节
+    - 快速变化
+    - 特效需求
+    - 示例：爆炸战斗场景
+    
+动作强度，标度参考：
+    1.0：静态对话、坐着谈话、平静状态
+    1.5：缓慢走动、手势交流、轻度动作
+    2.0：快走、激动对话、中等动作
+    2.5：奔跑、打斗、快速追逐
+    3.0：激烈战斗、极限运动、高速追逐
+"""
 @dataclass
 class TimeSegment:
     """5秒时间片段"""
@@ -33,6 +76,13 @@ class TimeSegment:
 
     # 关键元素
     key_elements: List[str]  # 关键视觉/逻辑元素
+
+    # 新增的属性
+    content_type: Optional[str] = "dialogue_intimate"  # 识别片段的核心内容类型 ContentType
+    # "happy" | "sad" | "tense" | "romantic" | "melancholy" | "excited" | "fearful" | "neutral" | "dreamy" | "suspenseful"
+    emotional_tone: Optional[str] = "neutral"  # 定义片段的情绪氛围，影响色彩、灯光和音乐（间接）
+    action_intensity: float = 1.0   # 量化片段的动作强度，从1.0（正常）到3.0（激烈）
+    shot_complexity: str = "medium" # 评估单个5秒片段内部的视觉复杂度 （"simple" | "medium" | "complex" | "very_complex"）
 
     # 连续性
     continuity_hooks: Dict[str, Any] = field(default_factory=dict)

@@ -4,9 +4,9 @@
 @Author: HengLine
 @Time: 2026/1/4 16:38
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 
 from hengline.agent.temporal_planner.temporal_planner_model import TimeSegment
 from .model.continuity_rule_guardian import GenerationHints
@@ -42,6 +42,7 @@ class HardConstraint:
     # 验证信息
     is_enforced: bool = True  # 是否强制执行
     verification_method: str = "visual_check"  # 验证方法
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

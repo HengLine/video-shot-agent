@@ -146,7 +146,7 @@ class WorkflowNodes:
                 )
 
                 # 生成分镜
-                shot = self.shot_generator.generate_shot(
+                shot = self.shot_generator.process(
                     segment,
                     continuity_constraints,
                     scene_context,
@@ -465,7 +465,7 @@ class WorkflowNodes:
 
             # 生成最终的分镜头剧本
             # 从结果中提取所需信息
-            title = state.get("title", "分镜头剧本")
+            title = state["title"]
             shots = state["shots"]
             qa_results = state.get("qa_results", [])
 

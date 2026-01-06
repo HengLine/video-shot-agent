@@ -5,7 +5,6 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-import uuid
 from typing import Dict, List, Any, Optional, TypedDict
 
 from hengline.agent.script_parser.script_parser_model import UnifiedScript
@@ -16,14 +15,15 @@ class InputState(TypedDict):
     """工作流输入状态"""
     script_text: str  # 原始剧本文本
     style: VideoStyle  # 视频风格："realistic"（逼真）、"anime"（动漫）、"cinematic"（电影）、"cartoon"（卡通）
-    duration_per_shot: int  # 每段时长
     prev_continuity_state: Optional[Dict[str, Any]]  # 上一段的连续性状态
-    task_id: str = str(uuid.uuid4())  #唯一标识符
+    duration_per_shot: int  # 每段时长
+    task_id: str  # 唯一标识符
 
 
 class ScriptParsingState(TypedDict):
     """剧本解析相关状态"""
     structured_script: UnifiedScript  # 结构化剧本
+    title: str  # 剧本标题
     memory: dict  # 自定义 memory 字段
 
 
@@ -55,8 +55,8 @@ class OutputState(TypedDict):
     error: Optional[str]  # 错误信息
 
 
-class StoryboardWorkflowState(InputState, ScriptParsingState, TimelinePlanningState, 
-                             ShotGenerationState, ReviewState, OutputState):
+class StoryboardWorkflowState(InputState, ScriptParsingState, TimelinePlanningState,
+                              ShotGenerationState, ReviewState, OutputState):
     """
     完整的分镜生成工作流状态
     通过继承多个特定功能的状态类来组合，实现高内聚低耦合

@@ -5,23 +5,27 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-from typing import Dict, List, Any
+import copy
+import time
+from typing import Dict, List, Any, Optional, Tuple
 
-# LLMChain在langchain 1.0+中已更改，我们将直接使用模型和提示词
-from langchain_core.prompts import ChatPromptTemplate
-from openai import AuthenticationError, APIError
-
-from hengline.logger import debug, error, warning
 from hengline.prompts.prompts_manager import prompt_manager
-from hengline.config.keyword_config import get_keyword_config
-from hengline.language_manage import Language
-from utils.log_utils import print_log_exception
+from .continuity_guardian.continuity_guardian_model import AnchoredSegment, HardConstraint
+from .shot_generator.camera_optimizer import CameraOptimizer
+from .shot_generator.constraint_handler import ConstraintHandler
+from .shot_generator.model.data_models import TechnicalSettings, ContinuityAnchoredInput, VisualEffect, GenerationMetadata
+from .shot_generator.model.shot_models import SoraReadyShots, ShotSize, ShotTransition, SoraPromptStructure, CameraParameters, GenerationHints, CameraMovement, SoraShot
+from .shot_generator.model.style_models import StyleGuide, LightingStyle, LightingScheme, ColorPalette
+from .shot_generator.prompt_engine import PromptEngine
+from .shot_generator.style_manager import StyleConsistencyManager
+from .temporal_planner.temporal_planner_model import TimeSegment, ContentType
+from hengline.logger import debug, info, warning, error
 
 
 class ShotGeneratorAgent:
     """分镜生成智能体"""
 
-    def __init__(self, llm=None):
+    def __init__(self, llm=None, config: Optional[Dict[str, Any]] = None):
         """
         初始化分镜生成智能体
         
@@ -31,661 +35,558 @@ class ShotGeneratorAgent:
         self.llm = llm
         # 分镜生成提示词模板 - 从YAML加载或使用默认
         self.shot_generation_template = prompt_manager.get_shot_generator_prompt()
-        
-        # 获取关键词配置
-        self.keyword_config = get_keyword_config()
-        
-        # 初始化姿态映射
-        self._init_mappings()
-    
-    def _init_mappings(self):
-        """初始化各种映射表"""
-        # 姿态映射
-        self._pose_map = {}
-        
-        # 添加中文到标准化值的映射
-        pose_keywords = self.keyword_config.get_pose_keywords(Language.ZH)
-        self._pose_map.update(pose_keywords)
-        
-        
-        # 添加标准化值到英文提示词的映射
-        pose_standard_map = self.keyword_config.get_pose_mapping()
-        self._standard_pose_map = pose_standard_map
-        
-        # 位置映射
-        position_keywords = self.keyword_config.get_position_keywords(Language.ZH)
-        self._position_map = {
-            # 左侧位置映射
-            **{kw: 'left' for kw in position_keywords.get('left', [])},
-            # 中央位置映射
-            **{kw: 'center' for kw in position_keywords.get('center', [])},
-            # 右侧位置映射
-            **{kw: 'right' for kw in position_keywords.get('right', [])},
-            # 前景位置映射
-            **{kw: 'foreground' for kw in position_keywords.get('foreground', [])},
-            # 背景位置映射
-            **{kw: 'background' for kw in position_keywords.get('background', [])},
-        }
-        
-        debug(f"初始化姿态映射: {self._pose_map}")
-        debug(f"初始化位置映射: {self._position_map}")
-    
-    def _standardize_pose(self, pose: str) -> str:
-        """标准化姿势值"""
-        # 先获取标准化值
-        standardized_pose = self._pose_map.get(pose, pose.lower() if isinstance(pose, str) else "unknown")
-        
-        # 再获取英文提示词
-        return self._standard_pose_map.get(standardized_pose, standardized_pose)
-    
-    def _standardize_position(self, position: str) -> str:
-        """标准化位置值"""
-        return self._position_map.get(position, position.lower() if isinstance(position, str) else "unknown")
-
-    def _extract_props_from_actions(self, actions: List[Dict[str, Any]]) -> List[str]:
-        """从动作描述中提取道具信息"""
-        props = set()
-        # 获取道具关键词
-        prop_keywords = self.keyword_config.get_prop_keywords(Language.ZH).get('common', [])
-        
-        for action in actions:
-            action_text = action.get('action', '')
-            # 从动作中提取常见道具
-            for prop in prop_keywords:
-                if prop in action_text:
-                    props.add(prop)
-        
-        return list(props)
-
-    def _standardize_state_values(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """标准化状态值"""
-        standardized = state.copy()
-        
-        if "pose" in standardized:
-            standardized["pose"] = self._standardize_pose(standardized["pose"])
-        
-        if "position" in standardized:
-            standardized["position"] = self._standardize_position(standardized["position"])
-        
-        return standardized
-
-    def generate_shot(self,
-                      segment: Dict[str, Any],
-                      continuity_constraints: Dict[str, Any],
-                      scene_context: Dict[str, Any],
-                      style: str = "realistic",
-                      shot_id: int = 1) -> Dict[str, Any]:
-        """
-        生成单个分镜，使用YAML配置的提示词模板，增强错误处理和字段验证
-        
-        Args:
-            segment: 分段信息
-            continuity_constraints: 连续性约束
-            scene_context: 场景上下文
-            style: 视频风格
-            shot_id: 分镜ID
-            
-        Returns:
-            分镜对象
-        """
-        debug(f"生成分镜，ID: {shot_id}")
-
-        # 准备输入数据
-        actions_text = self._format_actions_text(segment.get("actions", []))
-        continuity_constraints_text = self._format_continuity_constraints(continuity_constraints)
-
-        # 构建提示词输入，确保所有变量与YAML模板匹配
-        prompt_input = {
-            "location": scene_context.get("location", "未知位置"),
-            "time": scene_context.get("time", "未知时间"),
-            "atmosphere": scene_context.get("atmosphere", "未知氛围"),
-            "actions_text": actions_text,
-            "continuity_constraints_text": continuity_constraints_text,
-            "style": style,
-            "shot_id": shot_id
-        }
-
-        try:
-            if self.llm:
-                debug("使用LLM和YAML配置的提示词模板生成分镜")
-                try:
-                    # 直接使用已初始化的ChatPromptTemplate对象
-                    if isinstance(self.shot_generation_template, ChatPromptTemplate):
-                        current_template = self.shot_generation_template
-                    else:
-                        # 如果是字符串，则创建模板
-                        current_template = ChatPromptTemplate.from_template(self.shot_generation_template)
-
-                    # 使用LLM生成
-                    chain = current_template | self.llm
-                    response = chain.invoke(prompt_input)
-                    debug(f"原始LLM响应: {response[:200]}...")  # 记录部分原始响应用于调试
-                    # 确保获取到content
-                    if hasattr(response, 'content'):
-                        response = response.content
-
-                    # 解析响应
-                    from hengline.tools import parse_json_response
-                    shot_data = parse_json_response(response)
-                    debug(f"成功解析LLM响应，生成了包含{len(shot_data)}个字段的分镜数据")
-                except Exception as jde:
-                    error(f"LLM响应JSON解析失败: {str(jde)}")
-                    # 回退到规则生成
-                    debug("JSON解析失败，回退到规则生成分镜")
-                    shot_data = self._generate_shot_with_rules(segment, continuity_constraints, scene_context, style, shot_id)
-                except AuthenticationError | ConnectionError | APIError as llm_e:
-                    # 检查是否是API密钥错误
-                    if "API key" in str(llm_e) or "401" in str(llm_e):
-                        error(f"LLM生成分镜失败：API密钥错误或权限不足: {str(llm_e)}")
-                    else:
-                        error(f"LLM生成分镜失败: {str(llm_e)}")
-                    # 回退到规则生成
-                    debug("回退到规则生成分镜")
-                    shot_data = self._generate_shot_with_rules(segment, continuity_constraints, scene_context, style, shot_id)
-            else:
-                # 如果没有LLM，使用规则生成
-                debug("使用规则生成分镜")
-                shot_data = self._generate_shot_with_rules(segment, continuity_constraints, scene_context, style, shot_id)
-
-            # 计算时间信息
-            start_time = (shot_id - 1) * 5
-            end_time = shot_id * 5
-            duration = 5
-
-            # 构建完整的分镜对象，确保包含所有必要字段
-            shot = {
-                # 基础信息
-                "shot_id": str(shot_id),  # 确保是字符串类型
-                "time_range_sec": [(shot_id - 1) * 5, shot_id * 5],
-                "start_time": start_time,  # 添加必要的时间字段
-                "end_time": end_time,
-                "duration": duration,
-
-                # 描述字段
-                "ai_prompt": shot_data.get("ai_prompt", "Default AI prompt"),
-                "description": shot_data.get("description", "默认描述"),
-
-                # 相机信息
-                "camera": shot_data.get("camera", {
-                    "shot_type": "medium shot",
-                    "angle": "eye-level",
-                    "movement": "static"
-                }),
-                "camera_angle": shot_data.get("camera", {}).get("shot_type", "medium shot"),  # 添加必要的相机角度字段
-
-                # 角色相关
-                "characters_in_frame": self._extract_characters_in_frame(shot_data),
-                "characters": self._extract_characters_in_frame(shot_data),  # 添加必要的角色字段
-                "dialogue": "",  # 添加对话字段
-
-                # 状态信息
-                "initial_state": [self._standardize_state_values(state) for state in shot_data.get("initial_state", [])],
-                "final_state": [self._standardize_state_values(state) for state in shot_data.get("final_state", [])],
-                "continuity_anchor": self._generate_continuity_anchor(shot_data),
-                "continuity_anchors": [],  # 添加必要的连续性锚点字段
-                # 确保final_continuity_state字段为字典类型
-                "final_continuity_state": {}
-            }
-
-            debug(f"分镜生成完成: {shot.get('description', '')[:100]}...")
-            return shot
-
-        except Exception as e:
-            print_log_exception()
-            error(f"分镜生成失败: {str(e)}")
-            # 返回默认分镜
-            default_shot = self._get_default_shot(segment, scene_context, style, shot_id)
-            # 确保默认分镜中也包含所有必需字段
-            if "ai_prompt" not in default_shot:
-                default_shot["ai_prompt"] = ""
-            if "camera_angle" not in default_shot:
-                default_shot["camera_angle"] = "eye-level"
-            if "camera_movement" not in default_shot:
-                default_shot["camera_movement"] = "static"
-            if "camera_shot_type" not in default_shot:
-                default_shot["camera_shot_type"] = "medium shot"
-            if "initial_state" not in default_shot:
-                default_shot["initial_state"] = []
-            if "final_state" not in default_shot:
-                default_shot["final_state"] = []
-            if "continuity_anchor" not in default_shot:
-                default_shot["continuity_anchor"] = []
-            if "final_continuity_state" not in default_shot:
-                default_shot["final_continuity_state"] = {}
-            return default_shot
-
-    def _format_actions_text(self, actions: List[Dict[str, Any]]) -> str:
-        """格式化动作文本，确保动作序列合理"""
-        lines = []
-        # 确保动作按顺序排序
-        sorted_actions = sorted(actions, key=lambda x: x.get("order", 0))
-
-        # 按角色分组，优先处理主要角色
-        main_actions = []
-        phone_actions = []
-
-        for action in sorted_actions:
-            if "dialogue" in action:
-                if "电话那头" in action.get('character', '') or "off-screen" in action.get('character', ''):
-                    phone_actions.append(action)
-                else:
-                    main_actions.append(action)
-            else:
-                if "电话那头" in action.get('character', '') or "off-screen" in action.get('character', ''):
-                    phone_actions.append(action)
-                else:
-                    main_actions.append(action)
-
-        # 先添加主要角色的动作
-        for idx, action in enumerate(main_actions, 1):
-            if "dialogue" in action:
-                lines.append(f"{idx}. {action['character']}（{action['emotion']}）：{action['dialogue']}")
-            else:
-                lines.append(f"{idx}. {action['character']} {action.get('action', '')}（{action.get('emotion', '平静')}）")
-
-        # 再添加电话那头角色的动作
-        for idx, action in enumerate(phone_actions, len(main_actions) + 1):
-            if "dialogue" in action:
-                lines.append(f"{idx}. {action['character']}（{action['emotion']}）[声音]: {action['dialogue']}")
-            else:
-                lines.append(f"{idx}. {action['character']} {action.get('action', '')}[声音]")
-
-        return "\n".join(lines)
-
-    def _format_continuity_constraints(self, constraints: Dict[str, Any]) -> str:
-        """
-        格式化连续性约束
-        
-        Args:
-            constraints: 连续性约束字典
-            
-        Returns:
-            格式化后的约束文本
-        """
-        lines = []
-
-        # 添加角色约束
-        characters = constraints.get("characters", {})
-
-        # 确保characters是字典类型
-        if isinstance(characters, dict):
-            # 先处理主要角色（不在电话那头的）
-            main_characters = {k: v for k, v in characters.items() if "电话那头" not in k and "off-screen" not in k}
-            # 处理电话那头的角色
-            phone_characters = {k: v for k, v in characters.items() if "电话那头" in k or "off-screen" in k}
-
-            # 添加主要角色约束
-            for character_name, char_constraints in main_characters.items():
-                lines.append(f"角色 {character_name} 的约束：")
-                for key, value in char_constraints.items():
-                    if key.startswith("must_start_with_"):
-                        constraint_name = key.replace("must_start_with_", "")
-                        lines.append(f"  - 必须以 {constraint_name}: {value} 开始")
-                    elif key == "character_description":
-                        lines.append(f"  - 描述: {value}")
-
-            # 添加电话那头角色的特殊约束
-            for character_name, char_constraints in phone_characters.items():
-                lines.append(f"角色 {character_name} 的约束（不在画面中）：")
-                lines.append(f"  - 位置: off-screen")
-                lines.append(f"  - 仅通过声音参与场景")
-        elif isinstance(characters, list):
-            # 如果是列表，进行适当处理
-            debug(f"连续性约束中的characters是列表类型，包含{len(characters)}个元素")
-            for idx, character_info in enumerate(characters):
-                character_name = character_info.get("character_name", f"角色{idx + 1}")
-                lines.append(f"角色 {character_name} 的约束：")
-                if isinstance(character_info, dict):
-                    for key, value in character_info.items():
-                        if key != "character_name":
-                            lines.append(f"  - {key}: {value}")
-        else:
-            debug(f"连续性约束中的characters类型未知: {type(characters).__name__}")
-
-        # 添加相机约束
-        if "camera" in constraints:
-            lines.append("相机约束：")
-            camera_constraints = constraints["camera"]
-            # 确保camera_constraints是字典类型
-            if isinstance(camera_constraints, dict):
-                if "recommended_shot_type" in camera_constraints:
-                    lines.append(f"  - 推荐镜头类型: {camera_constraints['recommended_shot_type']}")
-                if "recommended_angle" in camera_constraints:
-                    lines.append(f"  - 推荐角度: {camera_constraints['recommended_angle']}")
-            elif isinstance(camera_constraints, list):
-                debug(f"连续性约束中的camera是列表类型，包含{len(camera_constraints)}个元素")
-            else:
-                debug(f"连续性约束中的camera类型未知: {type(camera_constraints).__name__}")
-
-        return "\n".join(lines)
-
-    def _generate_shot_with_rules(self,
-                                  segment: Dict[str, Any],
-                                  continuity_constraints: Dict[str, Any],
-                                  scene_context: Dict[str, Any],
-                                  style: str,
-                                  shot_id: int) -> Dict[str, Any]:
-        """使用规则生成分镜（当LLM不可用时）"""
-        actions = segment.get("actions", [])
-        all_characters = list(continuity_constraints.get("characters", {}).keys())
-
-        # 分离主要角色和电话那头的角色
-        main_characters = [c for c in all_characters if "电话那头" not in c and "off-screen" not in c]
-        phone_characters = [c for c in all_characters if "电话那头" in c or "off-screen" in c]
-
-        # 生成中文描述
-        description = f"场景：{scene_context.get('location', '')}，{scene_context.get('time', '')}，{scene_context.get('atmosphere', '')}。"
-
-        # 提取道具信息
-        props = self._extract_props_from_actions(actions)
-        if props:
-            description += f"场景中有：{', '.join(props)}。"
-
-        # 按角色分组动作
-        main_actions = [a for a in actions if "character" in a and a["character"] in main_characters]
-        phone_actions = [a for a in actions if "character" in a and a["character"] in phone_characters]
-
-        # 先添加主要角色的动作描述
-        for action in main_actions:
-            if "dialogue" in action:
-                description += f"{action['character']}（{action['emotion']}）说：{action['dialogue']}。"
-            else:
-                description += f"{action['character']} {action.get('action', '')}。"
-
-        # 再添加电话那头角色的动作描述
-        for action in phone_actions:
-            if "dialogue" in action:
-                description += f"{action['character']}（画外音）说：{action['dialogue']}。"
-            else:
-                description += f"{action['character']}（画外音）{action.get('action', '')}。"
-
-        # 生成英文提示词
-        style_prefix = self._get_style_prefix(style)
-        ai_prompt = f"{style_prefix} A scene in {scene_context.get('location', 'a place')} at {scene_context.get('time', 'some time')}. "
-
-        # 添加场景中的道具信息
-        if props:
-            ai_prompt += f"Props in scene: {', '.join(props)}. "
-
-        # 添加主要角色的英文描述
-        for action in main_actions:
-            character = action['character']
-            if "dialogue" in action:
-                emotion = action.get('emotion', 'neutral')
-                dialogue = action['dialogue']
-                ai_prompt += f"A person named {character} says '{dialogue}' with {emotion} expression. "
-            else:
-                action_desc = action.get('action', 'does something')
-                emotion = action.get('emotion', 'neutral')
-                ai_prompt += f"A person named {character} {action_desc} with {emotion} expression. "
-
-        # 添加电话那头角色的英文描述（标记为off-screen）
-        for action in phone_actions:
-            character = action['character']
-            if "dialogue" in action:
-                emotion = action.get('emotion', 'neutral')
-                dialogue = action['dialogue']
-                ai_prompt += f"{character} (off-screen voice) says '{dialogue}' with {emotion} expression. "
-            else:
-                action_desc = action.get('action', 'does something')
-                ai_prompt += f"{character} (off-screen) {action_desc}. "
-
-        # 生成相机信息
-        camera = {
-            "shot_type": "medium shot",
-            "angle": "eye-level",
-            "movement": "static"
-        }
-
-        # 生成初始状态和结束状态
-        initial_state = []
-        final_state = []
-
-        # 处理主要角色的状态
-        for character in main_characters:
-            char_constraints = continuity_constraints["characters"][character]
-
-            # 从角色约束中获取初始姿态，如果没有则根据场景上下文推断
-            initial_pose = char_constraints.get("must_start_with_pose", "standing")
-            
-            # 检查是否有"裹着毯子"、"沙发上"等关键词，调整初始姿态
-            if any(keyword in ''.join([a.get('action', '') for a in actions]) for keyword in ["裹着毯子", "沙发上", "蜷在沙发"]):
-                initial_pose = "sitting"
-
-            initial_state.append(
-                self._standardize_state_values({
-                    "character_name": character,
-                    "pose": initial_pose,
-                    "position": char_constraints.get("must_start_with_position", "center"),
-                    "holding": char_constraints.get("must_start_with_holding", "nothing"),
-                    "emotion": char_constraints.get("must_start_with_emotion", "neutral"),
-                    "appearance": f"A person named {character}"
-                })
-            )
-
-            # 根据动作更新结束状态
-            final_pose = initial_pose
-            final_position = char_constraints.get("must_start_with_position", "center")
-            final_emotion = char_constraints.get("must_start_with_emotion", "neutral")
-            final_holding = char_constraints.get("must_start_with_holding", "nothing")
-
-            # 分析角色动作来更新状态
-            character_actions = [a for a in actions if "character" in a and a["character"] == character]
-            for action in character_actions:
-                action_text = action.get('action', '')
-                if "dialogue" in action:
-                    final_emotion = action.get('emotion', final_emotion)
-                if "坐下" in action_text or "坐" == action_text or "蜷在" in action_text:
-                    final_pose = "sitting"
-                elif "站" in action_text or "站立" == action_text:
-                    final_pose = "standing"
-                elif "走" in action_text or "移动" == action_text:
-                    # 简单的位置切换逻辑
-                    if final_position == "left":
-                        final_position = "center"
-                    elif final_position == "center":
-                        final_position = "right"
-                elif "打电话" in action_text or "接电话" in action_text:
-                    final_holding = "phone"
-                    final_emotion = "serious"
-                elif "看" in action_text or "注视" in action_text:
-                    # 视线方向根据描述调整
-                    final_emotion = "focused"
-
-            final_state.append(
-                self._standardize_state_values({
-                    "character_name": character,
-                    "pose": final_pose,
-                    "position": final_position,
-                    "gaze_direction": "forward" if "看" not in ''.join([a.get('action', '') for a in character_actions]) else "side",
-                    "emotion": final_emotion,
-                    "holding": final_holding
-                })
-            )
-
-        # 处理电话那头角色的特殊状态
-        for character in phone_characters:
-            # 电话那头的角色状态保持一致且位置为off-screen
-            phone_state = {
-                "character_name": character,
-                "pose": "off-screen",
-                "position": "off-screen",
-                "holding": "unknown",
-                "emotion": "unknown",
-                "appearance": f"{character} (off-screen)"
-            }
-
-            initial_state.append(phone_state)
-
-            # 结束状态基本相同，只可能更新情绪
-            final_phone_state = phone_state.copy()
-            character_actions = [a for a in actions if "character" in a and a["character"] == character]
-            if character_actions and "dialogue" in character_actions[0]:
-                final_phone_state["emotion"] = character_actions[0].get('emotion', 'unknown')
-
-            final_state.append(final_phone_state)
-
-        return {
-            "description": description,
-            "ai_prompt": ai_prompt,
-            "camera": camera,
-            "initial_state": initial_state,
-            "final_state": final_state
-        }
-
-    def _get_style_prefix(self, style: str) -> str:
-        """获取风格前缀"""
-        style_mapping = {
-            "realistic": "Realistic, high detail, natural lighting,",
-            "anime": "Anime style, colorful, expressive, 2D animation,",
-            "cinematic": "Cinematic, professional lighting, shallow depth of field,",
-            "cartoon": "Cartoon style, exaggerated features, vibrant colors,"
-        }
-        return style_mapping.get(style, "Detailed, realistic,")
-
-    def _extract_characters_in_frame(self, shot_data: Dict[str, Any]) -> List[str]:
-        """提取画面中的角色，排除电话那头和off-screen的角色"""
-        characters = set()
-
-        # 从初始状态提取，但排除电话那头和off-screen的角色
-        for state in shot_data.get("initial_state", []):
-            if "character_name" in state:
-                character_name = state["character_name"]
-                # 检查角色是否在画面中（不是电话那头或off-screen）
-                is_in_frame = True
-                if "position" in state and state["position"] == "off-screen":
-                    is_in_frame = False
-                if "电话那头" in character_name or "off-screen" in character_name:
-                    is_in_frame = False
-
-                if is_in_frame:
-                    characters.add(character_name)
-
-        # 如果没有提取到角色，尝试从动作中提取
-        if not characters and "scene_context" in shot_data:
-            # 这是一个回退机制
-            return ["默认角色"]
-
-        return list(characters)
-
-    def _generate_continuity_anchor(self, shot_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """生成连续性锚点，确保锚点数据完整一致"""
-        anchors = []
-
-        # 获取所有角色（从final_state和initial_state）
-        all_characters = set()
-        for state in shot_data.get("final_state", []):
-            if "character_name" in state:
-                all_characters.add(state["character_name"])
-        for state in shot_data.get("initial_state", []):
-            if "character_name" in state:
-                all_characters.add(state["character_name"])
-
-        # 从结束状态生成锚点
-        for character_name in all_characters:
-            # 查找该角色的final_state
-            character_state = None
-            for state in shot_data.get("final_state", []):
-                if state.get("character_name") == character_name:
-                    character_state = state
-                    break
-
-            # 如果没有找到，使用initial_state
-            if not character_state:
-                for state in shot_data.get("initial_state", []):
-                    if state.get("character_name") == character_name:
-                        character_state = state
-                        break
-
-            # 创建锚点
-            anchor = {
-                "character_name": character_name,
-                "pose": "unknown",
-                "position": "unknown",
-                "gaze_direction": "unknown",
-                "emotion": "unknown",
-                "holding": "unknown"
-            }
-
-            # 如果找到状态，更新锚点
-            if character_state:
-                anchor.update({
-                    "pose": character_state.get("pose", "unknown"),
-                    "position": character_state.get("position", "unknown"),
-                    "gaze_direction": character_state.get("gaze_direction", "unknown"),
-                    "emotion": character_state.get("emotion", "unknown"),
-                    "holding": character_state.get("holding", "unknown")
-                })
-
-                # 确保电话那头角色的位置正确
-                if "电话那头" in character_name or "off-screen" in character_name:
-                    anchor["position"] = "off-screen"
-                    anchor["pose"] = "off-screen"
-
-            anchors.append(anchor)
-
-        return anchors
-
-    def _get_default_shot(self,
-                          segment: Dict[str, Any],
-                          scene_context: Dict[str, Any],
-                          style: str,
-                          shot_id: int) -> Dict[str, Any]:
-        """获取默认分镜（当生成失败时），确保包含所有必要字段以满足Pydantic验证"""
-        # 从segment和scene_context中提取有用信息
-        actions = segment.get("actions", [])
-        location = scene_context.get("location", "未知位置")
-        time = scene_context.get("time", "未知时间")
-        atmosphere = scene_context.get("atmosphere", "未知氛围")
-
-        # 提取角色信息
-        characters = []
-        dialogue = ""
-        for action in actions:
-            character_name = action.get("character", "角色")
-            if character_name not in characters:
-                characters.append(character_name)
-            if "dialogue" in action:
-                dialogue += f"{character_name}: {action['dialogue']}\n"
-
-        if not characters:
-            characters = ["默认角色"]
-
-        # 计算时间信息
-        start_time = (shot_id - 1) * 5
-        end_time = shot_id * 5
-        duration = end_time - start_time
-
-        # 生成完整的默认分镜，确保包含所有Pydantic验证所需字段
-        return {
-            # 基础信息
-            "shot_id": str(shot_id),  # 确保是字符串类型
-            "time_range_sec": [(shot_id - 1) * 5, shot_id * 5],
-            "start_time": start_time,  # 添加必要的时间字段
-            "end_time": end_time,
-            "duration": duration,
-
-            # 描述字段
-            "ai_prompt": f"Default shot of {location} at {time}",
-            "description": f"场景：{location}，{time}，{atmosphere}。分镜生成失败，使用默认描述。",
-
-            # 相机信息
-            "camera": {
-                "shot_type": "medium shot",
-                "angle": "eye-level",
-                "movement": "static"
+        #############
+        self.config = config or {}
+        self.prompt_engine = PromptEngine()
+        self.camera_optimizer = CameraOptimizer()
+        self.constraint_handler = ConstraintHandler()
+
+        # 默认风格指南
+        self.default_style_guide = StyleGuide(
+            visual_theme="modern_cinematic",
+            era_period="contemporary",
+            dominant_colors=["#2c3e50", "#ecf0f1", "#3498db"],
+            color_temperature="warm",
+            color_grading="teal_and_orange",
+            lighting_style=LightingStyle.NATURALISTIC,
+            key_light_direction="45_degree_right",
+            preferred_camera_styles=["steadycam", "static"],
+            framing_preferences={
+                "dialogue": "medium_close_up",
+                "emotional": "close_up",
+                "establishing": "wide_shot"
             },
-            "camera_angle": "medium_shot",  # 添加必要的相机角度字段
+            artistic_influences=["Roger Deakins", "Hayao Miyazaki"],
+            reference_films=["Blade Runner 2049", "Your Name"]
+        )
 
-            # 角色相关
-            "characters_in_frame": characters,
-            "characters": characters,  # 添加必要的角色字段
-            "dialogue": dialogue.strip(),  # 添加对话字段
+        # 默认技术设置
+        self.default_technical_settings = TechnicalSettings(
+            resolution="1920x1080",
+            aspect_ratio="16:9",
+            framerate=24,
+            bit_depth=10,
+            color_space="rec709",
+            render_engine="sora_v2",
+            cfg_scale=7.5,
+            steps=50,
+            sampler="ddim"
+        )
 
-            # 状态信息
-            "initial_state": [],
-            "final_state": [],
-            "continuity_anchor": [],
-            "continuity_anchors": [],  # 添加必要的连续性锚点字段
-            "final_continuity_state": {}  # 确保包含final_continuity_state字段，为字典类型
+    def process(self, input_data: ContinuityAnchoredInput) -> SoraReadyShots:
+        """处理输入数据，生成Sora就绪的分镜指令"""
+        start_time = time.time()
+
+        debug(f"开始处理 {len(input_data.anchored_segments)} 个片段...")
+
+        # 1. 初始化风格管理器
+        style_guide = self._get_style_guide(input_data)
+        style_manager = StyleConsistencyManager(style_guide)
+
+        # 2. 处理每个片段
+        shot_sequence = []
+        all_satisfied_constraints = []
+        all_constraint_violations = []
+        previous_shot = None
+
+        for i, anchored_segment in enumerate(input_data.anchored_segments):
+            debug(f"  处理片段 {i + 1}/{len(input_data.anchored_segments)}: {anchored_segment.segment_id}")
+
+            # 为片段生成镜头
+            segment_shots = self._generate_shots_for_segment(
+                anchored_segment, style_guide, previous_shot
+            )
+
+            # 确保风格一致性
+            for shot in segment_shots:
+                consistent_shot = style_manager.ensure_consistency(shot)
+
+                # 添加到序列
+                shot_sequence.append(consistent_shot)
+
+                # 更新约束满足记录
+                all_satisfied_constraints.extend(consistent_shot.satisfied_constraints)
+                all_constraint_violations.extend(consistent_shot.constraint_violations)
+
+                # 更新前一镜头
+                previous_shot = consistent_shot
+
+        # 3. 计算质量指标
+        processing_time = time.time() - start_time
+        quality_metrics = self._calculate_quality_metrics(
+            shot_sequence, all_satisfied_constraints, all_constraint_violations
+        )
+
+        # 4. 生成约束摘要
+        constraints_summary = self._generate_constraints_summary(
+            input_data.anchored_segments, all_satisfied_constraints, all_constraint_violations
+        )
+
+        # 5. 生成元数据
+        generation_metadata = GenerationMetadata(
+            generator_version="1.0.0",
+            processing_time=processing_time,
+            total_segments=len(input_data.anchored_segments),
+            total_shots=len(shot_sequence),
+            constraint_satisfaction_rate=quality_metrics["constraint_satisfaction"],
+            style_consistency_score=quality_metrics["style_consistency_score"],
+            visual_appeal_score=quality_metrics["visual_appeal_score"],
+            warnings=quality_metrics["warnings"],
+            suggestions=quality_metrics["suggestions"]
+        )
+
+        # 6. 获取风格报告
+        style_report = style_manager.get_style_report()
+
+        debug(f"处理完成！生成 {len(shot_sequence)} 个镜头，用时 {processing_time:.2f}秒")
+        debug(f"约束满足率: {quality_metrics['constraint_satisfaction']:.2%}")
+        debug(f"风格一致性: {style_report['consistency_score']:.2%}")
+
+        # 7. 返回最终结果
+        return SoraReadyShots(
+            shot_sequence=shot_sequence,
+            technical_settings=self.default_technical_settings,
+            style_consistency=style_guide,
+            constraints_summary=constraints_summary,
+            generation_metadata=generation_metadata,
+            visual_appeal_score=quality_metrics["visual_appeal_score"],
+            constraint_satisfaction=quality_metrics["constraint_satisfaction"]
+        )
+
+    def _get_style_guide(self, input_data: ContinuityAnchoredInput) -> StyleGuide:
+        """获取风格指南（可扩展从输入数据中提取）"""
+        # 这里可以从input_data.metadata中提取自定义风格指南
+        # 目前使用默认指南
+        return self.default_style_guide
+
+    def _generate_shots_for_segment(self, anchored_segment: AnchoredSegment,
+                                    style_guide: StyleGuide,
+                                    previous_shot: Optional[SoraShot] = None) -> List[SoraShot]:
+        """为单个片段生成镜头"""
+        shots = []
+
+        # 1. 生成提示词结构
+        prompt_structure = self.prompt_engine.generate_shot_prompt(
+            anchored_segment, style_guide
+        )
+
+        # 2. 确定相机参数
+        camera_params = self.camera_optimizer.optimize_for_content(
+            anchored_segment.base_segment, previous_shot
+        )
+
+        # 3. 确定灯光方案
+        lighting_scheme = self._determine_lighting_scheme(
+            anchored_segment.base_segment, style_guide
+        )
+
+        # 4. 确定色彩调色板
+        color_palette = self._determine_color_palette(
+            anchored_segment.base_segment, style_guide
+        )
+
+        # 5. 确定满足的约束
+        satisfied_constraints, constraint_violations = self._check_constraint_compliance(
+            anchored_segment.hard_constraints, prompt_structure, camera_params
+        )
+
+        # 6. 创建镜头
+        shot = SoraShot(
+            shot_id=f"{anchored_segment.segment_id}_shot1",
+            segment_id=anchored_segment.segment_id,
+            time_range=anchored_segment.base_segment.time_range,
+            duration=anchored_segment.base_segment.duration,
+
+            # 提示词
+            primary_prompt=prompt_structure.subject_description,
+            style_prompt=prompt_structure.style_enhancement,
+            technical_prompt=prompt_structure.technical_specs,
+            full_sora_prompt=prompt_structure.compose_full_prompt(),
+
+            # 约束满足
+            satisfied_constraints=satisfied_constraints,
+            constraint_violations=constraint_violations,
+            constraint_compliance_score=len(satisfied_constraints) /
+                                        max(1, len(anchored_segment.hard_constraints)),
+
+            # 视觉参数
+            camera_parameters=camera_params,
+            lighting_scheme=lighting_scheme,
+            color_palette=color_palette,
+
+            # 特效和过渡
+            visual_effects=self._determine_visual_effects(anchored_segment.base_segment),
+            transition_to_next=self._determine_transition(anchored_segment),
+
+            # 生成提示
+            generation_hints=self._extract_generation_hints(anchored_segment),
+
+            # 元数据
+            content_type=anchored_segment.base_segment.content_type or ContentType.DIALOGUE_INTIMATE,
+            emotional_tone=anchored_segment.base_segment.emotional_tone or "neutral",
+            action_intensity=anchored_segment.base_segment.action_intensity
+        )
+
+        shots.append(shot)
+
+        # 如果有复杂内容，可能需要多个镜头
+        if anchored_segment.base_segment.duration > 8.0:
+            # 创建第二个镜头（不同角度）
+            second_shot = self._create_alternate_angle_shot(shot, anchored_segment)
+            shots.append(second_shot)
+
+        return shots
+
+    def _determine_lighting_scheme(self, segment: TimeSegment,
+                                   style_guide: StyleGuide) -> LightingScheme:
+        """确定灯光方案"""
+        # 基于内容类型决定基础灯光
+        content_type = segment.content_type or "dialogue_intimate"
+
+        if content_type == "emotional_reveal":
+            base_style = LightingStyle.DRAMATIC
+        elif content_type == "action_fast":
+            base_style = LightingStyle.HIGH_CONTRAST
+        else:
+            base_style = style_guide.lighting_style
+
+        return LightingScheme(
+            style=base_style,
+            key_light_direction=style_guide.key_light_direction,
+            fill_light_ratio=0.3,
+            backlight_intensity=0.5,
+            ambient_light=style_guide.color_temperature,
+            color_temperature=3200 if style_guide.color_temperature == "warm" else 6500,
+            mood_description=self._get_mood_description(segment.emotional_tone),
+            time_of_day=self._extract_time_of_day(segment.visual_content)
+        )
+
+    def _get_mood_description(self, emotional_tone: Optional[str]) -> str:
+        """获取情绪描述"""
+        mood_mapping = {
+            "happy": "joyful uplifting mood",
+            "sad": "melancholy emotional mood",
+            "tense": "suspenseful tense mood",
+            "romantic": "romantic dreamy mood",
+            "neutral": "neutral realistic mood"
+        }
+        return mood_mapping.get(emotional_tone or "neutral", "cinematic mood")
+
+    def _extract_time_of_day(self, visual_content: str) -> Optional[str]:
+        """从视觉内容中提取时间"""
+        content = visual_content.lower()
+
+        if "morning" in content or "早晨" in content:
+            return "morning"
+        elif "afternoon" in content or "下午" in content:
+            return "afternoon"
+        elif "evening" in content or "傍晚" in content:
+            return "evening"
+        elif "night" in content or "夜晚" in content:
+            return "night"
+
+        return None
+
+    def _determine_color_palette(self, segment: TimeSegment,
+                                 style_guide: StyleGuide) -> ColorPalette:
+        """确定色彩调色板"""
+
+        color_palette = ColorPalette(
+            dominant_color=style_guide.dominant_colors[0],
+            secondary_colors=style_guide.dominant_colors[1:3],
+            accent_color="#e74c3c",  # 强调色
+            color_temperature=style_guide.color_temperature,
+            saturation_level="natural",
+            brightness="normal",
+            contrast_ratio=0.6,
+            color_grading=style_guide.color_grading,
+            hex_colors={
+                "primary": style_guide.dominant_colors[0],
+                "secondary": style_guide.dominant_colors[1] if len(style_guide.dominant_colors) > 1 else "#ecf0f1",
+                "accent": "#e74c3c"
+            }
+        )
+
+        if segment.emotional_tone == "sad":
+            color_palette.dominant_color = "#2c3e50"  # 冷色调
+            color_palette.saturation_level = "muted"
+            color_palette.brightness = "dark"
+
+        elif segment.emotional_tone == "happy":
+            color_palette.dominant_color = "#f1c40f"  # 温暖黄色
+            color_palette.saturation_level = "vibrant"
+            color_palette.brightness = "bright"
+
+        return color_palette
+
+    def _check_constraint_compliance(self, constraints: List[HardConstraint],
+                                     prompt_structure: SoraPromptStructure,
+                                     camera_params: CameraParameters) -> Tuple[List[str], List[str]]:
+        """检查约束符合性"""
+        satisfied = []
+        violated = []
+
+        for constraint in constraints:
+            if not constraint.is_enforced:
+                continue
+
+            # 检查是否在提示词中
+            in_prompt = (
+                    constraint.description.lower() in prompt_structure.subject_description.lower() or
+                    constraint.sora_instruction.lower() in prompt_structure.technical_specs.lower()
+            )
+
+            # 检查是否在相机参数中
+            in_camera = self._check_constraint_in_camera(constraint, camera_params)
+
+            if in_prompt or in_camera:
+                satisfied.append(constraint.constraint_id)
+            else:
+                violated.append(constraint.constraint_id)
+
+        return satisfied, violated
+
+    def _check_constraint_in_camera(self, constraint: HardConstraint,
+                                    camera_params: CameraParameters) -> bool:
+        """检查约束是否在相机参数中满足"""
+        if constraint.type != "camera_angle":
+            return False
+
+        # 解析相机约束
+        instruction = constraint.sora_instruction.lower()
+
+        if "close-up" in instruction or "特写" in instruction:
+            return camera_params.shot_size in [ShotSize.CLOSE_UP, ShotSize.EXTREME_CLOSE_UP]
+        elif "wide" in instruction or "广角" in instruction:
+            return camera_params.shot_size in [ShotSize.WIDE_SHOT, ShotSize.EXTREME_WIDE_SHOT]
+        elif "medium" in instruction or "中景" in instruction:
+            return camera_params.shot_size in [ShotSize.MEDIUM_SHOT, ShotSize.MEDIUM_CLOSE_UP]
+
+        return False
+
+    def _determine_visual_effects(self, segment: TimeSegment) -> List[VisualEffect]:
+        """确定视觉特效"""
+        effects = []
+
+        # 基于内容类型添加效果
+        if segment.content_type == "action_fast":
+            effects.append(VisualEffect(
+                effect_type="motion_blur",
+                intensity=0.7,
+                parameters={"direction": "following", "amount": 0.5}
+            ))
+
+        # 基于情绪添加效果
+        if segment.emotional_tone == "dreamy" or "dream" in segment.visual_content.lower():
+            effects.append(VisualEffect(
+                effect_type="bloom",
+                intensity=0.4,
+                parameters={"threshold": 0.8, "size": 5}
+            ))
+
+        return effects
+
+    def _determine_transition(self, anchored_segment: AnchoredSegment) -> ShotTransition:
+        """确定镜头过渡"""
+        transition_type = anchored_segment.transition_to_next.transition_type
+
+        # 根据内容类型调整过渡
+        if anchored_segment.base_segment.content_type == "emotional_reveal":
+            transition_type = "dissolve"
+            duration = 0.8
+        elif anchored_segment.base_segment.action_intensity > 1.5:
+            transition_type = "cut"
+            duration = 0.1
+        else:
+            duration = 0.3
+
+        return ShotTransition(
+            transition_type=transition_type,
+            duration=duration,
+            style="smooth",
+            timing_curve="ease_in_out"
+        )
+
+    def _extract_generation_hints(self, anchored_segment: AnchoredSegment) -> GenerationHints:
+        """提取生成提示"""
+        # 从视觉内容中提取关键词
+        content = anchored_segment.base_segment.visual_content.lower()
+
+        emphasis_keywords = []
+        avoid_keywords = ["blurry", "pixelated", "low quality"]
+
+        # 根据内容类型添加强调关键词
+        if "face" in content or "expression" in content:
+            emphasis_keywords.append("detailed facial expressions")
+            emphasis_keywords.append("clear eye contact")
+
+        if "hand" in content or "holding" in content:
+            emphasis_keywords.append("detailed hand gestures")
+            emphasis_keywords.append("natural hand movements")
+
+        # 从约束中提取
+        for constraint in anchored_segment.hard_constraints[:3]:
+            if constraint.priority >= 8:
+                # 从描述中提取关键词
+                words = constraint.description.split()
+                emphasis_keywords.extend(words[:3])
+
+        return GenerationHints(
+            emphasis_keywords=list(set(emphasis_keywords[:5])),  # 最多5个
+            avoid_keywords=avoid_keywords,
+            reference_styles=["cinematic realism", "photorealistic"],
+            visual_references=[],
+            technical_requirements={"consistency": "high", "detail": "ultra"}
+        )
+
+    def _create_alternate_angle_shot(self, base_shot: SoraShot,
+                                     anchored_segment: AnchoredSegment) -> SoraShot:
+        """创建备用角度镜头"""
+        # 创建副本
+        alternate = copy.deepcopy(base_shot)
+
+        # 修改ID
+        alternate.shot_id = alternate.shot_id.replace("shot1", "shot2")
+
+        # 修改相机参数
+        alternate.camera_parameters = self._get_alternate_angle(
+            alternate.camera_parameters
+        )
+
+        # 修改时间范围（接续）
+        start_time = alternate.time_range[1]
+        alternate.time_range = (start_time, start_time + alternate.duration)
+
+        # 修改提示词
+        alternate.full_sora_prompt = alternate.full_sora_prompt.replace(
+            "medium close-up", "over the shoulder shot"
+        )
+
+        return alternate
+
+    def _get_alternate_angle(self, camera_params: CameraParameters) -> CameraParameters:
+        """获取备用角度"""
+        alternate = copy.deepcopy(camera_params)
+
+        # 修改镜头大小
+        if alternate.shot_size in [ShotSize.MEDIUM_CLOSE_UP, ShotSize.CLOSE_UP]:
+            alternate.shot_size = ShotSize.MEDIUM_SHOT
+        elif alternate.shot_size == ShotSize.MEDIUM_SHOT:
+            alternate.shot_size = ShotSize.FULL_SHOT
+
+        # 修改相机高度
+        if alternate.camera_height == "eye_level":
+            alternate.camera_height = "low_angle"
+        else:
+            alternate.camera_height = "eye_level"
+
+        # 修改运动
+        if alternate.camera_movement == CameraMovement.SLOW_PUSH_IN:
+            alternate.camera_movement = CameraMovement.SLOW_PULL_OUT
+
+        return alternate
+
+    def _calculate_quality_metrics(self, shot_sequence: List[SoraShot],
+                                   satisfied_constraints: List[str],
+                                   violated_constraints: List[str]) -> Dict[str, Any]:
+        """计算质量指标"""
+        total_constraints = len(satisfied_constraints) + len(violated_constraints)
+
+        if total_constraints == 0:
+            constraint_satisfaction = 1.0
+        else:
+            constraint_satisfaction = len(satisfied_constraints) / total_constraints
+
+        # 计算视觉吸引力（基于启发式）
+        visual_appeal = 0.0
+        for shot in shot_sequence:
+            # 基于镜头多样性
+            appeal_factors = []
+
+            # 镜头大小多样性
+            shot_size_score = {
+                ShotSize.EXTREME_CLOSE_UP: 0.8,
+                ShotSize.CLOSE_UP: 0.9,
+                ShotSize.MEDIUM_CLOSE_UP: 0.8,
+                ShotSize.MEDIUM_SHOT: 0.7,
+                ShotSize.FULL_SHOT: 0.6,
+                ShotSize.WIDE_SHOT: 0.7,
+                ShotSize.EXTREME_WIDE_SHOT: 0.8
+            }.get(shot.camera_parameters.shot_size, 0.5)
+
+            # 运动多样性
+            movement_score = 0.5
+            if shot.camera_parameters.camera_movement != CameraMovement.STATIC:
+                movement_score = 0.8
+
+            # 内容类型得分
+            content_score = {
+                "dialogue_intimate": 0.7,
+                "action_fast": 0.9,
+                "emotional_reveal": 0.8,
+                "establishing_shot": 0.6
+            }.get(shot.content_type.value, 0.5)
+
+            # 综合得分
+            shot_appeal = (shot_size_score + movement_score + content_score) / 3
+            visual_appeal += shot_appeal
+
+        if shot_sequence:
+            visual_appeal /= len(shot_sequence)
+
+        # 检查潜在问题
+        warnings = []
+        suggestions = []
+
+        # 检查镜头重复
+        shot_sizes = [shot.camera_parameters.shot_size for shot in shot_sequence]
+        if len(set(shot_sizes)) < len(shot_sizes) * 0.7:  # 超过30%重复
+            warnings.append("镜头大小变化不足，可能导致视觉单调")
+            suggestions.append("尝试使用更多样的镜头大小，如特写、中景、全景交替")
+
+        # 检查过渡一致性
+        transition_types = [shot.transition_to_next.transition_type for shot in shot_sequence]
+        if "cut" in transition_types and "dissolve" in transition_types:
+            warnings.append("混合使用硬切和淡入淡出过渡，可能导致节奏不一致")
+            suggestions.append("统一过渡类型以获得更一致的节奏感")
+
+        return {
+            "constraint_satisfaction": constraint_satisfaction,
+            "visual_appeal_score": visual_appeal,
+            "style_consistency_score": 0.9,  # 由StyleManager提供
+            "warnings": warnings,
+            "suggestions": suggestions
+        }
+
+    def _generate_constraints_summary(self, anchored_segments: List[AnchoredSegment],
+                                      satisfied_constraints: List[str],
+                                      violated_constraints: List[str]) -> Dict[str, List[str]]:
+        """生成约束摘要"""
+        # 收集所有约束
+        all_constraints = []
+        for segment in anchored_segments:
+            for constraint in segment.hard_constraints:
+                all_constraints.append(constraint)
+
+        # 按类型分类
+        by_type = {}
+        for constraint in all_constraints:
+            if constraint.type not in by_type:
+                by_type[constraint.type] = []
+            by_type[constraint.type].append(constraint.constraint_id)
+
+        # 按优先级分类
+        high_priority = [c.constraint_id for c in all_constraints if c.priority >= 8]
+        medium_priority = [c.constraint_id for c in all_constraints if 5 <= c.priority < 8]
+        low_priority = [c.constraint_id for c in all_constraints if c.priority < 5]
+
+        return {
+            "satisfied_constraints": satisfied_constraints,
+            "violated_constraints": violated_constraints,
+            "by_type": by_type,
+            "high_priority": high_priority,
+            "medium_priority": medium_priority,
+            "low_priority": low_priority,
+            "total_constraints": len(all_constraints),
+            "satisfaction_rate": f"{len(satisfied_constraints) / max(1, len(all_constraints)):.2%}"
         }

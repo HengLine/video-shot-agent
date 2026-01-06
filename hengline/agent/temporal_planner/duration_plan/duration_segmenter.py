@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Tuple
 
 from hengline.logger import info, debug, warning
 from hengline.config.temporal_planner_config import SegmentConfig
-from ..temporal_planner_model import TimeSegment, TimelineEvent, DurationEstimation
+from ..temporal_planner_model import TimeSegment, TimelineEvent, DurationEstimation, ContentType
 from ...script_parser.script_parser_model import UnifiedScript
 
 
@@ -399,6 +399,10 @@ class DurationSegmenter:
             duration=duration,
             visual_content=visual_content,
             audio_content=audio_content,
+            content_type="dynamic",  # 默认类型
+            emotional_tone="neutral",  # 默认情绪
+            action_intensity=1.0,  # 默认动作强度
+            shot_complexity="medium",  # 默认复杂度
             events=[e.element_id for e in events if e.element_id],
             key_elements=key_elements,
             continuity_hooks=continuity_hooks,
@@ -935,3 +939,34 @@ class DurationSegmenter:
             添加了连续性锚点的分段列表
         """
         return segments
+
+    def infer_content_type(self, visual_content: str) -> ContentType:
+        """根据视觉内容推断内容类型"""
+        content = visual_content.lower()
+
+        # 关键词匹配
+        if any(word in content for word in ["said", "talked", "conversation"]):
+            return ContentType.DIALOGUE_INTIMATE
+        elif any(word in content for word in ["run", "chase", "fight"]):
+            return ContentType.ACTION_FAST
+        elif any(word in content for word in ["tear", "cry", "smile happily"]):
+            return ContentType.EMOTIONAL_REVEAL
+        elif any(word in content for word in ["establishing", "overview", "panorama"]):
+            return ContentType.ESTABLISHING_SHOT
+
+        return ContentType.DIALOGUE_INTIMATE  # 默认
+
+    def calculate_action_intensity(self, visual_content: str) -> float:
+        """计算动作强度"""
+        intensity_keywords = {
+            "sitting": 1.0, "standing": 1.1, "walking": 1.5,
+            "running": 2.5, "fighting": 2.8, "jumping": 2.2,
+            "chasing": 2.7, "falling": 2.3
+        }
+
+        base_intensity = 1.0
+        for keyword, value in intensity_keywords.items():
+            if keyword in visual_content.lower():
+                base_intensity = max(base_intensity, value)
+
+        return base_intensity
