@@ -86,6 +86,7 @@ class TimeSegment:
 
     # 连续性
     continuity_hooks: Dict[str, Any] = field(default_factory=dict)
+    complexity_level: str = "medium"  # low | medium | high
 
     # 节奏
     pacing: str = "normal"  # slow | normal | fast | varying

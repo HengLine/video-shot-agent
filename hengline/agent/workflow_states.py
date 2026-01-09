@@ -7,7 +7,10 @@
 """
 from typing import Dict, List, Any, Optional, TypedDict
 
+from hengline.agent.continuity_guardian.model.continuity_guardian_report import AnchoredTimeline
 from hengline.agent.script_parser.script_parser_model import UnifiedScript
+from hengline.agent.shot_generator.model.shot_models import SoraShot
+from hengline.agent.temporal_planner.temporal_planner_model import TimeSegment, TimelinePlan
 from hengline.agent.workflow_models import VideoStyle
 
 
@@ -29,18 +32,18 @@ class ScriptParsingState(TypedDict):
 
 class TimelinePlanningState(TypedDict):
     """时间线规划相关状态"""
-    segments: Optional[List[Dict[str, Any]]]  # 时间线分段
+    segments: Optional[List[TimelinePlan]]  # 时间线分段
     current_segment_index: int  # 当前处理的分段索引
 
 
 class ShotGenerationState(TypedDict):
     """分镜生成相关状态"""
-    shots: List[Dict[str, Any]]  # 已生成的分镜列表
-    current_continuity_state: Optional[Dict[str, Any]]  # 当前连续性状态
+    shots: List[SoraShot]  # 已生成的分镜列表
+    current_continuity_state: Optional[AnchoredTimeline]  # 当前连续性状态
     retry_count: int  # 重试次数
     max_retries: int  # 最大重试次数
-    current_segment: Optional[Dict[str, Any]]  # 当前处理的分段
-    current_shot: Optional[Dict[str, Any]]  # 当前生成的分镜
+    current_segment: Optional[TimeSegment]  # 当前处理的分段
+    current_shot: Optional[SoraShot]  # 当前生成的分镜
 
 
 class ReviewState(TypedDict):

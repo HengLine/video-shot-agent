@@ -166,4 +166,4 @@ class AnchoredTimeline:
     auto_fixes: List[AutoFix]
 
     # 质量指标
-    continuity_score: float  # 0-1，连贯性评分
+    continuity_score: float = 0  # 0-1，连贯性评分

@@ -43,6 +43,12 @@ class GuardianConfig:
     enable_auto_fix: bool = True
     max_auto_fix_attempts: int = 3
 
+    enable_state_tracking: bool = True
+    enable_learning: bool = False
+    strict_mode: bool = False
+    max_issues_per_scene: int = 50
+    check_interval_frames: int = 1
+
     # 性能配置
     max_state_history: int = 1000
     cache_size: int = 100

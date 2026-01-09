@@ -15,6 +15,8 @@ import numpy as np
 from .continuity_guardian.continuity_guardian_manager import IntegratedContinuityGuardian
 from .continuity_guardian.model.continuity_guard_guardian import GuardianConfig, AnalysisDepth, GuardMode
 from hengline.logger import info, error, debug
+from .continuity_guardian.model.continuity_guardian_report import AnchoredTimeline
+from .temporal_planner.temporal_planner_model import TimelinePlan
 
 
 class ContinuityGuardianAgent:
@@ -75,12 +77,12 @@ class ContinuityGuardianAgent:
             info("连续性守护智能体初始化完成")
         return self
 
-    def process(self, frame_data: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, plan: TimelinePlan) -> AnchoredTimeline:
         """
         处理单个视频帧/场景
 
         Args:
-            frame_data: 帧数据，包含场景信息
+            plan: 帧数据，包含场景信息
 
         Returns:
             处理结果字典
@@ -90,7 +92,7 @@ class ContinuityGuardianAgent:
 
         try:
             # 调用集成守护器处理场景
-            result = self.guardian.process_scene(frame_data)
+            result = self.guardian.process_scene(plan)
 
             # 添加智能体标识
             result["agent_info"] = {
@@ -103,14 +105,14 @@ class ContinuityGuardianAgent:
 
         except Exception as e:
             error(f"处理帧数据失败: {e}")
-            return self._create_error_response(frame_data, str(e))
+            return self._create_error_response(plan, str(e))
 
-    def process_sequence(self, frame_sequence: List[Dict]) -> Dict[str, Any]:
+    def process_sequence(self, plans: List[TimelinePlan]) -> Dict[str, Any]:
         """
         处理帧序列
 
         Args:
-            frame_sequence: 帧序列列表
+            plans: 帧序列列表
 
         Returns:
             序列处理结果
@@ -119,7 +121,7 @@ class ContinuityGuardianAgent:
             self.initialize()
 
         sequence_results = {
-            "total_frames": len(frame_sequence),
+            "total_frames": len(plans),
             "processed_frames": 0,
             "frame_results": [],
             "sequence_summary": {},
@@ -128,14 +130,14 @@ class ContinuityGuardianAgent:
             "recommendations": []
         }
 
-        for i, frame_data in enumerate(frame_sequence):
+        for i, frame_data in enumerate(plans):
             try:
                 frame_result = self.process(frame_data)
                 sequence_results["frame_results"].append(frame_result)
                 sequence_results["processed_frames"] += 1
 
                 # 收集问题
-                if frame_result.get("continuity_report"):
+                if frame_result.c.get("continuity_report"):
                     issues = self._extract_issues_from_report(frame_result["continuity_report"])
                     if issues:
                         sequence_results["issues_by_frame"].append({
@@ -144,7 +146,7 @@ class ContinuityGuardianAgent:
                             "issues": issues
                         })
 
-                info(f"序列处理进度: {i + 1}/{len(frame_sequence)}")
+                info(f"序列处理进度: {i + 1}/{len(plans)}")
 
             except Exception as e:
                 error(f"处理序列第{i}帧失败: {e}")
@@ -371,21 +373,12 @@ class ContinuityGuardianAgent:
         self.initialize()
 
     # 辅助方法
-    def _create_error_response(self, frame_data: Dict, error_message: str) -> Dict[str, Any]:
+    def _create_error_response(self, plan: TimelinePlan, error_message: str) -> AnchoredTimeline:
         """创建错误响应"""
-        return {
-            "success": False,
-            "error": error_message,
-            "frame_data": {
-                "scene_id": frame_data.get("scene_id", "unknown"),
-                "frame_number": frame_data.get("frame_number", "unknown")
-            },
-            "timestamp": datetime.now().isoformat(),
-            "agent_info": {
-                "agent_version": "1.0.0",
-                "task_id": self.task_id
-            }
-        }
+        return AnchoredTimeline(
+            anchored_segments=plan.timeline_segments
+        )
+
 
     def _extract_issues_from_report(self, report_data: Any) -> List[Dict]:
         """从报告中提取问题"""

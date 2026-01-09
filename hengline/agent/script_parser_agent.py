@@ -15,11 +15,11 @@ from .script_parser.natural_language_parser import NaturalLanguageParser
 from .script_parser.screenplay_format_parser import ScreenplayFormatParser
 from .script_parser.script_parser_model import UnifiedScript
 from .script_parser.structured_scene_parser import StructuredSceneParser
-from .workflow_models import ScriptType
+from .workflow_models import ScriptType, AIBaseAgent
 from ..tools.script_validation_tool import BasicScriptValidator
 
 
-class ScriptParserAgent:
+class ScriptParserAgent(AIBaseAgent):
     """优化版剧本解析智能体"""
 
     def __init__(self, llm):
