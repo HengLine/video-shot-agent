@@ -7,8 +7,8 @@
 from typing import Dict, Any, Optional
 
 from hengline.agent import MultiAgentPipeline
-from hengline.agent.workflow_models import VideoStyle
-from hengline.client.client_factory import get_llm_client
+from hengline.agent.workflow.workflow_models import VideoStyle
+from hengline.client.llm.client_factory import get_default_llm
 
 
 # 对外暴露的主函数，供 LangGraph 或 A2A 调用
@@ -35,7 +35,7 @@ def generate_storyboard(
         包含分镜列表的完整结果
     """
     # 创建并运行多智能体管道
-    pipeline = MultiAgentPipeline(llm=llm if llm else get_llm_client(), task_id=task_id)
+    pipeline = MultiAgentPipeline(llm=llm if llm else get_default_llm(), task_id=task_id)
     return pipeline.run_pipeline(
         script_text=script_text,
         style=style,
