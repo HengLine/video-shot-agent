@@ -159,7 +159,7 @@ def _update_ai_config_from_env(config: Dict[str, Any]) -> None:
     
     # 加载特定提供商的模型配置
     if os.environ.get(model_env_var):
-        ai_config["default_model"] = os.environ[model_env_var]
+        ai_config["model_name"] = os.environ[model_env_var]
     
     # 加载特定提供商的备用模型配置（可选）
     if os.environ.get(fallback_model_env_var):
@@ -218,7 +218,7 @@ def _update_embedding_config_from_env(config: Dict[str, Any]) -> None:
     
     # 基础配置
     if "EMBEDDING_MODEL" in os.environ:
-        embedding_config["model"] = os.environ["EMBEDDING_MODEL"]
+        embedding_config["model_name"] = os.environ["EMBEDDING_MODEL"]
     
     if "EMBEDDING_BASE_URL" in os.environ:
         embedding_config["base_url"] = os.environ["EMBEDDING_BASE_URL"]

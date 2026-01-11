@@ -14,8 +14,7 @@
     "base_url": "https://api.openai.com/v1",
     "api_key": "",
     "timeout": 60,
-    "default_model": "gpt-4o",
-    "fallback_model": "gpt-3.5-turbo",
+    "model_name": "gpt-4o",
     "response_format": "json_object",
     "temperature": 0.1,
     "max_tokens": 2000,
@@ -41,7 +40,7 @@
     "provider": "openai",
     "base_url": "https://api.openai.com/v1",
     "api_key": "",
-    "model": "text-embedding-3-small",
+    "model_name": "text-embedding-3-small",
     "dimensions": 1536,
     "timeout": 60,
     "retry_count": 3
