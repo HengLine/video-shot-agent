@@ -13,57 +13,10 @@ from typing import Dict, List, Optional, Any, Tuple
 
 from llama_index.core.schema import Document
 
+from hengline.agent.script_parser.script_parser_models import Character, Scene, Action
 from hengline.logger import debug, info, error
 from utils.log_utils import print_log_exception
 
-
-@dataclass
-class SceneElement:
-    """
-    场景元素
-    """
-    type: str  # 元素类型: scene_heading, action, dialogue, parenthetical, transition
-    content: str  # 内容
-    start_line: int  # 开始行号
-    end_line: int  # 结束行号
-    metadata: Optional[Dict[str, Any]] = None  # 额外元数据
-
-
-@dataclass
-class Character:
-    """
-    角色信息
-    """
-    name: str  # 角色名称
-    dialogue_count: int = 0  # 对话次数
-    first_appearance: int = 0  # 首次出现行号
-    scenes: List[str] = None  # 出现的场景列表
-    metadata: Optional[Dict[str, Any]] = None  # 额外元数据
-
-    def __post_init__(self):
-        if self.scenes is None:
-            self.scenes = []
-
-
-@dataclass
-class Scene:
-    """
-    场景信息
-    """
-    heading: str  # 场景标题
-    number: Optional[int] = None  # 场景编号
-    location: Optional[str] = None  # 地点
-    time_of_day: Optional[str] = None  # 时间
-    elements: List[SceneElement] = None  # 场景元素列表
-    start_line: int = 0  # 开始行号
-    end_line: int = 0  # 结束行号
-    characters: List[str] = None  # 出场角色列表
-
-    def __post_init__(self):
-        if self.elements is None:
-            self.elements = []
-        if self.characters is None:
-            self.characters = []
 
 
 class ScriptParserTool:
@@ -85,9 +38,6 @@ class ScriptParserTool:
             custom_patterns: 自定义正则表达式模式字典
         """
         self.custom_patterns = custom_patterns or {}
-        self.scenes = []
-        self.characters = {}
-        self.elements = []
 
     def parse(self, script_text: str) -> Dict[str, Any]:
         """
@@ -271,7 +221,7 @@ class ScriptParserTool:
                             current_scene.elements.append(current_element)
                         self.elements.append(current_element)
 
-                    current_element = SceneElement(
+                    current_element = Action(
                         type="action",
                         content=line,
                         start_line=line_num,

@@ -19,7 +19,7 @@ from llama_index.core.schema import Document
 from llama_index.core.vector_stores import SimpleVectorStore
 
 from hengline.logger import debug, info, error, warning
-from .script_parser_tool import ScriptParserTool, parse_script_to_documents, parse_script_file_to_documents
+from hengline.tools.script_parser_tool import parse_script_to_documents, parse_script_file_to_documents
 
 
 class ScriptKnowledgeBase:
@@ -46,7 +46,6 @@ class ScriptKnowledgeBase:
         self.storage_dir = storage_dir
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self.parser = ScriptParserTool()
 
         # 知识库组件
         self.index = None

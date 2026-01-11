@@ -7,8 +7,8 @@
 import re
 from typing import List, Dict
 
-from hengline.logger import debug
-from hengline.agent.script_parser.script_parser_model import UnifiedScript
+from hengline.logger import debug, error
+from hengline.agent.script_parser.script_parser_models import UnifiedScript
 
 
 class BasicScriptValidator:
@@ -20,23 +20,32 @@ class BasicScriptValidator:
 
         返回：(是否有效, 问题列表)
         """
-        issues = []
+        try:
+            issues = []
 
-        # 1. 结构完整性验证
-        issues.extend(self._validate_structure(unified_script))
+            # 1. 结构完整性验证
+            issues.extend(self._validate_structure(unified_script))
 
-        # 2. 数据一致性验证
-        issues.extend(self._validate_consistency(unified_script))
+            # 2. 数据一致性验证
+            issues.extend(self._validate_consistency(unified_script))
 
-        # 3. 引用完整性验证
-        issues.extend(self._validate_references(unified_script))
+            # 3. 引用完整性验证
+            issues.extend(self._validate_references(unified_script))
 
-        # 4. 内容合理性验证
-        issues.extend(self._validate_content_reasonableness(unified_script))
+            # 4. 内容合理性验证
+            issues.extend(self._validate_content_reasonableness(unified_script))
 
-        is_valid = len([i for i in issues if i["severity"] == "error"]) == 0
+            is_valid = len([i for i in issues if i["severity"] == "error"]) == 0
 
-        return is_valid, issues
+            return is_valid, issues
+        except Exception as e:
+            error(f"剧本验证异常: {e}")
+            return False, [{
+                "type": "validation_exception",
+                "severity": "error",
+                "message": f"剧本验证过程中发生异常: {e}",
+                "suggestion": "请检查剧本内容或联系技术支持"
+            }]
 
     def _validate_structure(self, script: UnifiedScript) -> List[Dict]:
         """验证基础结构"""
@@ -78,6 +87,7 @@ class BasicScriptValidator:
         issues = []
 
         if not hasattr(script, "scenes") or not script.scenes:
+            debug("跳过一致性验证，因无场景数据")
             return issues
 
         # 1. 角色一致性验证

@@ -6,14 +6,14 @@
 @Time: 2025/10 - 2025/11
 """
 import json
-from typing import List, Dict, Any, Optional
 from pathlib import Path
+from typing import List, Dict, Any, Optional
 
+from langchain.docstore.document import Document
 from langchain.memory import VectorStoreRetrieverMemory
 from langchain_community.vectorstores import Chroma
-from langchain.docstore.document import Document
 
-from hengline.client.embedding_client import get_embedding_client
+from hengline.client.client_factory import get_default_embedding_client
 from hengline.logger import debug, warning, error
 from utils.log_utils import print_log_exception
 
@@ -31,17 +31,17 @@ class LangChainMemoryTool:
         # 默认配置路径
         self.config_path = Path(__file__).parent.parent / "config" / "langchain_memory_config.yaml"
         self.config = self._load_config()
-        
+
         # 默认使用内存模式
         self.use_memory_mode = True
         self._memory_store = []
         self.embeddings = None
-        
+
         try:
             # 初始化嵌入模型
             debug("开始初始化嵌入模型...")
-            self.embeddings = get_embedding_client()
-            
+            self.embeddings = get_default_embedding_client()
+
             if not self.embeddings:
                 debug("嵌入模型为None")
             else:
@@ -51,20 +51,20 @@ class LangChainMemoryTool:
                     debug(f"嵌入模型名称: {self.embeddings.model_name}")
                 elif hasattr(self.embeddings, 'model'):
                     debug(f"嵌入模型名称: {self.embeddings.model}")
-            
+
             # 检查嵌入模型是否兼容
             compatibility = False
             if self.embeddings:
                 debug("开始检查嵌入模型兼容性...")
                 compatibility = self._is_embeddings_compatible(self.embeddings)
                 debug(f"嵌入模型兼容性检查结果: {compatibility}")
-                
+
                 # 验证适配器是否成功添加
                 if compatibility:
                     has_doc = hasattr(self.embeddings, 'embed_documents')
                     has_query = hasattr(self.embeddings, 'embed_query')
                     debug(f"嵌入模型适配器状态 - embed_documents: {has_doc}, embed_query: {has_query}")
-            
+
             if self.embeddings and compatibility:
                 try:
                     # 确保chromadb可用
@@ -75,17 +75,17 @@ class LangChainMemoryTool:
                     except ImportError:
                         warning("尝试使用chromadb，但未安装")
                         return
-                    
+
                     # 初始化向量存储
                     debug("开始初始化向量存储...")
                     self.vectorstore = self._initialize_vectorstore()
                     debug("向量存储初始化成功")
-                    
+
                     # 初始化记忆检索器
                     debug("开始初始化记忆检索器...")
                     self.memory = self._initialize_memory()
                     debug("记忆检索器初始化成功")
-                    
+
                     self.use_memory_mode = False
                     debug("成功切换到向量存储模式")
                 except ImportError as e:
@@ -108,9 +108,9 @@ class LangChainMemoryTool:
         except Exception as e:
             debug(f"整体初始化异常: {type(e).__name__}: {e}")
             warning(f"初始化过程发生错误: {e}，将使用简化的内存模式")
-        
+
         debug(f"LangChain记忆工具初始化完成 (模式: {'内存' if self.use_memory_mode else '向量存储'})")
-        
+
     def _is_embeddings_compatible(self, embeddings) -> bool:
         """
         检查嵌入模型是否兼容
@@ -134,15 +134,15 @@ class LangChainMemoryTool:
             else:
                 warning("创建llama_index的OllamaEmbedding适配器失败")
                 return False
-        
+
         # 检查必要的方法是否存在
         required_methods = ['embed_documents', 'embed_query']
         missing_methods = []
-        
+
         for method in required_methods:
             if not hasattr(embeddings, method):
                 missing_methods.append(method)
-        
+
         # 如果有缺失的方法，尝试添加通用适配器
         if missing_methods:
             warning(f"嵌入模型缺少方法: {missing_methods}，尝试添加通用适配器")
@@ -152,18 +152,18 @@ class LangChainMemoryTool:
             for method in required_methods:
                 if not hasattr(embeddings, method):
                     new_missing_methods.append(method)
-            
+
             if not new_missing_methods:
                 debug("适配器添加成功，所有必要方法已可用")
                 return True
             else:
                 warning(f"适配器添加失败，仍缺少方法: {new_missing_methods}")
                 return False
-        
+
         # 如果所有方法都存在，直接返回兼容
         debug("嵌入模型已包含所有必要方法")
         return True
-        
+
     def _add_llama_index_embeddings_adapter(self, embeddings):
         """
         为llama_index的OllamaEmbedding创建包装类适配器
@@ -174,6 +174,7 @@ class LangChainMemoryTool:
         Returns:
             包装后的嵌入模型对象
         """
+
         # 创建一个包装类，而不是尝试修改原始对象
         class OllamaEmbeddingsWrapper:
             def __init__(self, original_embeddings):
@@ -182,7 +183,7 @@ class LangChainMemoryTool:
                 for attr in dir(original_embeddings):
                     if not attr.startswith('__') and not callable(getattr(original_embeddings, attr)):
                         setattr(self, attr, getattr(original_embeddings, attr))
-            
+
             def embed_documents(self, documents):
                 results = []
                 for doc in documents:
@@ -195,7 +196,7 @@ class LangChainMemoryTool:
                         else:
                             # 尝试直接调用嵌入对象，有些实现支持这种方式
                             embedding = self.original_embeddings(doc)
-                        
+
                         # 确保返回的是列表
                         if isinstance(embedding, list):
                             # 检查是否为空列表
@@ -226,7 +227,7 @@ class LangChainMemoryTool:
                         # 使用适当维度的空向量作为后备
                         results.append([0.0] * 1024)
                 return results
-            
+
             def embed_query(self, query):
                 if not query or not isinstance(query, str):
                     # raise ValueError("查询文本不能为空且必须为字符串")
@@ -240,7 +241,7 @@ class LangChainMemoryTool:
                     else:
                         # 尝试直接调用嵌入对象
                         embedding = self.original_embeddings(query)
-                    
+
                     # 确保返回的是列表
                     if isinstance(embedding, list):
                         # 检查是否为空列表
@@ -269,12 +270,12 @@ class LangChainMemoryTool:
                     error(f"生成查询嵌入失败: {e}")
                     # 使用适当维度的空向量作为后备
                     return [0.0] * 1024
-        
+
         # 返回包装后的对象
         wrapper = OllamaEmbeddingsWrapper(embeddings)
         debug("已成功创建llama_index的OllamaEmbedding包装类适配器")
         return wrapper
-        
+
     def _add_generic_embeddings_adapter(self, embeddings):
         """
         为其他不兼容的嵌入模型添加通用适配器
@@ -282,6 +283,7 @@ class LangChainMemoryTool:
         Args:
             embeddings: 需要适配的嵌入模型实例
         """
+
         # 为嵌入模型添加embed_documents方法
         def embed_documents(documents):
             results = []
@@ -296,10 +298,10 @@ class LangChainMemoryTool:
                             embedding = embeddings(doc)
                         except Exception:
                             pass
-                    
+
                     if embedding is None:
                         raise ValueError("无法找到可用的嵌入方法")
-                    
+
                     # 确保返回的是列表
                     if isinstance(embedding, list):
                         # 检查是否为空列表
@@ -330,7 +332,7 @@ class LangChainMemoryTool:
                     # 使用默认维度的空向量作为后备
                     results.append([0.0] * 1024)
             return results
-        
+
         # 添加embed_query方法
         def embed_query(query):
             try:
@@ -343,10 +345,10 @@ class LangChainMemoryTool:
                         embedding = embeddings(query)
                     except Exception:
                         pass
-                
+
                 if embedding is None:
                     raise ValueError("无法找到可用的嵌入方法")
-                
+
                 # 确保返回的是列表
                 if isinstance(embedding, list):
                     # 检查是否为空列表
@@ -375,7 +377,7 @@ class LangChainMemoryTool:
                 error(f"生成查询嵌入失败: {e}")
                 # 使用默认维度的空向量作为后备
                 return [0.0] * 1024
-        
+
         # 动态添加方法
         embeddings.embed_documents = embed_documents
         embeddings.embed_query = embed_query
@@ -412,7 +414,7 @@ class LangChainMemoryTool:
                         return config
             except Exception as e:
                 warning(f"加载配置文件失败: {e}，使用默认配置")
-        
+
         return default_config
 
     def _initialize_vectorstore(self) -> Chroma:
@@ -425,7 +427,7 @@ class LangChainMemoryTool:
         try:
             # 从配置中获取持久化目录
             persist_directory = self.config.get("vector_store", {}).get("persist_directory", "./vectorstore_db")
-            
+
             # 创建或加载向量存储
             vectorstore = Chroma(
                 persist_directory=persist_directory,
@@ -447,7 +449,7 @@ class LangChainMemoryTool:
         """
         # 从配置中获取检索参数
         search_kwargs = self.config.get("retrieval", {}).get("search_kwargs", {"k": 5})
-        
+
         retriever = self.vectorstore.as_retriever(
             search_kwargs=search_kwargs
         )
@@ -480,17 +482,17 @@ class LangChainMemoryTool:
         try:
             # 构建状态文本
             state_text = json.dumps(state, ensure_ascii=False)
-            
+
             # 添加上下文信息
             if context:
                 state_text = f"上下文: {context}\n状态: {state_text}"
-            
+
             # 使用内存模式
             if self.use_memory_mode:
                 # 确保_memory_store存在
                 if not hasattr(self, '_memory_store'):
                     self._memory_store = []
-                
+
                 self._memory_store.append({
                     "state": state,
                     "context": context,
@@ -498,21 +500,21 @@ class LangChainMemoryTool:
                 })
                 debug(f"内存模式 - 成功存储状态: {state.get('action', '未知动作')}")
                 return True
-            
+
             # 向量存储模式
             try:
                 # 获取输入键名
                 input_key = self.config.get("memory_keys", {}).get("input_key", "input")
-                
+
                 # 存储到向量数据库
                 input_data = {input_key: state_text}
                 if hasattr(self, 'memory') and self.memory:
                     self.memory.save_context(input_data, {})
-                    
+
                     # 检查是否需要自动持久化
                     if self.config.get("state_storage", {}).get("auto_persist", True):
                         self.persist_memory()
-                    
+
                     debug(f"成功存储状态: {state.get('action', '未知动作')}")
                     return True
                 else:
@@ -554,7 +556,7 @@ class LangChainMemoryTool:
                         results = results[:k]
                 debug(f"内存模式 - 检索到 {len(results)} 个相似状态")
                 return results
-            
+
             # 向量存储模式
             try:
                 # 检查必要属性
@@ -564,10 +566,10 @@ class LangChainMemoryTool:
                 if not hasattr(self, 'vectorstore'):
                     error("vectorstore属性不存在")
                     return []
-                
+
                 # 获取当前配置的k值
                 original_k = self.config.get("retrieval", {}).get("search_kwargs", {}).get("k", 5)
-                
+
                 # 使用自定义的k值，如果提供
                 if k:
                     self.config.setdefault("retrieval", {}).setdefault("search_kwargs", {})["k"] = k
@@ -575,11 +577,11 @@ class LangChainMemoryTool:
                         search_kwargs=self.config.get("retrieval", {}).get("search_kwargs", {})
                     )
                     self.memory.retriever = retriever
-                
+
                 # 检索相似状态
                 input_key = self.config.get("memory_keys", {}).get("input_key", "input")
                 similar_states = self.memory.load_memory_variables({input_key: query})
-                
+
                 # 恢复原始k值
                 if k:
                     self.config.setdefault("retrieval", {}).setdefault("search_kwargs", {})["k"] = original_k
@@ -587,7 +589,7 @@ class LangChainMemoryTool:
                         search_kwargs=self.config.get("retrieval", {}).get("search_kwargs", {})
                     )
                     self.memory.retriever = retriever
-                
+
                 # 处理返回的文档
                 results = []
                 memory_key = self.config.get("memory_keys", {}).get("memory_key", "history")
@@ -603,7 +605,7 @@ class LangChainMemoryTool:
                                 results.append({"content": str(doc)})
                     else:
                         results.append({"content": str(similar_states[memory_key])})
-                
+
                 debug(f"检索到 {len(results)} 个相似状态")
                 return results
             except Exception as inner_e:
@@ -628,7 +630,7 @@ class LangChainMemoryTool:
             if self.use_memory_mode:
                 suggestions = []
                 current_action = current_state.get("action", "").lower()
-                
+
                 # 确保_memory_store存在
                 if hasattr(self, '_memory_store'):
                     for item in self._memory_store:
@@ -639,20 +641,20 @@ class LangChainMemoryTool:
                                 "state": item["state"],
                                 "score": 1.0
                             })
-                
+
                 debug(f"内存模式 - 生成了 {len(suggestions)} 个状态转换建议")
                 return suggestions
-            
+
             # 向量存储模式
             try:
                 # 构建查询
                 current_action = current_state.get("action", "")
                 current_emotion = current_state.get("emotion", "")
                 query = f"从'{current_action}'动作和'{current_emotion}'情绪的状态转换"
-                
+
                 # 检索相似的状态转换
                 similar_transitions = self.retrieve_similar_states(query)
-                
+
                 # 处理结果，提取可能的下一个状态
                 suggestions = []
                 for transition in similar_transitions:
@@ -704,7 +706,7 @@ class LangChainMemoryTool:
 
                 # 按分数排序
                 suggestions.sort(key=lambda x: x["score"], reverse=True)
-                
+
                 debug(f"生成了 {len(suggestions)} 个状态转换建议")
                 return suggestions
             except Exception as inner_e:
@@ -728,7 +730,7 @@ class LangChainMemoryTool:
                     self._memory_store = []
                     debug("内存模式 - 记忆已清空")
                 return True
-            
+
             # 向量存储模式
             try:
                 # 重新初始化向量存储
@@ -754,7 +756,7 @@ class LangChainMemoryTool:
         if self.use_memory_mode:
             debug("内存模式不需要持久化")
             return True
-            
+
         try:
             # 检查vectorstore是否存在
             if hasattr(self, 'vectorstore') and hasattr(self.vectorstore, "persist"):

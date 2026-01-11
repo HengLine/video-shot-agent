@@ -8,17 +8,19 @@ JSON响应解析工具模块
 import json
 import re
 from typing import Dict, Any, Optional, Union
+
 from hengline.logger import debug, info, warning, error
 from utils.log_utils import print_log_exception
+
 
 class JsonResponseParser:
     """
     JSON响应解析器
     负责从LLM响应中提取和解析JSON数据，处理各种格式的响应
     """
-    
+
     @staticmethod
-    def extract_json(response: Union[str, Any]) -> Dict[str, Any]:
+    def extract_json(response: Union[str, Any]) -> dict[str, Any] | None:
         """
         从LLM响应中提取JSON数据
         支持直接JSON响应和Markdown代码块中的JSON
@@ -37,14 +39,14 @@ class JsonResponseParser:
             response_text = response.content
         else:
             response_text = str(response)
-        
+
         # 确保response_text是字符串
         response_text = str(response_text).strip()
-        
+
         # 检查响应是否为空
         if not response_text:
             raise json.JSONDecodeError("LLM响应为空", "", 0)
-        
+
         # 尝试直接解析JSON
         try:
             debug("尝试直接解析JSON响应")
@@ -67,8 +69,14 @@ class JsonResponseParser:
                     return result
                 except json.JSONDecodeError:
                     error(f"所有Json解析尝试都失败: {cleaned_text}")
-                    raise
-    
+                    # 尝试从文本中提取JSON
+                    json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                    if json_match:
+                        try:
+                            return json.loads(json_match.group())
+                        except:
+                            raise
+
     @staticmethod
     def _extract_from_markdown_codeblock(text: str) -> Dict[str, Any]:
         """
@@ -98,7 +106,7 @@ class JsonResponseParser:
                 potential_json = text[start_idx:end_idx]
                 return json.loads(potential_json)
             raise json.JSONDecodeError("未找到Markdown代码块或JSON内容", text, 0)
-    
+
     @staticmethod
     def _clean_response_text(text: str) -> str:
         """
@@ -113,7 +121,7 @@ class JsonResponseParser:
         # 移除可能的前缀
         if text.startswith(("response:", "输出:", "result:", "答案:", "回复:")):
             text = ':'.join(text.split(':', 1)[1]).strip()
-        
+
         # 移除可能的注释前缀
         lines = text.split('\n')
         cleaned_lines = []
@@ -125,17 +133,17 @@ class JsonResponseParser:
             stripped = line.strip()
             if not (stripped.startswith("//") or stripped.startswith("#") or stripped.startswith("/*")):
                 cleaned_lines.append(line)
-        
+
         cleaned_text = '\n'.join(cleaned_lines)
-        
+
         # 尝试提取第一个{到最后一个}之间的内容
         if '{' in cleaned_text and '}' in cleaned_text:
             start_idx = cleaned_text.find('{')
             end_idx = cleaned_text.rfind('}') + 1
             cleaned_text = cleaned_text[start_idx:end_idx]
-        
+
         return cleaned_text
-    
+
     @classmethod
     def parse_with_fallback(cls, response: Union[str, Any], fallback_value: Any = None) -> Dict[str, Any]:
         """
@@ -156,7 +164,7 @@ class JsonResponseParser:
             # debug(f"原始响应文本: {str(response)[:200]}...")  # 记录部分原始响应用于调试
             debug(f"原始响应文本: {str(response)}")  # 记录部分原始响应用于调试
             return fallback_value if fallback_value is not None else {}
-    
+
     @classmethod
     def validate_json_structure(cls, json_data: Dict[str, Any], required_fields: list = None) -> bool:
         """
@@ -171,12 +179,12 @@ class JsonResponseParser:
         """
         if required_fields is None:
             required_fields = []
-            
+
         for field in required_fields:
             if field not in json_data:
                 warning(f"JSON验证失败：缺少必要字段 '{field}'")
                 return False
-                
+
         return True
 
 
