@@ -7,7 +7,7 @@
 from langchain_core.language_models import BaseLanguageModel
 from langchain_ollama import ChatOllama
 
-from base_client import BaseClient
+from hengline.client.llm.base_client import BaseClient
 from hengline.client.client_config import AIConfig
 
 

@@ -10,7 +10,7 @@ from typing import Dict, Type, List
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-from base_client import BaseClient
+from hengline.client.llm.base_client import BaseClient
 from hengline.client.client_config import ClientType, AIConfig
 from hengline.client.llm.deepseek_client import DeepSeekClient
 from hengline.client.llm.ollama_client import OllamaClient
