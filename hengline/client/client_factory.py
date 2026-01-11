@@ -4,18 +4,18 @@
 @Author: HengLine
 @Time: 2026/1/10 23:13
 """
-import os
 from typing import Dict, Type, List
 
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-from hengline.client.llm.base_client import BaseClient
+from config.config import get_ai_config, get_embedding_config
+from hengline.client.base_client import BaseClient
 from hengline.client.client_config import ClientType, AIConfig
-from hengline.client.llm.deepseek_client import DeepSeekClient
-from hengline.client.llm.ollama_client import OllamaClient
-from hengline.client.llm.openai_client import OpenAIClient
-from hengline.client.llm.qwen_client import QwenClient
+from hengline.client.deepseek_client import DeepSeekClient
+from hengline.client.ollama_client import OllamaClient
+from hengline.client.openai_client import OpenAIClient
+from hengline.client.qwen_client import QwenClient
 from hengline.logger import error, warning, info
 from utils.log_utils import print_log_exception
 
@@ -37,6 +37,7 @@ def get_supported_clients() -> Dict[ClientType, Type[BaseClient]]:
     return CLIENT_REGISTRY
 
 
+################################ 获取 LLM 客户端实例 #################################
 def get_client(provider: ClientType, config: AIConfig) -> BaseClient:
     """
     创建指定 LLM 客户端
@@ -55,20 +56,7 @@ def get_client(provider: ClientType, config: AIConfig) -> BaseClient:
     return client_class(config)
 
 
-def get_client_llm(provider: ClientType, config: AIConfig):
-    """
-    获取指定 LLM 客户端的语言模型实例
-
-    Args:
-        provider: 支持 'openai', 'ollama', 'deepseek', 'qwen'
-        config: 传递给具体客户端的参数（如 model, temperature, api_key 等）
-    Returns:
-        语言模型实例
-    """
-    client = get_client(provider, config)
-    return client.llm_model()
-
-def get_llm_client(provider: ClientType, **kwargs):
+def get_llm_client(provider: ClientType, config: AIConfig = None, **kwargs):
     """
     获取指定 LLM 客户端的语言模型实例
 
@@ -78,14 +66,10 @@ def get_llm_client(provider: ClientType, **kwargs):
     Returns:
         BaseClient 实例
     """
-    config = AIConfig(
-        model=kwargs.get('model', 'gpt-4o'),
-        api_key=kwargs.get("api_key", None),
-        temperature=kwargs.get("temperature", 0.1),
-        max_tokens=kwargs.get("max_tokens", 4000),
-    )
+    fin_config = _fill_default_config(config, **kwargs)
 
-    return get_client(provider, config).llm_model()
+    return get_client(provider, fin_config).llm_model()
+
 
 def get_default_llm(**kwargs):
     """
@@ -96,12 +80,10 @@ def get_default_llm(**kwargs):
     """
 
     try:
-        from config.config import get_ai_config
-
         # 获取配置
         ai_config = get_ai_config()
         provider = ai_config.get("provider", "openai").lower()
-        model = ai_config.get("default_model", "gpt-4o")
+        model = ai_config.get("model_name", "gpt-4o")
 
         info(f"使用AI提供商: {provider}, 模型: {model}")
 
@@ -112,13 +94,10 @@ def get_default_llm(**kwargs):
             max_tokens=ai_config.get("max_tokens", 4000),
         )
 
-        if kwargs:
-            for key, value in kwargs.items():
-                if hasattr(config, key) and value is not None:
-                    setattr(config, key, value)
+        fin_config = _fill_default_config(config, **kwargs)
 
         # 使用client_factory获取对应的LangChain LLM实例
-        client = get_client(ClientType.OLLAMA, config)
+        client = get_client(ClientType.OLLAMA, fin_config)
 
         if not client:
             warning(f"AI模型初始化失败（未能获取 {provider} 的LLM实例），系统将自动使用规则引擎模式继续工作")
@@ -127,6 +106,24 @@ def get_default_llm(**kwargs):
     except Exception as e:
         print_log_exception()
         error(f"AI模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
+
+
+def _fill_default_config(config: AIConfig = None, **kwargs) -> AIConfig:
+    """填充默认配置"""
+    config = config or AIConfig(
+        model=kwargs.get('model', 'gpt-4o'),
+        api_key=kwargs.get("api_key", None),
+        temperature=kwargs.get("temperature", 0.1),
+        max_tokens=kwargs.get("max_tokens", 4000),
+    )
+
+    if not kwargs:
+        return config
+
+    for key, value in kwargs.items():
+        if hasattr(config, key) and value is not None:
+            setattr(config, key, value)
+    return config
 
 
 def llm_chat_complete(llm: BaseLanguageModel, messages: List[Dict[str, str]]) -> str:
@@ -152,21 +149,84 @@ def _convert_messages(messages: List[Dict[str, str]]):
     return lc_messages
 
 
+
+################################# 获取嵌入模型实例 #################################
+def get_embedding_client(provider: ClientType, config: AIConfig):
+    """
+    获取指定 LLM 客户端的嵌入模型实例
+
+    Args:
+        provider: 支持 'openai', 'ollama', 'deepseek', 'qwen'
+        config: 传递给具体客户端的参数（如 model, temperature, api_key 等）
+    Returns:
+        嵌入模型实例
+    """
+    client = get_client(provider, config)
+    return client.llm_embed()
+
+def get_default_embedding_client(**kwargs):
+    """
+    获取默认的 LLM 客户端的嵌入模型实例（默认为 OpenAI）
+
+    Returns:
+        嵌入模型实例
+    """
+    try:
+        # 获取配置
+        ai_config = get_embedding_config()
+        provider = ai_config.get("provider", "openai").lower()
+        model = ai_config.get("model_name", "text-embedding-3-small")
+
+        info(f"使用AI提供商: {provider}, 嵌入模型: {model}")
+
+        config = AIConfig(
+            model=model,
+            api_key=ai_config.get("api_key", None),
+        )
+
+        fin_config = _fill_default_config(config, **kwargs)
+
+        # 使用client_factory获取对应的嵌入模型实例
+        client = get_client(ClientType.OPENAI, fin_config)
+
+        if not client:
+            warning(f"AI嵌入模型初始化失败（未能获取 {provider} 的嵌入实例），系统将自动使用规则引擎模式继续工作")
+
+        return client.llm_embed()
+    except Exception as e:
+        print_log_exception()
+        error(f"AI嵌入模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
+
+def embed_client_query(provider: ClientType, text: str, config: AIConfig = None, **kwargs) -> List[float]:
+    """
+    获取指定 LLM 客户端的文本嵌入向量
+
+    Args:
+        provider: 支持 'openai', 'ollama', 'deepseek', 'qwen'
+        config: 传递给具体客户端的参数（如 model, temperature, api_key 等）
+        text: 需要嵌入的文本
+    Returns:
+        文本嵌入向量
+    """
+    fin_config = _fill_default_config(config, **kwargs)
+
+    client = get_embedding_client(provider, fin_config)
+    return client.embed_query(text)
+
+
+
+
 if __name__ == '__main__':
     # 创建 OpenAI 客户端
-    llm = get_llm_client(ClientType.OPENAI, model="gpt-4o", api_key=os.getenv("OPENAI_API_KEY"))
-    response = llm.invoke("Hello, how are you?")
-    print(response.content)
+    # llm = get_llm_client(ClientType.OPENAI, model="gpt-4o", api_key=os.getenv("OPENAI_API_KEY"))
+    # response = llm.invoke("Hello, how are you?")
+    # print(response.content)
 
-###############################################
+    ###############################################
     # 创建 Ollama 客户端（假设本地运行 llama3.1）
-    config = AIConfig(
-        model="qwen3:4b",
-        temperature=0.2,
-    )
-    llm2 = get_client_llm(ClientType.OLLAMA, config)
+    llm2 = get_llm_client(ClientType.OLLAMA, model="qwen3:4b", temperature=0.2)
 
-    messages =  [
+    messages = [
         {"role": "system", "content": "你是一个专业的影视剧本解析分镜师，精通标准剧本格式，输出严格的JSON格式。"},
         {"role": "user",
          "content": "深夜11点，城市公寓客厅，窗外大雨滂沱。林然裹着旧羊毛毯蜷在沙发里，电视静音播放着黑白老电影。茶几上半杯凉茶已凝出水雾，旁边摊开一本旧相册。手机突然震动，屏幕亮起“未知号码”。她盯着看了三秒，指尖悬停在接听键上方，喉头轻轻滚动。终于，她按下接听，将手机贴到耳边。电话那头沉默两秒，传来一个沙哑的男声：“是我。”  林然的手指瞬间收紧，指节泛白，呼吸停滞了一瞬。  她声音微颤：“……陈默？你还好吗？”  对方停顿片刻，低声说：“我回来了。” 林然猛地坐直，瞳孔收缩，泪水在眼眶中打转。她张了张嘴，却发不出声音，只有毛毯从肩头滑落。”"}

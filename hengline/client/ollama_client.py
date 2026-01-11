@@ -4,10 +4,12 @@
 @Author: HengLine
 @Time: 2026/1/10 23:16
 """
-from langchain_core.language_models import BaseLanguageModel
-from langchain_ollama import ChatOllama
 
-from hengline.client.llm.base_client import BaseClient
+from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseLanguageModel
+from langchain_ollama import ChatOllama, OllamaEmbeddings
+
+from hengline.client.base_client import BaseClient
 from hengline.client.client_config import AIConfig
 
 
@@ -26,4 +28,10 @@ class OllamaClient(BaseClient):
             model=self.config.model,
             temperature=self.config.temperature,
             base_url=self.base_url,
+        )
+
+    def llm_embed(self) -> Embeddings:
+        return OllamaEmbeddings(
+            model=self.config.embedding_model,
+            base_url=self.base_url
         )

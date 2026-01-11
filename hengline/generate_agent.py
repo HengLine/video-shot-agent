@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 
 from hengline.agent import MultiAgentPipeline
 from hengline.agent.workflow.workflow_models import VideoStyle
-from hengline.client.llm.client_factory import get_default_llm
+from hengline.client.client_factory import get_default_llm
 
 
 # 对外暴露的主函数，供 LangGraph 或 A2A 调用

@@ -4,7 +4,7 @@
 @Author: HengLine
 @Time: 2026/1/11 16:31
 """
-from dataclasses import dataclass, Field
+from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Optional
 
@@ -27,8 +27,6 @@ class AIConfig:
     api_key: Optional[SecretStr] = None
     temperature: float = 0.2
     max_tokens: int = 4000
-    system_prompt: str = ""
     json_mode: bool = True  # 强制JSON输出
     timeout: int = 60  # 请求超时时间，单位秒
-
-
+    embedding_model: str = "text-embedding-3-small"

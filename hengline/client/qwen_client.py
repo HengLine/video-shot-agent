@@ -6,9 +6,11 @@
 """
 
 from langchain_community.chat_models import ChatTongyi  # Qwen via Tongyi
+from langchain_community.embeddings import DashScopeEmbeddings
+from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseLanguageModel
 
-from hengline.client.llm.base_client import BaseClient
+from hengline.client.base_client import BaseClient
 from hengline.client.client_config import AIConfig
 
 
@@ -28,6 +30,12 @@ class QwenClient(BaseClient):
             api_key=self.config.api_key,
             max_retries=3,
             streaming=False,
+        )
+
+    def llm_embed(self) -> Embeddings:
+        return DashScopeEmbeddings(
+            model=self.config.embedding_model,
+            dashscope_api_key=self.config.api_key
         )
 
     def _get_model_kwargs(self):
