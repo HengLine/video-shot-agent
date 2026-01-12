@@ -35,7 +35,7 @@ class OpenAIClient(BaseClient):
 
     def llm_embed(self) -> Embeddings:
         return OpenAIEmbeddings(
-            model=self.config.embedding_model,
+            model=self.config.model,
             api_key=self.config.api_key,
             base_url=self.base_url
         )

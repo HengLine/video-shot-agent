@@ -34,7 +34,7 @@ class QwenClient(BaseClient):
 
     def llm_embed(self) -> Embeddings:
         return DashScopeEmbeddings(
-            model=self.config.embedding_model,
+            model=self.config.model,
             dashscope_api_key=self.config.api_key
         )
 

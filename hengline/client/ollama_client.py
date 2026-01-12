@@ -25,13 +25,26 @@ class OllamaClient(BaseClient):
 
     def llm_model(self) -> BaseLanguageModel:
         return ChatOllama(
+            base_url=self.base_url,
             model=self.config.model,
             temperature=self.config.temperature,
-            base_url=self.base_url,
+            num_predict=self.config.max_tokens * 4,
+            keep_alive=self.config.timeout * 5,
+            num_thread=8,
+            client_kwargs=self._get_model_kwargs(),
         )
+
+    def _get_model_kwargs(self):
+        """返回模型参数字典"""
+        model_kwargs = {
+            # "top_p": config.top_p,
+            # "presence_penalty": config.presence_penalty,
+            # "frequency_penalty": config.frequency_penalty,
+        }
+        return model_kwargs
 
     def llm_embed(self) -> Embeddings:
         return OllamaEmbeddings(
-            model=self.config.embedding_model,
+            model=self.config.model,
             base_url=self.base_url
         )

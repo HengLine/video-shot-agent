@@ -18,6 +18,13 @@ class ClientType(Enum):
     DEEPSEEK = "deepseek"
     QWEN = "qwen"
 
+def get_client_type(client_type_str):
+    for client_type in ClientType:
+        if client_type.value == client_type_str.lower():
+            return client_type
+
+    raise ValueError(f"Invalid client_type: {client_type_str}")
+
 
 @dataclass
 class AIConfig:
@@ -25,8 +32,7 @@ class AIConfig:
     model: str = "gpt-4"  # 或 "claude-3", "deepseek-chat"
     # base_url: str = ""  # 用于本地部署或特定API端点
     api_key: Optional[SecretStr] = None
-    temperature: float = 0.2
-    max_tokens: int = 4000
+    temperature: float = 0.1
+    max_tokens: int = 5000
     json_mode: bool = True  # 强制JSON输出
     timeout: int = 60  # 请求超时时间，单位秒
-    embedding_model: str = "text-embedding-3-small"

@@ -11,7 +11,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 from config.config import get_ai_config, get_embedding_config
 from hengline.client.base_client import BaseClient
-from hengline.client.client_config import ClientType, AIConfig
+from hengline.client.client_config import ClientType, AIConfig, get_client_type
 from hengline.client.deepseek_client import DeepSeekClient
 from hengline.client.ollama_client import OllamaClient
 from hengline.client.openai_client import OpenAIClient
@@ -91,13 +91,13 @@ def get_default_llm(**kwargs):
             model=model,
             api_key=ai_config.get("api_key", None),
             temperature=ai_config.get("temperature", 0.1),
-            max_tokens=ai_config.get("max_tokens", 4000),
+            max_tokens=ai_config.get("max_tokens", 5000),
         )
 
         fin_config = _fill_default_config(config, **kwargs)
 
         # 使用client_factory获取对应的LangChain LLM实例
-        client = get_client(ClientType.OLLAMA, fin_config)
+        client = get_client(get_client_type(provider), fin_config)
 
         if not client:
             warning(f"AI模型初始化失败（未能获取 {provider} 的LLM实例），系统将自动使用规则引擎模式继续工作")
@@ -114,7 +114,7 @@ def _fill_default_config(config: AIConfig = None, **kwargs) -> AIConfig:
         model=kwargs.get('model', 'gpt-4o'),
         api_key=kwargs.get("api_key", None),
         temperature=kwargs.get("temperature", 0.1),
-        max_tokens=kwargs.get("max_tokens", 4000),
+        max_tokens=kwargs.get("max_tokens", 5000),
     )
 
     if not kwargs:
@@ -126,9 +126,9 @@ def _fill_default_config(config: AIConfig = None, **kwargs) -> AIConfig:
     return config
 
 
-def llm_chat_complete(llm: BaseLanguageModel, messages: List[Dict[str, str]]) -> str:
+def llm_chat_complete(llm: BaseLanguageModel, messages: List[Dict[str, str]], **kwargs) -> str:
     """ LLM 聊天接口封装 """
-    response = llm.invoke(_convert_messages(messages))
+    response = llm.invoke(_convert_messages(messages), **kwargs)
     return response.content
 
 
@@ -143,6 +143,7 @@ def _convert_messages(messages: List[Dict[str, str]]):
         elif role == "user":
             lc_messages.append(HumanMessage(content=content))
         elif role == "assistant":
+            # lc_messages.append(AIMessage(content=content, additional_kwargs={"tool_calls": []}))
             lc_messages.append(AIMessage(content=content))
         else:
             raise ValueError(f"Unsupported role: {role}")
@@ -187,7 +188,7 @@ def get_default_embedding_client(**kwargs):
         fin_config = _fill_default_config(config, **kwargs)
 
         # 使用client_factory获取对应的嵌入模型实例
-        client = get_client(ClientType.OPENAI, fin_config)
+        client = get_client(get_client_type(provider), fin_config)
 
         if not client:
             warning(f"AI嵌入模型初始化失败（未能获取 {provider} 的嵌入实例），系统将自动使用规则引擎模式继续工作")
