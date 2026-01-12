@@ -1,0 +1,161 @@
+# 剧本解析相关提示词模板
+version: "1.0"
+
+
+script_parser:
+  name: "base_script_parser_prompt"
+  description: "多格式剧本解析基础模板"
+  template: |
+    你是一个专业的剧本解析AI。请将输入的剧本内容解析为结构化的JSON格式（JSON 严格约束）。
+
+    输入剧本：
+      - natural_language：散文式描述（如“深夜，林然坐在沙发...”）
+      - standard_script：标准剧本格式（角色名居中，对白在下）
+      - dialogue_only：仅“角色: 台词”行
+      - ai_storyboard / structured_scene：含字段如 duration/shot/props
+      - mixed_format：多种风格混合
+    
+    输出格式：
+      - 仅输出纯 JSON
+      - 不要任何解释、注释、Markdown 或额外文本
+      - 确保可被 json.loads() 直接解析
+      - 顶层结构必须包含且仅包含以下字段：scenes, characters, dialogues, actions, props。无内容时用空数组 []
+    
+    请提取以下信息：
+     
+      1. scenes (场景):
+         - scene_id: 场景唯一ID，格式：scene_1，用于关联动作、对话等
+         - order: 场景顺序，如1
+         - location: 具体地点
+         - time_of_day: 时间（早晨、中午、夜晚等）
+         - time_exact: 精确时间，如 '23:00'
+         - weather: 天气，如 '大雨滂沱'
+         - description: 详细环境描述
+         - summary: 场景摘要
+         - character_refs: 本场景涉及的所有角色名列表
+         - mood: 氛围/情绪，如 '孤独紧张'
+         - key_visuals: 关键视觉元素
+         - start_time: 场景开始时间（秒）
+         - end_time: 场景结束时间（秒）
+         - duration: 持续时间（秒）
+         - props: 场景内道具对象列表，包含以下信息：
+             - name: 道具名称，如 '旧羊毛毯'、'手机'
+             - description: 对道具的简短描述
+             - position: 空间位置，如 '茶几上'、'桌上'
+             - owner: 持有者（如果有）
+             - state: 当前状态，如 '凝出水雾'、'摊开'、'亮着'等
+  
+      2. characters (角色):
+         - name: 角色唯一标识名，使用剧本中首次出现的完整名称（如“林然”，不可写“她”或“Lin Ran”）。必须与 dialogues/actions 中的引用一致
+         - age: 年龄，不知道就为 null
+         - gender: 性别
+         - appearance: 外貌特征（服装、发型等），仅当剧本描述外貌或匹配知识库时填写
+         - personality: 性格特点
+         - role: 角色类型（主角、配角等）
+         - state: 当前状态，如 {'emotional': '震惊', 'physical': '颤抖'}
+  
+      3. dialogues (对话):
+         - dialogue_id: 对话唯一ID，格式：dial_1
+         - scene_ref: 所属场景ID，必须等于某个 scene.scene_id
+         - speaker: 说话者名字，必须在 characters[].name 中的某个值；若没有则为 null，禁止使用代词（“他”“她”等）
+         - content: 对话内容，沉默时为空字符串
+         - target: 对话对象，必须在 characters.name 中；若没有则为 null
+         - emotion: 情绪语调，如：紧张、哽咽
+         - voice_quality: 声音特质，如 '沙哑'、'低沉'
+         - parenthetical: 剧本中的旁注，如 '声音微颤'
+         - type: 类型：'speech' 或 'silence'
+         - time_offset: 相对于场景开始的时间偏移（秒）
+         - duration: 对话持续的时间（秒），注意说话的语气和对象，愤怒时语气较快
+  
+      4. actions (动作):
+         - action_id: 动作唯一ID，格式：act_1
+         - scene_ref: 所属场景ID，必须等于某个 scene.scene_id
+         - actor: 执行者，角色名、道具名或固定实体，禁止使用代词，必须是以下之一：
+            a) characters[].name 中的名字  
+            b) scenes[].props[].name 中的道具名  
+            c) 固定实体：如"手机"、"电视"、"环境"、"窗户"
+         - description: 动作描述
+         - type: 动作类型，必须是其中枚举值之一（'posture'、'gesture'、'facial'、'gaze'、'physiological'、'interaction'、'device_alert'、'prop_fill'、'prop_fall'、'vocal'、'audio'）
+         - target: 动作目标（如果有）
+         - time_offset: 时间偏移（秒）
+         - duration: 持续时间（秒），注意动作对象，老人行动就慢
+
+    时间与数值：
+      - time_offset 和 duration 必须为数字（单位：秒）
+      - 时间估算规则：
+        • 初始场景/姿态：0–5 秒
+        • “看了三秒” → duration=3
+        • 每句对话 ≈ 2–3 秒（含反应、语气和对象）
+        • 沉默/停顿需显式建模，duration ≥ 1
+      - 时间不得倒序，动作可轻微重叠但需合理
+    
+    输出必须是严格的JSON格式，包含以上所有字段。如果某些信息无法从文本中提取，请设为空字符串或空数组。
+
+    确保：
+      1. 提取所有可见信息
+      2. 保持角色名称一致性，不得使用模糊指代（“那个人”“它”）
+      3. 识别场景转换，不得编造未提及的角色、台词、道具或情节
+      4. 捕捉情绪变化，允许合理推断情绪/动作类型，但实体必须源自文本
+      5. 记录重要道具
+    
+
+# 自然语言转结构化分镜，提示词模板
+natural_language:
+  name: "natural_language_prompt"
+  description: "自然语言剧本"
+  template: |
+    特别注意：
+      - 这是自然语言描述，需要从叙述中提取结构化信息
+      - 识别隐含的场景、角色、动作
+      - 对话可能嵌入在叙述中
+      - 注意时间顺序和空间关系
+
+
+# AI分镜脚本的系统提示词
+ai_storyboard:
+  name: "ai_storyboard_prompt"
+  description: "AI分镜剧本"
+  template: |
+    特别注意AI分镜格式：
+      - 镜头描述通常以“镜头X”或“shot X”开头
+      - 包含画面构图、摄像机运动等信息
+      - 对话和动作可能简化为关键词
+      - 需要补充完整的场景和角色信息
+
+
+# 标准剧本格式的系统提示词
+screenplay_format:
+  name: "screenplay_format_prompt"
+  description: "标准格式剧本"
+  template: |
+    特别注意标准剧本格式：
+      - INT./EXT. 表示室内/室外
+      - 角色名通常全大写
+      - 对话前有角色名
+      - 括号内是动作或表情指示
+      - 场景标题有特定格式
+
+
+# 结构化场景描述的系统提示词
+structured_scene:
+  name: "structured_scene_prompt"
+  description: "结构化场景剧本"
+  template: |
+    特别注意结构化场景描述：
+      - 已经部分结构化，但可能缺少细节
+      - 需要补充角色外貌、性格等信息
+      - 对话和动作可能不完整
+      - 确保时间顺序和逻辑一致
+
+
+# 纯对话剧本的系统提示词
+dialogue_only:
+  name: "dialogue_only_prompt"
+  description: "纯对话剧本"
+  template: |
+    特别注意纯对话格式：
+      - 仅包含角色对话
+      - 需要推断场景、动作和情绪
+      - 识别说话者和听众
+      - 补充缺失的环境和背景信息
+

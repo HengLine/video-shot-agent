@@ -1,0 +1,178 @@
+"""
+@FileName: llm_script_parser.py
+@Description: 
+@Author: HengLine
+@Time: 2026/1/9 21:23
+"""
+import json
+import time
+from typing import Any, Dict
+
+from hengline.agent.script_parser.base_script_parser import ScriptParser
+from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.workflow.workflow_models import ScriptType
+from hengline.client.client_config import AIConfig
+from hengline.client.client_factory import llm_chat_complete
+from hengline.logger import info, warning, error
+from hengline.prompts.prompts_manager import prompt_manager
+from hengline.tools.json_parser_tool import parse_json_response
+
+
+class LLMScriptParser(ScriptParser):
+
+    def __init__(self, llm, config: AIConfig):
+        """
+        初始化剧本解析智能体
+
+        Args:
+            llm: 语言模型实例（推荐GPT-4o）
+        """
+        self.config = config
+        self.llm = llm
+
+        self.system_prompts = {
+            ScriptType.NATURAL_LANGUAGE: self._get_natural_language_prompt(),
+            ScriptType.STANDARD_SCRIPT: self._get_standard_script_prompt(),
+            ScriptType.AI_STORYBOARD: self._get_ai_storyboard_prompt(),
+            ScriptType.STRUCTURED_SCENE: self._get_structured_scene_prompt(),
+            ScriptType.DIALOGUE_ONLY: self._get_dialogue_only_prompt(),
+            "default": self._get_default_prompt()
+        }
+
+    def process(self, script_text: Any, script_format: ScriptType) -> UnifiedScript | None:
+
+        """
+        优化版剧本解析函数
+        将整段中文剧本转换为结构化动作序列
+
+        Args:
+            script_text: 原始剧本文本
+
+        Returns:
+            结构化的剧本动作序列
+        """
+        # 构建针对格式的系统提示词
+        system_prompt = self.system_prompts.get(
+            script_format,
+            self.system_prompts["default"]
+        )
+
+        # 构建用户提示词
+        user_prompt = self._build_user_prompt(script_text, script_format)
+
+        info(f"AI系统提示词（摘要）: {system_prompt[:150]}...")
+        info(f"AI用户提示词（摘要）: {user_prompt[:150]}...")
+
+        # 调用AI（这里使用模拟响应，实际应调用API）
+        ai_response = self._call_llm_with_retry(system_prompt, user_prompt)
+
+        try:
+             response = self._parse_ai_response(ai_response)
+             # 转换为UnifiedScript对象
+             return self._create_unified_script(script_text, script_format, response)
+        except (json.JSONDecodeError, KeyError) as e:
+            error(f" AI返回格式错误: {e}")
+
+    def _get_default_prompt(self) -> str:
+        """获取默认系统提示词"""
+        return prompt_manager.get_script_parser_prompt("script_parser")
+
+    def _get_natural_language_prompt(self) -> str:
+        """自然语言描述的系统提示词"""
+        return self._get_default_prompt() +  prompt_manager.get_script_parser_prompt("natural_language")
+
+    def _get_standard_script_prompt(self) -> str:
+        """标准剧本格式的系统提示词"""
+        return self._get_default_prompt() + prompt_manager.get_script_parser_prompt("screenplay_format")
+
+    def _get_ai_storyboard_prompt(self) -> str:
+        """AI分镜脚本的系统提示词"""
+        return self._get_default_prompt() + prompt_manager.get_script_parser_prompt("ai_storyboard")
+
+    def _get_structured_scene_prompt(self) -> str:
+        """结构化场景描述的系统提示词"""
+        return self._get_default_prompt() + prompt_manager.get_script_parser_prompt("structured_scene")
+
+    def _get_dialogue_only_prompt(self) -> str:
+        """纯对话剧本的系统提示词"""
+        return self._get_default_prompt() + prompt_manager.get_script_parser_prompt("dialogue_only")
+
+
+    def _build_user_prompt(self, text: str, format_type: ScriptType) -> str:
+        """构建用户提示词"""
+        format_instructions = {
+            ScriptType.NATURAL_LANGUAGE: "这是一个自然语言描述的剧本，请从中提取结构化信息。",
+            ScriptType.STANDARD_SCRIPT: "这是一个标准格式的剧本，请按照剧本格式规范解析。",
+            ScriptType.AI_STORYBOARD: "这是一个AI生成的分镜脚本，请解析镜头描述。",
+            ScriptType.STRUCTURED_SCENE: "这是一个结构化场景描述，请提取各部分的详细信息。",
+            ScriptType.DIALOGUE_ONLY: "这是一个纯对话剧本，请补充推断的场景和动作信息。"
+        }
+
+        instruction = format_instructions.get(format_type, "请解析以下剧本内容：")
+
+        return f"""{instruction}
+            剧本内容：
+            {text}
+        
+            text
+        
+            请返回完整的JSON解析结果。确保：
+                1. JSON格式正确
+                2. 包含所有提取的信息
+                3. 角色名称保持一致
+                4. 场景按时间顺序排列"""
+
+
+    def _call_llm_with_retry(self, system_prompt: str, user_prompt, max_retries: int = 3) -> Any | None:
+        """调用LLM，支持重试"""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        for attempt in range(max_retries):
+            try:
+                # response = self.llm.chat_complete(
+                #     messages=[
+                #         {"role": "system", "content": "你是一个专业的影视剧本解析分镜师，精通标准剧本格式，输出严格的JSON格式。"},
+                #         {"role": "user", "content": prompt}
+                #     ],
+                #     temperature=0.1,
+                #     response_format={"type": "json_object"}
+                # )
+
+                # response = self.llm.invoke(prompt)
+
+                return llm_chat_complete(self.llm, messages)
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise Exception(f"LLM调用失败: {e}")
+                time.sleep(1)
+
+    def _parse_ai_response(self, ai_response: str) -> Dict[str, Any]:
+        """解析AI返回的JSON响应"""
+        try:
+            parsed_result = parse_json_response(ai_response)
+
+            # 验证基本结构
+            required_sections = ["scenes", "characters", "dialogues", "actions"]
+            for section in required_sections:
+                if section not in parsed_result:
+                    warning(f" AI响应缺少{section}部分")
+                    parsed_result[section] = []
+
+            # 确保props部分存在
+            # if "props" not in parsed_result:
+            #     parsed_result["props"] = []
+
+            return parsed_result
+
+        except json.JSONDecodeError as e:
+            error(f" AI返回了无效的JSON: {e}")
+            # 如果无法提取JSON，返回空结构
+            return {
+                "scenes": [],
+                "characters": [],
+                "dialogues": [],
+                "actions": []
+            }

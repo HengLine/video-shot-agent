@@ -16,7 +16,7 @@ from hengline.logger import error
 class PromptManager:
     def __init__(self):
         # 默认使用当前文件的父目录
-        self.prompt_dir = Path(__file__).parent / "zh"
+        self.prompt_dir = Path(__file__).parent / "zh/v1.0"
         # 缓存已加载的提示词模板 - 最大缓存1024个提示词
         self._prompt_cache: Dict[str, Dict[str, Any]] = {}
         self._all_prompts_loaded = False
