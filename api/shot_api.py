@@ -12,7 +12,7 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from pydantic import BaseModel
 
-from hengline.agent.workflow_models import VideoStyle
+from hengline.agent.workflow.workflow_models import VideoStyle
 from hengline.generate_agent import generate_storyboard
 from hengline.language_manage import Language
 from hengline.logger import info, error, log_with_context

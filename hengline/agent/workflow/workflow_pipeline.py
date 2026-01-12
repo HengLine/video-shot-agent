@@ -13,11 +13,11 @@ from langgraph.graph import StateGraph
 
 from hengline.logger import debug, info, error
 from utils.log_utils import print_log_exception
-from .continuity_guardian_agent import ContinuityGuardianAgent
-from .shot_qa_agent import QAReviewAgent
-from .script_parser_agent import ScriptParserAgent
-from .shot_generator_agent import ShotGeneratorAgent
-from .temporal_planner_agent import TemporalPlannerAgent
+from hengline.agent.continuity_guardian_agent import ContinuityGuardianAgent
+from hengline.agent.shot_qa_agent import QAReviewAgent
+from hengline.agent.script_parser_agent import ScriptParserAgent
+from hengline.agent.shot_generator_agent import ShotGeneratorAgent
+from hengline.agent.temporal_planner_agent import TemporalPlannerAgent
 from .workflow_models import VideoStyle
 from .workflow_nodes import WorkflowNodes
 from .workflow_states import StoryboardWorkflowState

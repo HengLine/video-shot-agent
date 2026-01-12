@@ -6,14 +6,14 @@
 @Time: 2025/10 - 2025/11
 """
 import uuid
-from dataclasses import asdict
 from datetime import datetime
 from typing import Dict, List, Any
 
+from hengline.agent.shot_qa.model.review_models import QualityReviewInput
 from hengline.logger import debug, info, warning, error
 from hengline.tools.result_storage_tool import create_result_storage
 from utils.log_utils import print_log_exception
-from .shot_qa.model.review_models import QualityReviewInput
+from utils.obj_utils import obj_to_dict
 from .workflow_models import VideoStyle
 from .workflow_states import StoryboardWorkflowState
 
@@ -45,14 +45,14 @@ class WorkflowNodes:
         """解析剧本文本节点"""
         debug("解析剧本文本节点执行中")
         try:
-            structured_script = self.script_parser.process(graph_state["script_text"])
+            structured_script = self.script_parser.parser_process(graph_state["script_text"])
 
             debug(f"剧本解析完成，场景数: {len(structured_script.scenes)}")
 
             # 保存剧本解析结果
             task_id = graph_state.get("task_id")
             try:
-                self.storage.save_result(task_id, asdict(structured_script), "script_parser_result.json")
+                self.storage.save_result(task_id, obj_to_dict(structured_script), "script_parser_result.json")
                 info(f"剧本解析结果已保存到: data/output/{task_id}/script_parser_result.json")
             except Exception as save_error:
                 warning(f"保存剧本解析结果失败: {str(save_error)}")
