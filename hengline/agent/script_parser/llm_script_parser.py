@@ -5,14 +5,12 @@
 @Time: 2026/1/9 21:23
 """
 import json
-import time
 from typing import Any, Dict
 
 from hengline.agent.script_parser.base_script_parser import ScriptParser
 from hengline.agent.script_parser.script_parser_models import UnifiedScript
 from hengline.agent.workflow.workflow_models import ScriptType
 from hengline.client.client_config import AIConfig
-from hengline.client.client_factory import llm_chat_complete
 from hengline.logger import info, warning, error
 from hengline.prompts.prompts_manager import prompt_manager
 from hengline.tools.json_parser_tool import parse_json_response
@@ -64,39 +62,38 @@ class LLMScriptParser(ScriptParser):
         info(f"AI用户提示词（摘要）: {user_prompt[:150]}...")
 
         # 调用AI（这里使用模拟响应，实际应调用API）
-        ai_response = self._call_llm_with_retry(system_prompt, user_prompt)
+        ai_response = self._call_llm_chat_with_retry(self.llm, system_prompt, user_prompt)
 
         try:
-             response = self._parse_ai_response(ai_response)
-             # 转换为UnifiedScript对象
-             return self._create_unified_script(script_text, script_format, response)
+            response = self._parse_ai_response(ai_response)
+            # 转换为UnifiedScript对象
+            return self._create_unified_script(script_text, script_format, response)
         except (json.JSONDecodeError, KeyError) as e:
             error(f" AI返回格式错误: {e}")
 
     def _get_default_prompt(self) -> str:
         """获取默认系统提示词"""
-        return prompt_manager.get_script_parser_prompt("script_parser")
+        return prompt_manager.get_name_prompt("script_parser")
 
     def _get_natural_language_prompt(self) -> str:
         """自然语言描述的系统提示词"""
-        return self._get_default_prompt() +  prompt_manager.get_script_parser_prompt("natural_language")
+        return self._get_default_prompt() + prompt_manager.get_name_prompt("natural_language_script")
 
     def _get_standard_script_prompt(self) -> str:
         """标准剧本格式的系统提示词"""
-        return self._get_default_prompt() + prompt_manager.get_script_parser_prompt("screenplay_format")
+        return self._get_default_prompt() + prompt_manager.get_name_prompt("screenplay_format_script")
 
     def _get_ai_storyboard_prompt(self) -> str:
         """AI分镜脚本的系统提示词"""
-        return self._get_default_prompt() + prompt_manager.get_script_parser_prompt("ai_storyboard")
+        return self._get_default_prompt() + prompt_manager.get_name_prompt("ai_storyboard_script")
 
     def _get_structured_scene_prompt(self) -> str:
         """结构化场景描述的系统提示词"""
-        return self._get_default_prompt() + prompt_manager.get_script_parser_prompt("structured_scene")
+        return self._get_default_prompt() + prompt_manager.get_name_prompt("structured_scene_script")
 
     def _get_dialogue_only_prompt(self) -> str:
         """纯对话剧本的系统提示词"""
-        return self._get_default_prompt() + prompt_manager.get_script_parser_prompt("dialogue_only")
-
+        return self._get_default_prompt() + prompt_manager.get_name_prompt("dialogue_only_script")
 
     def _build_user_prompt(self, text: str, format_type: ScriptType) -> str:
         """构建用户提示词"""
@@ -121,33 +118,6 @@ class LLMScriptParser(ScriptParser):
                 2. 包含所有提取的信息
                 3. 角色名称保持一致
                 4. 场景按时间顺序排列"""
-
-
-    def _call_llm_with_retry(self, system_prompt: str, user_prompt, max_retries: int = 3) -> Any | None:
-        """调用LLM，支持重试"""
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-
-        for attempt in range(max_retries):
-            try:
-                # response = self.llm.chat_complete(
-                #     messages=[
-                #         {"role": "system", "content": "你是一个专业的影视剧本解析分镜师，精通标准剧本格式，输出严格的JSON格式。"},
-                #         {"role": "user", "content": prompt}
-                #     ],
-                #     temperature=0.1,
-                #     response_format={"type": "json_object"}
-                # )
-
-                # response = self.llm.invoke(prompt)
-
-                return llm_chat_complete(self.llm, messages)
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise Exception(f"LLM调用失败: {e}")
-                time.sleep(1)
 
     def _parse_ai_response(self, ai_response: str) -> Dict[str, Any]:
         """解析AI返回的JSON响应"""

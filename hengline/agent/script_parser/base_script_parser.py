@@ -7,12 +7,13 @@
 """
 from typing import Dict, Any, List
 
+from hengline.agent.base_agent import BaseAgent
 from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene, Character, Dialogue, Action, Meta, Relationship
 from hengline.agent.workflow.workflow_models import ScriptType
 from hengline.tools.script_assessor_tool import ComplexityAssessor
 
 
-class ScriptParser:
+class ScriptParser(BaseAgent):
     """优化版剧本解析智能体"""
 
     def __post_init__(self):

@@ -36,3 +36,9 @@ class AIConfig:
     max_tokens: int = 5000
     json_mode: bool = True  # 强制JSON输出
     timeout: int = 60  # 请求超时时间，单位秒
+    enable_cot: bool = True  # 启用思维链推理
+    include_visual_hints: bool = True  # 包含视觉生成提示
+
+    # 专业领域知识注入
+    cinematic_knowledge: bool = True
+    pacing_principles: bool = True
