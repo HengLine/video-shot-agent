@@ -9,7 +9,7 @@ import json
 import os
 import sys
 
-from hengline.client.client_factory import get_llm_client
+from hengline.client.client_factory import get_default_llm
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -25,7 +25,7 @@ def example_basic_script_parsing():
     print("=== 基础剧本解析示例 ===")
 
     # 初始化智能体（不需要LLM也可以工作）
-    parser_agent = ScriptParserAgent(get_llm_client())
+    parser_agent = ScriptParserAgent(get_default_llm())
 
     # 简单的中文剧本示例
     script_text = """
@@ -39,7 +39,7 @@ def example_basic_script_parsing():
     """
 
     # 解析剧本
-    structured_script = parser_agent.parse_script(script_text)
+    structured_script = parser_agent.parser_process(script_text)
 
     # 打印结果
     print("\n解析结果：")
@@ -55,7 +55,7 @@ def example_with_character_appearance():
     """
     print("\n=== 角色外观推断示例 ===")
 
-    parser_agent = ScriptParserAgent(get_llm_client())
+    parser_agent = ScriptParserAgent(get_default_llm())
 
     # 包含更多角色描述线索的剧本
     script_text = """
@@ -70,7 +70,7 @@ def example_with_character_appearance():
     张经理点点头，示意小李继续。
     """
 
-    structured_script = parser_agent.parse_script(script_text)
+    structured_script = parser_agent.parser_process(script_text)
 
     print("\n角色外观信息：")
     for scene in structured_script.get("scenes", []):
@@ -89,7 +89,7 @@ def example_emotion_recognition():
     """
     print("\n=== 情绪识别示例 ===")
 
-    parser_agent = ScriptParserAgent(get_llm_client())
+    parser_agent = ScriptParserAgent(get_default_llm())
 
     # 包含丰富情绪表达的剧本
     script_text = """
@@ -105,7 +105,7 @@ def example_emotion_recognition():
     陈小雨：请...请不要伤害我，钱包给你。
     """
 
-    structured_script = parser_agent.parse_script(script_text)
+    structured_script = parser_agent.parser_process(script_text)
 
     print("\n情绪识别结果：")
     for scene in structured_script.get("scenes", []):
@@ -127,7 +127,7 @@ def example_complex_scene_parsing():
     """
     print("\n=== 复杂场景解析示例 ===")
 
-    parser_agent = ScriptParserAgent(get_llm_client())
+    parser_agent = ScriptParserAgent(get_default_llm())
 
     # 复杂剧本示例，包含多个场景转换
     script_text = """
@@ -144,7 +144,7 @@ def example_complex_scene_parsing():
     李总监：去把销售部的王经理叫来，我要和他谈谈。
     """
 
-    structured_script = parser_agent.parse_script(script_text)
+    structured_script = parser_agent.parser_process(script_text)
 
     print("\n场景分割结果：")
     for i, scene in enumerate(structured_script.get("scenes", [])):
@@ -162,7 +162,7 @@ def example_comprehensive_analysis():
     """
     print("\n=== 综合分析示例 ===")
 
-    parser_agent = ScriptParserAgent(get_llm_client())
+    parser_agent = ScriptParserAgent(get_default_llm())
 
     # 综合剧本示例
     script_text = """
@@ -186,7 +186,7 @@ def example_comprehensive_analysis():
 
     # 完整解析流程
     print("开始解析剧本...")
-    structured_script = parser_agent.parse_script(script_text)
+    structured_script = parser_agent.parser_process(script_text)
 
     # 展示详细分析结果
     print("\n综合分析结果：")

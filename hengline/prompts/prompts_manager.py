@@ -77,7 +77,7 @@ class PromptManager:
 
         return self._prompt_cache.copy()
 
-    def get_prompt(self, name: str) -> str:
+    def get_prompt(self, name: str, file_name: str = None) -> str:
         """获取指定名称的提示词模板
         
         Args:
@@ -129,7 +129,7 @@ class PromptManager:
         raise KeyError(f"提示词模板 '{name}' 不存在")
 
 
-    def get_script_parser_prompt(self, name) -> str:
+    def get_name_prompt(self, name) -> str:
         """获取剧本解析提示词模板"""
         return self.get_prompt(name)
 
@@ -144,8 +144,5 @@ class PromptManager:
         """获取QA审核提示词模板"""
         return self.get_prompt("qa_review_prompt")
 
-    def get_temporal_planner_prompt(self):
-        """获取时间规划提示词模板"""
-        return self.get_prompt("temporal_planner_prompt")
 
 prompt_manager = PromptManager()

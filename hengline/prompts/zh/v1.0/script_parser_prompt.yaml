@@ -100,7 +100,7 @@ script_parser:
     
 
 # 自然语言转结构化分镜，提示词模板
-natural_language:
+natural_language_script:
   name: "natural_language_prompt"
   description: "自然语言剧本"
   template: |
@@ -112,7 +112,7 @@ natural_language:
 
 
 # AI分镜脚本的系统提示词
-ai_storyboard:
+ai_storyboard_script:
   name: "ai_storyboard_prompt"
   description: "AI分镜剧本"
   template: |
@@ -124,7 +124,7 @@ ai_storyboard:
 
 
 # 标准剧本格式的系统提示词
-screenplay_format:
+screenplay_format_script:
   name: "screenplay_format_prompt"
   description: "标准格式剧本"
   template: |
@@ -137,7 +137,7 @@ screenplay_format:
 
 
 # 结构化场景描述的系统提示词
-structured_scene:
+structured_scene_script:
   name: "structured_scene_prompt"
   description: "结构化场景剧本"
   template: |
@@ -149,7 +149,7 @@ structured_scene:
 
 
 # 纯对话剧本的系统提示词
-dialogue_only:
+dialogue_only_script:
   name: "dialogue_only_prompt"
   description: "纯对话剧本"
   template: |

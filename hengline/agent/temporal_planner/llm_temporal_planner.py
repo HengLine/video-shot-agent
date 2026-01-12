@@ -5,878 +5,1179 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-import hashlib
-import json
-from typing import List, Dict, Any
+from datetime import datetime
+from typing import List, Dict, Any, Tuple, Optional
 
-from hengline.agent.script_parser.script_parser_model import UnifiedScript, Scene
+from hengline.logger import error, debug, info
+from hengline.agent.script_parser.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.base_temporal_planner import TemporalPlanner
-from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan, DurationEstimation
-from hengline.logger import debug, error
-from hengline.prompts.prompts_manager import prompt_manager
+from hengline.agent.temporal_planner.estimator.ai_duration_estimator import AIDurationEstimator
+from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, TimeSegment, ElementType, TimelinePlan, PacingAnalysis, ContinuityAnchor
+from hengline.config.temporal_planner_config import SegmentConfig
 
 
 class LLMTemporalPlanner(TemporalPlanner):
-    """
-        # 提示词模板
-            你是一个专业的分镜师。请将以下动作序列拆分成若干个镜头，每个镜头约{max_seconds}秒。
-                ## 规则：
-                1. 每个镜头必须包含1-3个连续动作
-                2. 情感转折点（如震惊）必须作为新镜头的开始
-                3. 对话通常与其前后的反应拆分开
-                4. 总时长尽量接近但不超过{max_seconds}秒
-                5. 保持叙事的流畅性
+    """ LLM 时长估算 """
 
-                ## 动作序列：
-                {actions_json}
-
-                ## 输出格式：
-                返回JSON数组，每个元素是一个镜头对象：
-                {{
-                  "shot_id": 数字,
-                  "included_actions": [动作ID列表],
-                  "estimated_duration": 数字（秒）,
-                  "rationale": "合并理由，如'展现从犹豫到决定的完整过程'"
-                }}
-    """
-
-    def __init__(self, llm_client):
+    def __init__(self, llm_client, config: SegmentConfig = None):
         """初始化时序规划智能体"""
-        super().__init__()
         self.llm = llm_client
-        # 缓存系统，避免重复调用相同的场景
-        self.cache = {}
-
-        # 统计信息
-        self.stats = {
-            "total_calls": 0,
-            "cache_hits": 0,
-            "successful_adjustments": 0,
-            "failed_adjustments": 0
+        self.config = config or {}
+        self.ai_estimator = AIDurationEstimator(llm_client)
+        # 性能跟踪
+        self.processing_stats = {
+            "start_time": 0,
+            "end_time": 0,
+            "element_estimation_time": 0,
+            "segmentation_time": 0,
+            "analysis_time": 0
         }
 
-    def plan_timeline(self, structured_script: UnifiedScript) -> TimelinePlan | None:
+        # 缓存
+        self.element_cache = {}
+        self.segment_cache = {}
+
+        # 配置
+        self.max_segment_duration = self.config.get("max_segment_duration", 5.0)
+        self.min_segment_duration = self.config.get("min_segment_duration", 2.0)
+        self.enable_batch_processing = self.config.get("enable_batch_processing", True)
+
+    def plan_timeline(self, script_data: UnifiedScript) -> TimelinePlan | None:
         """
         规划剧本的时序分段
-        
+
         Args:
-            structured_script: 结构化的剧本
+            script_data: 结构化的剧本
 
         Returns:
             分段计划列表
         """
+        """处理剧本的完整流程（优化版）"""
+        self.processing_stats["start_time"] = datetime.now()
 
-    def adjust(self, estimations: Dict[str, DurationEstimation],
-               script_input: UnifiedScript) -> Dict[str, DurationEstimation]:
-        """
-        主调整方法
+        debug("开始优化版AI时序规划...")
 
-        策略：
-        1. 识别需要AI调整的复杂场景
-        2. 为复杂场景构建上下文
-        3. 调用LLM进行时长调整
-        4. 有限度地应用调整结果
-        """
-        self.stats["total_calls"] += 1
-
-        # 1. 识别需要调整的复杂场景
-        complex_scenes = self._identify_complex_scenes(script_input, estimations)
-
-        if not complex_scenes:
-            print("没有检测到需要AI调整的复杂场景，使用规则估算")
-            return estimations
-
-        # 2. 为每个复杂场景构建调整上下文
-        adjustment_contexts = []
-        for scene in complex_scenes:
-            context = self._build_adjustment_context(scene, script_input, estimations)
-            adjustment_contexts.append(context)
-
-        # 3. 批量调用AI（减少API调用次数）
-        adjusted_results = self._batch_adjust_with_ai(adjustment_contexts)
-
-        # 4. 应用调整（有限度地）
-        final_estimations = estimations.copy()
-        for scene_id, adjustments in adjusted_results.items():
-            final_estimations = self._apply_adjustments(
-                final_estimations,
-                adjustments,
-                self.config.max_adjustment_ratio
-            )
-
-        self.stats["successful_adjustments"] += 1
-
-        return final_estimations
-
-    def _identify_complex_scenes(self, script_input: UnifiedScript,
-                                 estimations: Dict[str, DurationEstimation]) -> List[Scene]:
-        """
-        识别需要AI调整的复杂场景
-
-        复杂度评估标准：
-        1. 情感强度高
-        2. 多角色交互复杂
-        3. 动作序列复杂
-        4. 对话内容复杂
-        5. 规则估算置信度低
-        """
-        complex_scenes = []
-
-        for scene in script_input.scenes:
-            complexity_score = self._calculate_scene_complexity(scene, script_input, estimations)
-
-            if complexity_score >= self.config.complexity_threshold:
-                complex_scenes.append(scene)
-                print(f"场景 {scene.scene_id} 被识别为复杂场景，复杂度分数: {complexity_score:.2f}")
-
-        return complex_scenes
-
-    def _calculate_scene_complexity(self, scene: Scene,
-                                    script_input: UnifiedScript,
-                                    estimations: Dict[str, DurationEstimation]) -> float:
-        """
-        计算场景复杂度分数（0-1）
-        """
-        scores = []
-        weights = self.config.complexity_weights
-
-        # 1. 情感复杂度
-        emotional_score = self._calculate_emotional_complexity(scene, script_input)
-        scores.append(emotional_score * weights["emotional"])
-
-        # 2. 角色交互复杂度
-        interaction_score = self._calculate_interaction_complexity(scene, script_input)
-        scores.append(interaction_score * weights["interaction"])
-
-        # 3. 动作复杂度
-        action_score = self._calculate_action_complexity(scene, script_input)
-        scores.append(action_score * weights["action"])
-
-        # 4. 对话复杂度
-        dialogue_score = self._calculate_dialogue_complexity(scene, script_input)
-        scores.append(dialogue_score * weights["dialogue"])
-
-        # 5. 规则估算置信度（置信度越低，越需要AI调整）
-        confidence_score = self._calculate_confidence_score(scene, estimations)
-        scores.append(confidence_score * weights["confidence"])
-
-        # 加权平均
-        total_score = sum(scores)
-
-        return min(1.0, total_score)  # 限制在0-1范围内
-
-    def _calculate_emotional_complexity(self, scene: Scene,
-                                        script_input: UnifiedScript) -> float:
-        """计算情感复杂度"""
-        # 收集场景中的情绪
-        emotions = []
-
-        # 从对话中提取情绪
-        scene_dialogues = [d for d in script_input.dialogues if d.scene_ref == scene.scene_id]
-        for dialogue in scene_dialogues:
-            if dialogue.emotion and dialogue.emotion != "平静":
-                emotions.append(dialogue.emotion)
-
-        if not emotions:
-            return 0.0
-
-        # 情绪多样性
-        unique_emotions = set(emotions)
-        diversity_score = min(1.0, len(unique_emotions) / 5)  # 最多5种情绪
-
-        # 情绪强度
-        emotion_intensity = {
-            "平静": 1,
-            "疑问": 2,
-            "喜悦": 3,
-            "惊讶": 4,
-            "悲伤": 5,
-            "愤怒": 6,
-            "恐惧": 7,
-            "大喊": 8
-        }
-
-        max_intensity = max(emotion_intensity.get(e, 1) for e in emotions)
-        intensity_score = min(1.0, max_intensity / 8)
-
-        # 情绪变化（如果场景中有情绪转变）
-        change_score = 0.0
-        if len(emotions) >= 2:
-            # 检查情绪是否有明显变化
-            first_emotion = emotions[0]
-            last_emotion = emotions[-1]
-            if first_emotion != last_emotion:
-                change_score = 0.7
-            # 检查中间是否有变化
-            for i in range(1, len(emotions)):
-                if emotions[i] != emotions[i - 1]:
-                    change_score = 1.0
-                    break
-
-        return (diversity_score * 0.3 + intensity_score * 0.4 + change_score * 0.3)
-
-    def _calculate_interaction_complexity(self, scene: Scene,
-                                          script_input: UnifiedScript) -> float:
-        """计算角色交互复杂度"""
-        if not scene.character_refs:
-            return 0.0
-
-        # 角色数量
-        character_count = len(scene.character_refs)
-        count_score = min(1.0, character_count / 5)  # 最多5个角色
-
-        # 对话轮次
-        scene_dialogues = [d for d in script_input.dialogues if d.scene_ref == scene.scene_id]
-        dialogue_turns = len(scene_dialogues)
-        turn_score = min(1.0, dialogue_turns / 10)  # 最多10轮对话
-
-        # 角色切换频率
-        if len(scene_dialogues) >= 2:
-            speaker_changes = 0
-            for i in range(1, len(scene_dialogues)):
-                if scene_dialogues[i].speaker != scene_dialogues[i - 1].speaker:
-                    speaker_changes += 1
-            change_score = min(1.0, speaker_changes / len(scene_dialogues))
-        else:
-            change_score = 0.0
-
-        return (count_score * 0.4 + turn_score * 0.3 + change_score * 0.3)
-
-    def _build_adjustment_context(self, scene: Scene,
-                                  script_input: UnifiedScript,
-                                  estimations: Dict[str, DurationEstimation]) -> Dict:
-        """
-        为单个场景构建调整上下文
-        """
-        # 收集场景相关信息
-        scene_dialogues = [d for d in script_input.dialogues if d.scene_ref == scene.scene_id]
-        scene_actions = [a for a in script_input.actions if a.scene_ref == scene.scene_id]
-        scene_characters = [c for c in script_input.characters if c.name in scene.character_refs]
-
-        # 构建对话详情
-        dialogue_details = []
-        for dialogue in scene_dialogues:
-            est_key = dialogue.dialogue_id
-            original_est = estimations.get(est_key, DurationEstimation(estimated_duration=3.0))
-
-            dialogue_details.append({
-                "dialogue_id": dialogue.dialogue_id,
-                "speaker": dialogue.speaker,
-                "text": dialogue.text,
-                "emotion": dialogue.emotion,
-                "original_estimate": original_est.estimated_duration,
-                "word_count": len(dialogue.text),
-                "speaker_age": next((c.age for c in scene_characters if c.name == dialogue.speaker), None)
-            })
-
-        # 构建动作详情
-        action_details = []
-        for action in scene_actions:
-            est_key = action.action_id
-            original_est = estimations.get(est_key, DurationEstimation(estimated_duration=2.0))
-
-            action_details.append({
-                "action_id": action.action_id,
-                "type": action.type,
-                "actor": action.actor,
-                "description": action.description,
-                "intensity": action.intensity,
-                "original_estimate": original_est.estimated_duration
-            })
-
-        # 构建上下文
-        context = {
-            "scene_id": scene.scene_id,
-            "scene_description": scene.description,
-            "location": scene.location,
-            "time_of_day": scene.time_of_day,
-            "mood": scene.mood,
-            "characters": scene_characters,
-            "dialogues": dialogue_details,
-            "actions": action_details,
-            "complexity_analysis": {
-                "emotional_score": self._calculate_emotional_complexity(scene, script_input),
-                "interaction_score": self._calculate_interaction_complexity(scene, script_input),
-                "action_score": self._calculate_action_complexity(scene, script_input),
-                "dialogue_score": self._calculate_dialogue_complexity(scene, script_input)
-            }
-        }
-
-        return context
-
-        def _create_adjustment_prompt(self, context: Dict) -> str:
-            """
-            创建AI调整提示词
-
-            重点：让AI理解影视节奏和时长分配的艺术
-            """
-            return f"""
-    你是一个专业的影视剪辑师和节奏大师。请分析以下场景，调整时间分配。
-
-    ## 场景信息：
-    - 场景ID: {context['scene_id']}
-    - 地点: {context['location']}
-    - 时间: {context['time_of_day']}
-    - 氛围: {context['mood']}
-    - 角色: {', '.join([c['name'] for c in context['characters']])}
-
-    ## 场景描述：
-    {context['scene_description'][:500]}
-
-    ## 对话内容（需要调整时长）：
-    {self._format_dialogues_for_prompt(context['dialogues'])}
-
-    ## 动作序列（需要调整时长）：
-    {self._format_actions_for_prompt(context['actions'])}
-
-    ## 复杂度分析：
-    {json.dumps(context['complexity_analysis'], indent=2, ensure_ascii=False)}
-
-    ## 调整原则：
-    1. **情绪表达完整性**：给足情绪表达的时间（悲伤需要时间酝酿，愤怒需要时间爆发）
-    2. **角色特征尊重**：老人动作慢，年轻人语速快，儿童反应时间短
-    3. **节奏感控制**：紧张场景节奏快，抒情场景节奏慢
-    4. **视觉叙事需求**：重要动作要给足展示时间，关键表情要给特写时间
-    5. **对话自然度**：给足思考和反应时间，避免对话过于急促
-
-    ## 具体考虑因素：
-    - 对话中的情绪强度：{self._extract_emotion_intensity(context['dialogues'])}
-    - 动作的复杂程度：{self._extract_action_complexity(context['actions'])}
-    - 角色年龄分布：{self._extract_age_distribution(context['characters'])}
-    - 场景氛围需求：{context['mood']}需要特定的节奏
-
-    ## 调整约束：
-    1. 每个元素的调整幅度不超过原始时长的±40%
-    2. 场景总时长变化不超过±20%
-    3. 保持对话和动作的逻辑顺序
-    4. 确保关键情感时刻有足够时间
-
-    ## 输出格式（严格的JSON）：
-    {{
-      "scene_id": "{context['scene_id']}",
-      "adjustments": [
-        {{
-          "element_id": "元素ID",
-          "element_type": "dialogue|action",
-          "original_duration": 原时长,
-          "adjusted_duration": 调整后时长,
-          "adjustment_percentage": 调整百分比,
-          "reason": "调整理由（具体说明，如：老人说话需要更多时间表达情感）",
-          "confidence": 0-1的置信度,
-          "key_moment": "是否为关键时刻（true/false）"
-        }}
-      ],
-      "overall_analysis": {{
-        "emotional_arc": "情绪弧线分析",
-        "pacing_recommendation": "节奏建议",
-        "key_moments": ["关键时刻列表"],
-        "total_adjustment_percentage": "总调整百分比"
-      }},
-      "adjustment_confidence": 0.9
-    }}
-
-    ## 特别注意：
-    1. 考虑老人的缓慢动作和深思熟虑的对话
-    2. 考虑年轻人的快速反应和急促对话
-    3. 给情感高潮足够的时间
-    4. 保持叙事的流畅性和连贯性
-    """
-
-        def _format_dialogues_for_prompt(self, dialogues: List[Dict]) -> str:
-            """格式化对话信息用于提示词"""
-            if not dialogues:
-                return "无对话内容"
-
-            formatted = []
-            for d in dialogues:
-                speaker_info = f"{d['speaker']}"
-                if d.get('speaker_age'):
-                    speaker_info += f"({d['speaker_age']}岁)"
-
-                formatted.append(
-                    f"- {speaker_info} ({d['emotion']}): \"{d['text'][:100]}\" "
-                    f"[原估算: {d['original_estimate']:.1f}秒, {d['word_count']}字]"
-                )
-
-            return "\n".join(formatted)
-
-        def _format_actions_for_prompt(self, actions: List[Dict]) -> str:
-            """格式化动作信息用于提示词"""
-            if not actions:
-                return "无动作内容"
-
-            formatted = []
-            for a in actions:
-                intensity_desc = {1: "轻微", 2: "一般", 3: "较强", 4: "强烈", 5: "剧烈"}.get(a['intensity'], "一般")
-                formatted.append(
-                    f"- {a['actor']}的{a['type']}动作（强度: {intensity_desc}）: "
-                    f"\"{a['description'][:80]}\" [原估算: {a['original_estimate']:.1f}秒]"
-                )
-
-            return "\n".join(formatted)
-
-        def _batch_adjust_with_ai(self, contexts: List[Dict]) -> Dict[str, List[Dict]]:
-            """
-            批量调用AI进行时长调整
-
-            策略：将多个场景合并到一个请求中，减少API调用次数
-            """
-            if not contexts:
-                return {}
-
-            # 检查缓存
-            cache_key = self._generate_cache_key(contexts)
-            if cache_key in self.cache and not self.config.force_refresh:
-                self.stats["cache_hits"] += 1
-                print(f"使用缓存结果，缓存命中: {self.stats['cache_hits']}")
-                return self.cache[cache_key]
-
-            # 根据场景数量决定是否分批
-            if len(contexts) > self.config.max_scenes_per_request:
-                # 分批处理
-                batches = [contexts[i:i + self.config.max_scenes_per_request]
-                           for i in range(0, len(contexts), self.config.max_scenes_per_request)]
-                all_results = {}
-
-                for batch in batches:
-                    batch_results = self._process_batch(batch)
-                    all_results.update(batch_results)
-
-                # 缓存结果
-                self.cache[cache_key] = all_results
-                return all_results
-            else:
-                # 单批处理
-                results = self._process_batch(contexts)
-                self.cache[cache_key] = results
-                return results
-
-        def _process_batch(self, contexts: List[Dict]) -> Dict[str, List[Dict]]:
-            """处理一批场景的调整"""
-            try:
-                # 构建批量提示词
-                batch_prompt = self._create_batch_prompt(contexts)
-
-                # 调用LLM
-                response = self._call_llm_for_adjustment(batch_prompt)
-
-                # 解析响应
-                adjustments_by_scene = self._parse_batch_response(response, contexts)
-
-                return adjustments_by_scene
-
-            except Exception as e:
-                print(f"AI批量调整失败: {e}")
-                # 返回空调整，使用原始估算
-                return {ctx["scene_id"]: [] for ctx in contexts}
-
-        def _create_batch_prompt(self, contexts: List[Dict]) -> str:
-            """创建批量调整提示词"""
-            scene_summaries = []
-
-            for i, context in enumerate(contexts):
-                scene_summary = f"""
-    ## 场景 {i + 1}: {context['scene_id']}
-    地点: {context['location']}, 时间: {context['time_of_day']}, 氛围: {context['mood']}
-    角色: {', '.join([c['name'] for c in context['characters']])}
-
-    对话数量: {len(context['dialogues'])}
-    动作数量: {len(context['actions'])}
-    情感强度: {context['complexity_analysis']['emotional_score']:.2f}
-                """
-                scene_summaries.append(scene_summary)
-
-            return f"""
-    你是一个专业的影视剪辑师。请为以下多个场景进行时长调整。
-
-    {''.join(scene_summaries)}
-
-    ## 调整要求（适用于所有场景）：
-    1. 尊重角色特征（年龄、性格）
-    2. 保持情绪表达的完整性
-    3. 确保节奏适合场景氛围
-    4. 每个元素调整幅度不超过±40%
-    5. 每个场景总时长变化不超过±20%
-
-    ## 输出格式：
-    {{
-      "scenes_adjustments": [
-        {{
-          "scene_id": "场景ID",
-          "adjustments": [
-            {{
-              "element_id": "元素ID",
-              "element_type": "dialogue|action",
-              "original_duration": 原时长,
-              "adjusted_duration": 调整后时长,
-              "reason": "调整理由",
-              "confidence": 置信度
-            }}
-          ]
-        }}
-      ],
-      "cross_scene_analysis": {{
-        "pacing_consistency": "节奏一致性分析",
-        "emotional_progression": "情绪进展分析",
-        "recommendations": ["跨场景建议"]
-      }}
-    }}
-    """
-
-    def _call_llm_for_adjustment(self, prompt: str) -> str:
-        """
-        调用LLM进行时长调整
-        """
         try:
-            response = self.llm.chat_complete(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": """你是一个专业的影视剪辑师和节奏分析师。你精通：
-                        1. 对话节奏控制（语速、停顿、情绪表达）
-                        2. 动作时长估算（复杂动作、简单动作、反应时间）
-                        3. 角色特征考量（年龄、性格、情绪状态）
-                        4. 场景氛围营造（紧张、舒缓、浪漫、悬疑）
-                        请输出严格的JSON格式。"""
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                temperature=self.config.llm_temperature,
-                max_tokens=self.config.llm_max_tokens,
-                response_format={"type": "json_object"}
+            # 1. 预处理和顺序提取
+            element_order = self._preprocess_script(script_data)
+            debug(f"预处理完成: {len(element_order)} 个元素")
+
+            # 2. 智能时长估算（支持批量）
+            start_est = datetime.now()
+            estimations = self._estimate_durations_intelligently(element_order, script_data)
+            self.processing_stats["element_estimation_time"] = (datetime.now() - start_est).total_seconds()
+
+            debug(f"时长估算完成: {len(estimations)} 个元素")
+
+            # 3. 自适应分片
+            start_seg = datetime.now()
+            segments = self._adaptive_segmentation(estimations, element_order)
+            self.processing_stats["segmentation_time"] = (datetime.now() - start_seg).total_seconds()
+
+            debug(f"自适应分片完成: {len(segments)} 个片段")
+
+            # 4. 多维度节奏分析
+            start_ana = datetime.now()
+            pacing_analysis = self._multidimensional_pacing_analysis(segments, estimations)
+            self.processing_stats["analysis_time"] = (datetime.now() - start_ana).total_seconds()
+
+            debug(f"节奏分析完成: {pacing_analysis['pacing_profile']}")
+
+            # 5. 智能连续性锚点生成
+            continuity_anchors = self._generate_continuity_anchors(segments, estimations)
+
+            debug(f"连续性锚点生成: {len(continuity_anchors)} 个锚点")
+
+            # 6. 创建最终规划
+            total_duration = self._calculate_total_duration(segments)
+
+            plan = TimelinePlan(
+                timeline_segments=segments,
+                duration_estimations=estimations,
+                pacing_analysis=pacing_analysis,
+                continuity_anchors=continuity_anchors,
+                total_duration=total_duration,
+                segments_count=len(segments),
+                pacing_profile=pacing_analysis.pacing_profile,
+                processing_stats={
+                    **self.processing_stats,
+                    "end_time": datetime.now().isoformat(),
+                    "total_time": (datetime.now() - self.processing_stats["start_time"]).total_seconds()
+                }
             )
-            return response
+
+            info(f"时序规划完成！总时长: {total_duration:.1f}秒, 片段数: {len(segments)}")
+
+            return plan
 
         except Exception as e:
-            error(f"LLM调用失败: {e}")
-            raise Exception(f"AI调整服务暂时不可用: {str(e)}")
+            error(f"处理失败: {str(e)}")
+            raise
 
-    def _parse_batch_response(self, response: str, contexts: List[Dict]) -> Dict[str, List[Dict]]:
-        """
-        解析批量调整响应
-        """
-        try:
-            result = json.loads(response)
-            adjustments_by_scene = {}
+    def _preprocess_script(self, script_data: UnifiedScript) -> List[Dict]:
+        """预处理剧本数据（优化版）"""
+        element_order = []
 
-            # 提取每个场景的调整
-            if "scenes_adjustments" in result:
-                for scene_adj in result["scenes_adjustments"]:
-                    scene_id = scene_adj.get("scene_id")
-                    adjustments = scene_adj.get("adjustments", [])
+        # 场景
+        for scene in script_data.scenes:
+            element_order.append({
+                "id": scene.scene_id,
+                "type": ElementType.SCENE,
+                "time_offset": scene.start_time,
+                "duration": scene.duration,
+                "data": scene,
+                "priority": 1  # 场景通常是高优先级
+            })
 
-                    # 验证和清理调整数据
-                    validated_adjustments = self._validate_adjustments(adjustments, scene_id, contexts)
-                    adjustments_by_scene[scene_id] = validated_adjustments
+        # 对话（包括沉默）
+        for dialogue in script_data.dialogues:
+            is_silence = dialogue.type == "silence" or not dialogue.content.strip()
+            element_order.append({
+                "id": dialogue.dialogue_id,
+                "type": ElementType.SILENCE if is_silence else ElementType.DIALOGUE,
+                "time_offset": dialogue.time_offset,
+                "duration": dialogue.duration,
+                "data": dialogue,
+                "priority": 2 if is_silence else 3  # 沉默优先级高于普通对话
+            })
 
-            # 如果没有找到场景调整，尝试其他格式
-            elif "adjustments" in result:
-                # 可能是单场景格式
-                for context in contexts:
-                    scene_id = context["scene_id"]
-                    adjustments_by_scene[scene_id] = self._validate_adjustments(
-                        result.get("adjustments", []), scene_id, contexts
-                    )
+        # 动作
+        for action in script_data.actions:
+            # 判断动作重要性
+            importance = self._assess_action_importance(action.description)
 
-            # 记录跨场景分析
-            if "cross_scene_analysis" in result:
-                print("跨场景分析:", result["cross_scene_analysis"])
+            element_order.append({
+                "id": action.action_id,
+                "type": ElementType.ACTION,
+                "time_offset": action.time_offset,
+                "duration": action.duration,
+                "data": action,
+                "priority": importance,
+                "complexity": self._assess_action_complexity(action.description)
+            })
 
-            return adjustments_by_scene
+        # 按时间偏移排序，相同时间按优先级排序
+        element_order.sort(key=lambda x: (x["time_offset"], -x.get("priority", 0)))
 
-        except json.JSONDecodeError as e:
-            print(f"AI响应JSON解析失败: {e}")
-            print(f"响应内容: {response[:500]}...")
-            # 返回空调整
-            return {ctx["scene_id"]: [] for ctx in contexts}
+        return element_order
 
-    def _validate_adjustments(self, adjustments: List[Dict],
-                              scene_id: str, contexts: List[Dict]) -> List[Dict]:
-        """
-        验证和清理调整数据
-        """
-        validated = []
+    def _assess_action_importance(self, description: str) -> int:
+        """评估动作重要性"""
+        important_keywords = ["突然", "猛地", "瞬间", "泪水", "震惊", "关键", "重要"]
+        moderate_keywords = ["缓缓", "轻轻", "慢慢", "注视", "看向"]
 
-        # 查找场景上下文
-        scene_context = next((ctx for ctx in contexts if ctx["scene_id"] == scene_id), None)
-        if not scene_context:
-            return []
+        desc_lower = description.lower()
 
-        for adj in adjustments:
-            # 基本验证
-            if not all(k in adj for k in ["element_id", "adjusted_duration", "reason"]):
-                continue
+        if any(keyword in desc_lower for keyword in important_keywords):
+            return 1  # 高优先级
+        elif any(keyword in desc_lower for keyword in moderate_keywords):
+            return 3  # 中优先级
+        else:
+            return 4  # 低优先级
 
-            element_id = adj["element_id"]
-            adjusted_duration = adj["adjusted_duration"]
+    def _assess_action_complexity(self, description: str) -> float:
+        """评估动作复杂度（0-1）"""
+        words = description.split()
 
-            # 验证元素类型
-            element_type = adj.get("element_type", "")
-            if element_type not in ["dialogue", "action"]:
-                # 尝试推断类型
-                if "dialogue" in element_id:
-                    element_type = "dialogue"
-                elif "action" in element_id:
-                    element_type = "action"
-                else:
-                    continue
+        # 多部分动作
+        action_parts = ["然后", "接着", "同时", "一边", "又"]
+        part_count = sum(1 for part in action_parts if part in description)
 
-            # 查找原始估算
-            original_duration = None
-            if element_type == "dialogue":
-                dialogue = next((d for d in scene_context["dialogues"]
-                                 if d["dialogue_id"] == element_id), None)
-                if dialogue:
-                    original_duration = dialogue["original_estimate"]
-            elif element_type == "action":
-                action = next((a for a in scene_context["actions"]
-                               if a["action_id"] == element_id), None)
-                if action:
-                    original_duration = action["original_estimate"]
+        # 精细动作
+        fine_movements = ["指尖", "眼神", "嘴角", "眉梢", "喉头"]
+        fine_count = sum(1 for movement in fine_movements if movement in description)
 
-            if original_duration is None:
-                continue
+        # 计算公式
+        complexity = min(
+            0.3 * len(words) / 10 +  # 长度因子
+            0.4 * min(part_count / 3, 1) +  # 多部分因子
+            0.3 * min(fine_count / 2, 1),  # 精细度因子
+            1.0
+        )
 
-            # 验证调整幅度
-            adjustment_ratio = abs(adjusted_duration - original_duration) / original_duration
-            if adjustment_ratio > self.config.max_adjustment_ratio:
-                print(f"警告：调整幅度过大 ({adjustment_ratio:.1%})，限制为{self.config.max_adjustment_ratio:.0%}")
-                # 限制调整幅度
-                if adjusted_duration > original_duration:
-                    adjusted_duration = original_duration * (1 + self.config.max_adjustment_ratio)
-                else:
-                    adjusted_duration = original_duration * (1 - self.config.max_adjustment_ratio)
+        return round(complexity, 2)
 
-            # 验证时长合理性
-            if element_type == "dialogue":
-                if adjusted_duration < self.config.min_dialogue_duration:
-                    adjusted_duration = self.config.min_dialogue_duration
-                elif adjusted_duration > self.config.max_dialogue_duration:
-                    adjusted_duration = self.config.max_dialogue_duration
-            elif element_type == "action":
-                if adjusted_duration < self.config.min_action_duration:
-                    adjusted_duration = self.config.min_action_duration
-                elif adjusted_duration > self.config.max_action_duration:
-                    adjusted_duration = self.config.max_action_duration
+    def _estimate_durations_intelligently(self, element_order: List[Dict],
+                                          script_data: UnifiedScript) -> Dict[str, DurationEstimation]:
+        """智能时长估算（支持批量）"""
+        estimations = {}
 
-            # 构建验证后的调整
-            validated_adj = {
-                "element_id": element_id,
-                "element_type": element_type,
-                "original_duration": original_duration,
-                "adjusted_duration": round(adjusted_duration, 1),
-                "adjustment_percentage": round(((adjusted_duration / original_duration) - 1) * 100, 1),
-                "reason": adj.get("reason", "AI优化调整"),
-                "confidence": min(1.0, max(0.0, adj.get("confidence", 0.7))),
-                "key_moment": adj.get("key_moment", False)
-            }
+        # 分组处理：按类型和上下文分组
+        element_groups = self._group_elements_by_context(element_order)
 
-            validated.append(validated_adj)
+        for group_type, group_elements in element_groups.items():
+            debug(f"  处理 {group_type} 组: {len(group_elements)} 个元素")
 
-        return validated
+            if self.enable_batch_processing and len(group_elements) > 1:
+                # 批量处理
+                batch_results = self._batch_estimate_durations(group_elements, group_type)
+                estimations.update(batch_results)
+            else:
+                # 逐个处理
+                for element_info in group_elements:
+                    estimation = self._estimate_single_duration(element_info)
+                    if estimation:
+                        estimations[estimation.element_id] = estimation
 
-    def _apply_adjustments(self, estimations: Dict[str, DurationEstimation],
-                           adjustments_by_scene: Dict[str, List[Dict]],
-                           max_ratio: float) -> Dict[str, DurationEstimation]:
-        """
-        应用AI调整到原始估算
+        return estimations
 
-        有限度地应用调整，确保不会过度改变
-        """
-        adjusted_estimations = estimations.copy()
-
-        for scene_id, adjustments in adjustments_by_scene.items():
-            for adjustment in adjustments:
-                element_id = adjustment["element_id"]
-
-                if element_id in adjusted_estimations:
-                    original = adjusted_estimations[element_id]
-                    ai_adjusted = adjustment["adjusted_duration"]
-
-                    # 计算混合权重（基于AI置信度和调整幅度）
-                    ai_confidence = adjustment.get("confidence", 0.7)
-
-                    # 调整幅度越大，应用权重越小（避免过度调整）
-                    adjustment_ratio = abs(ai_adjusted - original.estimated_duration) / original.estimated_duration
-                    amplitude_factor = max(0.3, 1.0 - adjustment_ratio)  # 调整越大，权重越小
-
-                    # 最终权重 = AI置信度 × 幅度因子 × 配置权重
-                    ai_weight = ai_confidence * amplitude_factor * self.config.ai_weight
-
-                    # 限制权重范围
-                    ai_weight = min(self.config.max_ai_weight, max(self.config.min_ai_weight, ai_weight))
-
-                    # 计算最终时长（AI调整和原始估算的加权平均）
-                    final_duration = (
-                            original.estimated_duration * (1 - ai_weight) +
-                            ai_adjusted * ai_weight
-                    )
-
-                    # 确保在合理范围内
-                    if original.element_type == "dialogue":
-                        final_duration = max(self.config.min_dialogue_duration,
-                                             min(self.config.max_dialogue_duration, final_duration))
-                    elif original.element_type == "action":
-                        final_duration = max(self.config.min_action_duration,
-                                             min(self.config.max_action_duration, final_duration))
-
-                    # 更新估算
-                    adjusted_estimations[element_id] = DurationEstimation(
-                        element_id=original.element_id,
-                        element_type=original.element_type,
-                        estimated_duration=round(final_duration, 1),
-                        confidence=min(1.0, original.confidence * 0.9 + ai_confidence * 0.1),
-                        factors_considered=original.factors_considered + [
-                            f"AI调整: {adjustment['reason']} (权重: {ai_weight:.2f})"
-                        ],
-                        adjustment_notes=f"AI调整: {adjustment.get('reason', '优化')} "
-                                         f"[原: {original.estimated_duration:.1f}s → "
-                                         f"AI建议: {ai_adjusted:.1f}s → "
-                                         f"最终: {final_duration:.1f}s]"
-                    )
-
-        return adjusted_estimations
-
-    def _generate_cache_key(self, contexts: List[Dict]) -> str:
-        """生成缓存键"""
-        # 基于场景ID和内容生成简单的哈希
-        scene_info = []
-        for ctx in contexts:
-            scene_info.append(f"{ctx['scene_id']}:{len(ctx['dialogues'])}:{len(ctx['actions'])}")
-
-        content = "|".join(sorted(scene_info))
-        return hashlib.md5(content.encode()).hexdigest()[:16]
-
-    def _calculate_action_complexity(self, scene: Scene,
-                                     script_input: UnifiedScript) -> float:
-        """计算动作复杂度"""
-        scene_actions = [a for a in script_input.actions if a.scene_ref == scene.scene_id]
-
-        if not scene_actions:
-            return 0.0
-
-        # 动作数量
-        count_score = min(1.0, len(scene_actions) / 8)
-
-        # 动作强度
-        intensity_sum = sum(a.intensity for a in scene_actions)
-        avg_intensity = intensity_sum / len(scene_actions)
-        intensity_score = min(1.0, avg_intensity / 5)  # 最大强度5
-
-        # 动作类型多样性
-        action_types = set(a.type for a in scene_actions)
-        diversity_score = min(1.0, len(action_types) / 5)
-
-        # 复杂动作比例
-        complex_actions = ["fight", "chase", "fall", "climb", "dance"]
-        complex_count = sum(1 for a in scene_actions if a.type in complex_actions)
-        complexity_score = min(1.0, complex_count / len(scene_actions))
-
-        return (count_score * 0.2 + intensity_score * 0.3 +
-                diversity_score * 0.2 + complexity_score * 0.3)
-
-    def _calculate_dialogue_complexity(self, scene: Scene,
-                                       script_input: UnifiedScript) -> float:
-        """计算对话复杂度"""
-        scene_dialogues = [d for d in script_input.dialogues if d.scene_ref == scene.scene_id]
-
-        if not scene_dialogues:
-            return 0.0
-
-        # 对话长度复杂度
-        total_words = sum(len(d.text) for d in scene_dialogues)
-        avg_words = total_words / len(scene_dialogues)
-        length_score = min(1.0, avg_words / 50)  # 平均50字为满分
-
-        # 对话内容复杂度（基于标点符号）
-        complex_punctuation = ["？", "！", "…", "——"]
-        complex_count = sum(1 for d in scene_dialogues
-                            if any(p in d.text for p in complex_punctuation))
-        punctuation_score = min(1.0, complex_count / len(scene_dialogues))
-
-        return (length_score * 0.6 + punctuation_score * 0.4)
-
-    def _calculate_confidence_score(self, scene: Scene,
-                                    estimations: Dict[str, DurationEstimation]) -> float:
-        """计算置信度分数（置信度越低，越需要AI调整）"""
-        # 收集场景相关的估算
-        scene_estimations = []
-
-        # 查找对话估算
-        for key, est in estimations.items():
-            if key.startswith("dialogue_"):
-                # 简单匹配：对话ID可能包含场景信息
-                # 实际实现需要更精确的匹配逻辑
-                scene_estimations.append(est)
-
-        if not scene_estimations:
-            return 0.5  # 中等置信度需求
-
-        # 计算平均置信度（置信度越低，分数越高）
-        avg_confidence = sum(e.confidence for e in scene_estimations) / len(scene_estimations)
-
-        # 转换：置信度越低 -> 分数越高（越需要AI调整）
-        confidence_score = 1.0 - avg_confidence
-
-        return confidence_score
-
-    def _extract_emotion_intensity(self, dialogues: List[Dict]) -> str:
-        """提取情绪强度描述"""
-        if not dialogues:
-            return "无情绪内容"
-
-        emotions = [d['emotion'] for d in dialogues if d.get('emotion')]
-        if not emotions:
-            return "情绪平静"
-
-        # 情绪强度映射
-        intensity_map = {
-            "平静": 1, "疑问": 2, "喜悦": 3, "惊讶": 4,
-            "悲伤": 5, "愤怒": 6, "恐惧": 7, "大喊": 8
+    def _group_elements_by_context(self, element_order: List[Dict]) -> Dict[str, List[Dict]]:
+        """按上下文分组元素"""
+        groups = {
+            "scenes": [],
+            "dialogues": [],
+            "silences": [],
+            "important_actions": [],
+            "regular_actions": []
         }
 
-        max_emotion = max(emotions, key=lambda e: intensity_map.get(e, 1))
-        intensity_value = intensity_map.get(max_emotion, 1)
+        for element in element_order:
+            elem_type = element["type"]
 
-        if intensity_value >= 6:
-            return "高强度情绪"
-        elif intensity_value >= 4:
-            return "中等强度情绪"
+            if elem_type == ElementType.SCENE:
+                groups["scenes"].append(element)
+            elif elem_type == ElementType.DIALOGUE:
+                groups["dialogues"].append(element)
+            elif elem_type == ElementType.SILENCE:
+                groups["silences"].append(element)
+            elif elem_type == ElementType.ACTION:
+                if element.get("priority", 4) <= 2:  # 重要动作
+                    groups["important_actions"].append(element)
+                else:
+                    groups["regular_actions"].append(element)
+
+        # 移除空组
+        return {k: v for k, v in groups.items() if v}
+
+    def _batch_estimate_durations(self, elements: List[Dict], group_type: str) -> Dict[str, DurationEstimation]:
+        """批量估算时长（优化版）"""
+
+        # 这里可以调用支持批量处理的AI接口
+        # self.ai_estimator.batch_estimate(elements, group_type)
+        # 暂时先逐个处理，返回结果
+        estimations = {}
+
+        for element in elements:
+            estimation = self._estimate_single_duration(element)
+            if estimation:
+                estimations[estimation.element_id] = estimation
+
+        return estimations
+
+    def _estimate_single_duration(self, element_info: Dict) -> Optional[DurationEstimation]:
+        """估算单个元素时长"""
+        element_id = element_info["id"]
+
+        # 检查缓存
+        cache_key = f"{element_info['type']}_{element_id}"
+        if cache_key in self.element_cache:
+            return self.element_cache[cache_key]
+
+        try:
+            element_data = element_info["data"]
+
+            if element_info["type"] == "scene":
+                estimation = self.ai_estimator.estimate_scene_duration(element_data)
+            elif element_info["type"] == "dialogue":
+                estimation = self.ai_estimator.estimate_dialogue_duration(element_data)
+            elif element_info["type"] == "silence":
+                estimation = self.ai_estimator.estimate_silence_duration(element_data)
+            elif element_info["type"] == "action":
+                estimation = self.ai_estimator.estimate_action_duration(element_data)
+            else:
+                return None
+
+            # 验证和调整估算
+            validated = self._validate_and_adjust_estimation(estimation, element_info)
+
+            # 缓存结果
+            self.element_cache[cache_key] = validated
+
+            return validated
+
+        except Exception as e:
+            print(f"    警告: {element_id} 估算失败: {str(e)}")
+            # 返回降级估算
+            return self._create_fallback_estimation(element_info)
+
+    def _validate_and_adjust_estimation(self, estimation: DurationEstimation,
+                                        element_info: Dict) -> DurationEstimation:
+        """验证和调整估算结果"""
+        original_duration = element_info.get("duration", 0)
+        elem_type = element_info["type"]
+
+        # 验证时长合理性
+        min_max_ranges = {
+            "scene": (1.5, 15.0),
+            "dialogue": (0.8, 8.0),
+            "silence": (0.5, 10.0),
+            "action": (0.3, 12.0)
+        }
+
+        min_dur, max_dur = min_max_ranges.get(elem_type, (0.5, 10.0))
+        ai_duration = estimation.ai_estimated_duration
+
+        # 调整超出范围的时长
+        if ai_duration < min_dur:
+            ai_duration = min_dur
+            estimation.confidence = min(estimation.confidence, 0.6)
+        elif ai_duration > max_dur:
+            ai_duration = max_dur
+            estimation.confidence = min(estimation.confidence, 0.7)
+
+        # 更新估算时长
+        estimation.ai_estimated_duration = round(ai_duration, 2)
+
+        # 对于重要元素，如果AI估算与原始值差异太大，可能需要特别处理
+        if elem_type == "silence" and original_duration > 0:
+            # 沉默通常需要足够的时间
+            if ai_duration < original_duration * 0.7:
+                estimation.ai_estimated_duration = max(ai_duration, original_duration * 0.8)
+
+        return estimation
+
+    def _create_fallback_estimation(self, element_info: Dict) -> DurationEstimation:
+        """创建降级估算"""
+        elem_type_map = {
+            "scene": ElementType.SCENE,
+            "dialogue": ElementType.DIALOGUE,
+            "silence": ElementType.SILENCE,
+            "action": ElementType.ACTION
+        }
+
+        original_duration = element_info.get("duration", 2.0)
+
+        # 基于类型和复杂度的降级估算
+        if element_info["type"] == "silence":
+            fallback_duration = max(original_duration, 2.5)
+        elif element_info["type"] == "action":
+            complexity = element_info.get("complexity", 0.5)
+            fallback_duration = original_duration * (0.8 + complexity * 0.4)
         else:
-            return "低强度情绪"
+            fallback_duration = original_duration
 
-    def _extract_action_complexity(self, actions: List[Dict]) -> str:
-        """提取动作复杂度描述"""
-        if not actions:
-            return "无复杂动作"
+        return DurationEstimation(
+            element_id=element_info["id"],
+            element_type=elem_type_map.get(element_info["type"], ElementType.SCENE),
+            original_duration=original_duration,
+            estimated_duration=round(fallback_duration, 2),
+            confidence=0.4,
+            reasoning_breakdown={},
+            visual_hints={},
+            key_factors=["降级估算"],
+            pacing_notes=f"AI估算失败，使用基于{element_info['type']}的降级值",
+            emotional_weight=1,
+            visual_complexity=1,
+            character_states={},
+            prop_states={},
+            estimated_at=datetime.now().isoformat()
+        )
 
-        complex_types = ["fight", "chase", "fall", "climb", "dance"]
-        complex_count = sum(1 for a in actions if a['type'] in complex_types)
+    def _adaptive_segmentation(self, estimations: Dict[str, DurationEstimation],
+                               element_order: List[Dict]) -> List[TimeSegment]:
+        """自适应分片算法"""
+        segments = []
+        current_segment = {
+            "elements": [],
+            "duration": 0.0,
+            "start_time": 0.0,
+            "types": set()
+        }
 
-        if complex_count >= 3:
-            return "高复杂度动作序列"
-        elif complex_count >= 1:
-            return "中等复杂度动作"
+        segment_index = 1
+
+        for element_info in element_order:
+            element_id = element_info["id"]
+
+            if element_id not in estimations:
+                continue
+
+            estimation = estimations[element_id]
+            element_duration = estimation.estimated_duration
+
+            # 检查分片策略
+            should_split = self._should_split_segment(
+                current_segment, element_info, estimation, element_duration
+            )
+
+            if should_split and current_segment["elements"]:
+                # 创建新片段
+                segment = self._create_optimized_segment(
+                    segment_index, current_segment, estimations
+                )
+                segments.append(segment)
+                segment_index += 1
+
+                # 重置当前片段
+                current_segment = {
+                    "elements": [],
+                    "duration": 0.0,
+                    "start_time": current_segment["start_time"] + current_segment["duration"],
+                    "types": set()
+                }
+
+            # 添加元素到当前片段
+            current_segment["elements"].append({
+                "element_id": element_id,
+                "type": estimation.element_type.value,
+                "duration": element_duration,
+                "start_in_segment": current_segment["duration"],
+                "data": element_info
+            })
+
+            current_segment["duration"] += element_duration
+            current_segment["types"].add(estimation.element_type.value)
+
+        # 处理最后一个片段
+        if current_segment["elements"]:
+            segment = self._create_optimized_segment(
+                segment_index, current_segment, estimations
+            )
+            segments.append(segment)
+
+        return segments
+
+    def _should_split_segment(self, current_segment: Dict, element_info: Dict,
+                              estimation: DurationEstimation, element_duration: float) -> bool:
+        """判断是否应该分片"""
+        # 1. 超过最大时长
+        if current_segment["duration"] + element_duration > self.max_segment_duration:
+            return True
+
+        # 2. 当前片段已经接近5秒，新元素会明显超出
+        if (current_segment["duration"] > self.max_segment_duration * 0.8 and
+                element_duration > self.max_segment_duration * 0.3):
+            return True
+
+        # 3. 类型不匹配：沉默不应该和场景放在一起
+        if (estimation.element_type.value == "silence" and
+                "scene" in current_segment["types"] and
+                current_segment["duration"] > self.min_segment_duration):
+            return True
+
+        # 4. 关键转折点：重要对话或动作应该在新片段开始
+        if (element_info.get("priority", 4) <= 2 and  # 高优先级
+                current_segment["duration"] > self.min_segment_duration):
+            return True
+
+        # 5. 情感变化：高情感权重的元素可能需要新片段
+        if (estimation.emotional_weight > 1.8 and
+                current_segment["duration"] > self.min_segment_duration * 1.5):
+            return True
+
+        return False
+
+    def _create_optimized_segment(self, index: int, segment_data: Dict,
+                                  estimations: Dict[str, DurationEstimation]) -> TimeSegment:
+        """创建优化的时间片段"""
+        segment_id = f"seg_{index:03d}"
+        start_time = segment_data["start_time"]
+        duration = segment_data["duration"]
+        end_time = start_time + duration
+
+        # 生成优化的摘要
+        visual_summary = self._generate_optimized_summary(segment_data, estimations)
+
+        # 智能锚点生成
+        start_anchor, end_anchor = self._generate_intelligent_anchors(segment_data, estimations)
+
+        # 优化的镜头建议
+        shot_suggestions = self._generate_optimized_shot_suggestions(segment_data, estimations)
+
+        # 连续性要求
+        continuity_reqs = self._extract_optimized_continuity(segment_data, estimations)
+
+        # 准备包含的元素信息
+        contained_elements = []
+        for elem in segment_data["elements"]:
+            contained_elements.append({
+                "element_id": elem["element_id"],
+                "element_type": elem["type"],
+                "duration": elem["duration"],
+                "start_in_segment": elem["start_in_segment"]
+            })
+
+        return TimeSegment(
+            segment_id=segment_id,
+            time_range=(round(start_time, 2), round(end_time, 2)),
+            duration=round(duration, 2),
+            visual_summary=visual_summary,
+            contained_elements=contained_elements,
+            start_anchor=start_anchor,
+            end_anchor=end_anchor,
+            continuity_requirements=continuity_reqs,
+            shot_type_suggestion=shot_suggestions["shot_type"],
+            lighting_suggestion=shot_suggestions["lighting"],
+            focus_elements=shot_suggestions["focus"]
+        )
+
+    def _generate_optimized_summary(self, segment_data: Dict,
+                                    estimations: Dict[str, DurationEstimation]) -> str:
+        """生成优化的视觉摘要"""
+        elements = segment_data["elements"]
+
+        if not elements:
+            return "空片段"
+
+        # 分析片段特征
+        features = {
+            "has_dialogue": False,
+            "has_silence": False,
+            "has_action": False,
+            "has_scene": False,
+            "emotional_intensity": 0,
+            "key_elements": []
+        }
+
+        for elem in elements:
+            elem_id = elem["element_id"]
+            if elem_id in estimations:
+                est = estimations[elem_id]
+
+                if est.element_type.value == "dialogue":
+                    features["has_dialogue"] = True
+                elif est.element_type.value == "silence":
+                    features["has_silence"] = True
+                    features["emotional_intensity"] += est.emotional_weight
+                elif est.element_type.value == "action":
+                    features["has_action"] = True
+                elif est.element_type.value == "scene":
+                    features["has_scene"] = True
+
+                # 收集关键元素
+                if est.emotional_weight > 1.8 or (hasattr(est, 'visual_complexity') and est.visual_complexity > 1.5):
+                    features["key_elements"].append(est.element_type.value)
+
+        # 构建摘要
+        summary_parts = []
+
+        if features["has_scene"]:
+            summary_parts.append("场景")
+        if features["has_dialogue"]:
+            summary_parts.append("对话")
+        if features["has_silence"]:
+            summary_parts.append("沉默")
+        if features["has_action"]:
+            summary_parts.append("动作")
+
+        # 添加情感强度指示
+        if features["emotional_intensity"] > 2.5:
+            summary_parts.append("情感高潮")
+        elif features["emotional_intensity"] > 1.5:
+            summary_parts.append("情感表达")
+
+        # 添加关键元素指示
+        if features["key_elements"]:
+            unique_keys = list(set(features["key_elements"]))
+            if len(unique_keys) == 1:
+                summary_parts.append(f"关键{unique_keys[0]}")
+
+        return " | ".join(summary_parts) if summary_parts else "混合内容"
+
+    def _generate_intelligent_anchors(self, segment_data: Dict,
+                                      estimations: Dict[str, DurationEstimation]) -> Tuple[Dict, Dict]:
+        """生成智能连续性锚点"""
+        start_anchor = {
+            "type": "segment_start",
+            "constraints": [],
+            "character_states": {},
+            "prop_states": {},
+            "environment_state": {}
+        }
+
+        end_anchor = {
+            "type": "segment_end",
+            "constraints": [],
+            "character_states": {},
+            "prop_states": {},
+            "environment_state": {},
+            "transition_hints": []
+        }
+
+        # 分析片段中的状态变化
+        character_state_changes = {}
+        prop_state_changes = {}
+
+        for elem in segment_data["elements"]:
+            elem_id = elem["element_id"]
+            if elem_id in estimations:
+                est = estimations[elem_id]
+
+                # 收集状态变化
+                for char, state in est.character_states.items():
+                    character_state_changes[char] = state
+                for prop, state in est.prop_states.items():
+                    prop_state_changes[prop] = state
+
+        # 设置开始状态（基于第一个元素）
+        if segment_data["elements"]:
+            first_elem = segment_data["elements"][0]
+            first_id = first_elem["element_id"]
+            if first_id in estimations:
+                first_est = estimations[first_id]
+
+                # 如果是场景，设置环境状态
+                if first_est.element_type == ElementType.SCENE:
+                    start_anchor["environment_state"] = {
+                        "location": first_est.visual_hints.get("location", "未知"),
+                        "lighting": first_est.visual_hints.get("lighting_notes", "自然光"),
+                        "mood": first_est.key_factors[0] if first_est.key_factors else "中性"
+                    }
+
+        # 设置结束状态
+        end_anchor["character_states"] = character_state_changes
+        end_anchor["prop_states"] = prop_state_changes
+
+        # 添加约束
+        if character_state_changes:
+            start_anchor["constraints"].append("角色初始状态必须准确")
+            end_anchor["constraints"].append("角色状态变化必须连贯自然")
+
+        if prop_state_changes:
+            start_anchor["constraints"].append("道具初始位置必须准确")
+            end_anchor["constraints"].append("道具状态变化必须合理")
+
+        # 添加过渡提示
+        if segment_data["elements"]:
+            last_elem = segment_data["elements"][-1]
+            last_id = last_elem["element_id"]
+            if last_id in estimations:
+                last_est = estimations[last_id]
+
+                if last_est.element_type == ElementType.SILENCE:
+                    end_anchor["transition_hints"].append("沉默后的情绪需要自然过渡")
+                elif last_est.element_type == ElementType.DIALOGUE:
+                    end_anchor["transition_hints"].append("对话后的反应时间很重要")
+                elif last_est.element_type == ElementType.ACTION:
+                    if hasattr(last_est, 'visual_complexity') and last_est.visual_complexity > 1.5:
+                        end_anchor["transition_hints"].append("复杂动作后需要缓冲时间")
+
+        return start_anchor, end_anchor
+
+    def _generate_optimized_shot_suggestions(self, segment_data: Dict,
+                                             estimations: Dict[str, DurationEstimation]) -> Dict:
+        """生成优化的镜头建议"""
+        elements = segment_data["elements"]
+
+        # 默认值
+        suggestions = {
+            "shot_type": "medium_shot",
+            "lighting": "natural",
+            "focus": []
+        }
+
+        if not elements:
+            return suggestions
+
+        # 分析元素组合
+        element_types = [elem["type"] for elem in elements]
+
+        # 判断主导元素类型
+        type_counts = {}
+        for elem_type in element_types:
+            type_counts[elem_type] = type_counts.get(elem_type, 0) + 1
+
+        dominant_type = max(type_counts.items(), key=lambda x: x[1])[0] if type_counts else "mixed"
+
+        # 根据主导类型选择镜头
+        shot_rules = {
+            "silence": {"shot": "close_up", "lighting": "soft_dramatic", "focus": ["面部微表情"]},
+            "dialogue": {"shot": "medium_close_up", "lighting": "natural_with_emphasis", "focus": ["说话者表情"]},
+            "action": {"shot": "medium_shot", "lighting": "dynamic", "focus": ["动作轨迹"]},
+            "scene": {"shot": "wide_shot", "lighting": "atmospheric", "focus": ["环境细节"]}
+        }
+
+        if dominant_type in shot_rules:
+            base_suggestion = shot_rules[dominant_type]
+            suggestions.update(base_suggestion)
+
+        # 特殊组合处理
+        if "silence" in element_types and "dialogue" in element_types:
+            # 对话后的沉默
+            suggestions["shot_type"] = "slow_zoom_to_close_up"
+            suggestions["lighting"] = "gradual_dim"
+            suggestions["focus"] = ["面部表情变化", "眼神焦点转移"]
+
+        # 添加基于情感强度的调整
+        emotional_intensity = 0
+        for elem in elements:
+            elem_id = elem["element_id"]
+            if elem_id in estimations:
+                est = estimations[elem_id]
+                emotional_intensity += est.emotional_weight
+
+        if emotional_intensity > 3.0:
+            suggestions["lighting"] = "high_contrast_dramatic"
+            suggestions["focus"].append("情感表达细节")
+
+        # 去重焦点元素
+        suggestions["focus"] = list(set(suggestions["focus"]))[:2]
+
+        return suggestions
+
+    def _extract_optimized_continuity(self, segment_data: Dict,
+                                      estimations: Dict[str, DurationEstimation]) -> List[str]:
+        """提取优化的连续性要求"""
+        requirements = []
+
+        # 检查状态变化
+        has_state_changes = False
+        for elem in segment_data["elements"]:
+            elem_id = elem["element_id"]
+            if elem_id in estimations:
+                est = estimations[elem_id]
+                if est.character_states or est.prop_states:
+                    has_state_changes = True
+                    break
+
+        if has_state_changes:
+            requirements.append("状态变化必须保持视觉和逻辑连贯性")
+
+        # 检查情感连续性
+        emotional_elements = []
+        for elem in segment_data["elements"]:
+            elem_id = elem["element_id"]
+            if elem_id in estimations:
+                est = estimations[elem_id]
+                if est.emotional_weight > 1.5:
+                    emotional_elements.append(est.element_type.value)
+
+        if len(set(emotional_elements)) > 1:
+            requirements.append("不同情感元素间的过渡必须自然")
+
+        # 检查视觉复杂度
+        complex_visuals = False
+        for elem in segment_data["elements"]:
+            elem_id = elem["element_id"]
+            if elem_id in estimations:
+                est = estimations[elem_id]
+                if (hasattr(est, 'visual_complexity') and est.visual_complexity > 1.8) or \
+                        est.element_type.value == "scene":
+                    complex_visuals = True
+                    break
+
+        if complex_visuals:
+            requirements.append("复杂视觉元素必须保持一致性")
+
+        return requirements
+
+    def _multidimensional_pacing_analysis(self, segments: List[TimeSegment],
+                                          estimations: Dict[str, DurationEstimation]) -> PacingAnalysis | None:
+        """多维度节奏分析"""
+        if not segments:
+            return None
+
+        # 1. 强度分析
+        intensities = []
+        for segment in segments:
+            intensity = self._calculate_segment_intensity(segment, estimations)
+            intensities.append(intensity)
+
+        # 2. 情感分析
+        emotional_arc = self._analyze_emotional_arc(segments, estimations)
+
+        # 3. 视觉复杂度分析
+        visual_complexity = self._analyze_visual_complexity(segments, estimations)
+
+        # 4. 节奏模式识别
+        pacing_profile = self._identify_pacing_pattern(intensities, emotional_arc)
+
+        # 5. 关键点检测
+        key_points = self._detect_key_points(segments, intensities, estimations)
+
+        # 6. 节奏建议
+        recommendations = self._generate_pacing_recommendations(
+            pacing_profile, intensities, emotional_arc
+        )
+
+        return PacingAnalysis(
+            pacing_profile=pacing_profile,
+            intensity_curve=intensities,
+            emotional_arc=emotional_arc,
+            visual_complexity=visual_complexity,
+            key_points=key_points,
+            statistics={
+                "avg_intensity": round(sum(intensities) / len(intensities), 2) if intensities else 0,
+                "max_intensity": round(max(intensities), 2) if intensities else 0,
+                "min_intensity": round(min(intensities), 2) if intensities else 0,
+                "intensity_variance": round(self._calculate_variance(intensities), 3) if len(intensities) > 1 else 0
+            },
+            recommendations=recommendations,
+            analysis_notes=self._generate_analysis_notes(pacing_profile, key_points)
+        )
+
+    def _calculate_segment_intensity(self, segment: TimeSegment,
+                                     estimations: Dict[str, DurationEstimation]) -> float:
+        """计算片段强度（优化版）"""
+        intensity = 0.0
+
+        for elem in segment.contained_elements:
+            elem_id = elem["element_id"]
+            if elem_id in estimations:
+                est = estimations[elem_id]
+
+                # 基础强度贡献
+                base_contributions = {
+                    "scene": 0.5,
+                    "dialogue": 0.8,
+                    "silence": 1.2,
+                    "action": 1.0
+                }
+
+                base = base_contributions.get(est.element_type.value, 0.5)
+
+                # 情感权重调整
+                emotional_factor = est.emotional_weight
+
+                # 视觉复杂度调整
+                visual_factor = est.visual_complexity if hasattr(est, 'visual_complexity') else 1.0
+
+                # 时长权重（较长的元素通常更重要）
+                duration_weight = min(elem["duration"] / 3.0, 1.5)
+
+                intensity += base * emotional_factor * visual_factor * duration_weight
+
+        # 归一化到0-3范围，并考虑片段密度
+        segment_density = len(segment.contained_elements) / 5.0  # 每5秒的元素数量
+        density_factor = min(segment_density, 2.0) / 1.5  # 密度增加强度，但有限制
+
+        return min(intensity * density_factor, 3.0)
+
+    def _analyze_emotional_arc(self, segments: List[TimeSegment],
+                               estimations: Dict[str, DurationEstimation]) -> List[Dict]:
+        """分析情感弧线"""
+        emotional_points = []
+
+        for i, segment in enumerate(segments):
+            segment_emotion = {
+                "segment_id": segment.segment_id,
+                "time": segment.time_range[0],
+                "emotional_value": 0.0,
+                "dominant_emotion": "neutral",
+                "key_elements": []
+            }
+
+            # 计算情感值
+            emotional_sum = 0
+            count = 0
+
+            for elem in segment.contained_elements:
+                elem_id = elem["element_id"]
+                if elem_id in estimations:
+                    est = estimations[elem_id]
+                    emotional_sum += est.emotional_weight
+                    count += 1
+
+                    # 记录高情感元素
+                    if est.emotional_weight > 1.8:
+                        segment_emotion["key_elements"].append({
+                            "element_id": elem_id,
+                            "type": est.element_type.value,
+                            "emotional_weight": est.emotional_weight
+                        })
+
+            if count > 0:
+                segment_emotion["emotional_value"] = round(emotional_sum / count, 2)
+
+                # 确定主导情感
+                if segment_emotion["emotional_value"] > 2.0:
+                    segment_emotion["dominant_emotion"] = "intense"
+                elif segment_emotion["emotional_value"] > 1.5:
+                    segment_emotion["dominant_emotion"] = "emotional"
+                elif segment_emotion["emotional_value"] > 1.0:
+                    segment_emotion["dominant_emotion"] = "moderate"
+
+            emotional_points.append(segment_emotion)
+
+        return emotional_points
+
+    def _analyze_visual_complexity(self, segments: List[TimeSegment],
+                                   estimations: Dict[str, DurationEstimation]) -> List[float]:
+        """分析视觉复杂度"""
+        complexities = []
+
+        for segment in segments:
+            segment_complexity = 0.0
+            count = 0
+
+            for elem in segment.contained_elements:
+                elem_id = elem["element_id"]
+                if elem_id in estimations:
+                    est = estimations[elem_id]
+                    if hasattr(est, 'visual_complexity'):
+                        segment_complexity += est.visual_complexity
+                        count += 1
+
+            avg_complexity = segment_complexity / count if count > 0 else 1.0
+            complexities.append(round(avg_complexity, 2))
+
+        return complexities
+
+    def _identify_pacing_pattern(self, intensities: List[float],
+                                 emotional_arc: List[Dict]) -> str:
+        """识别节奏模式"""
+        if len(intensities) < 3:
+            return "简短片段"
+
+        # 计算统计特征
+        avg_intensity = sum(intensities) / len(intensities)
+        variance = self._calculate_variance(intensities)
+        max_intensity = max(intensities)
+        min_intensity = min(intensities)
+
+        # 情感变化特征
+        emotional_changes = []
+        for i in range(1, len(emotional_arc)):
+            change = abs(emotional_arc[i]["emotional_value"] - emotional_arc[i - 1]["emotional_value"])
+            emotional_changes.append(change)
+
+        avg_emotional_change = sum(emotional_changes) / len(emotional_changes) if emotional_changes else 0
+
+        # 模式识别
+        if max_intensity > 2.5 and variance > 0.7:
+            if avg_emotional_change > 0.4:
+                return "强烈起伏情感剧"
+            else:
+                return "高潮迭起动作剧"
+        elif variance > 0.4:
+            if avg_emotional_change > 0.3:
+                return "情感波动剧情"
+            else:
+                return "节奏变化剧情"
+        elif avg_intensity > 1.8:
+            return "持续紧张剧情"
+        elif avg_intensity < 1.2:
+            return "平缓抒情剧情"
         else:
-            return "简单动作"
+            return "平衡叙述剧情"
 
-    def _extract_age_distribution(self, characters: List[Dict]) -> str:
-        """提取年龄分布描述"""
-        if not characters:
-            return "无年龄信息"
+    def _calculate_variance(self, values: List[float]) -> float:
+        """计算方差"""
+        if len(values) < 2:
+            return 0.0
 
-        ages = [c.get('age') for c in characters if c.get('age') is not None]
-        if not ages:
-            return "年龄未知"
+        mean = sum(values) / len(values)
+        variance = sum((x - mean) ** 2 for x in values) / len(values)
+        return round(variance, 3)
 
-        avg_age = sum(ages) / len(ages)
+    def _detect_key_points(self, segments: List[TimeSegment], intensities: List[float],
+                           estimations: Dict[str, DurationEstimation]) -> List[Dict]:
+        """检测关键点"""
+        key_points = []
 
-        if avg_age >= 60:
-            return "主要为老年角色"
-        elif avg_age >= 30:
-            return "主要为中年角色"
-        else:
-            return "主要为年轻角色"
+        # 强度峰值
+        for i in range(1, len(intensities) - 1):
+            if intensities[i] > intensities[i - 1] and intensities[i] > intensities[i + 1]:
+                if intensities[i] > 1.8:  # 显著峰值
+                    key_points.append({
+                        "type": "intensity_peak",
+                        "segment_id": segments[i].segment_id,
+                        "time": segments[i].time_range[0],
+                        "intensity": round(intensities[i], 2),
+                        "description": "节奏高潮点"
+                    })
+
+        # 情感转折点
+        emotional_values = []
+        for elem in estimations.values():
+            if hasattr(elem, 'emotional_weight'):
+                emotional_values.append(elem.emotional_weight)
+
+        if emotional_values:
+            avg_emotion = sum(emotional_values) / len(emotional_values)
+            for i, segment in enumerate(segments):
+                segment_emotion = 0
+                count = 0
+
+                for elem in segment.contained_elements:
+                    elem_id = elem["element_id"]
+                    if elem_id in estimations:
+                        est = estimations[elem_id]
+                        segment_emotion += est.emotional_weight
+                        count += 1
+
+                if count > 0:
+                    avg_segment_emotion = segment_emotion / count
+                    if abs(avg_segment_emotion - avg_emotion) > 0.5:  # 显著偏离
+                        key_points.append({
+                            "type": "emotional_turning_point",
+                            "segment_id": segment.segment_id,
+                            "time": segment.time_range[0],
+                            "emotion_level": round(avg_segment_emotion, 2),
+                            "description": "情感转折点"
+                        })
+
+        # 按时间排序
+        key_points.sort(key=lambda x: x["time"])
+
+        return key_points
+
+    def _generate_pacing_recommendations(self, profile: str, intensities: List[float],
+                                         emotional_arc: List[Dict]) -> List[str]:
+        """生成节奏建议"""
+        recommendations = []
+
+        profile_recommendations = {
+            "强烈起伏情感剧": [
+                "建议保持强烈的节奏对比，高潮点使用快速剪辑和特写",
+                "情感低谷点可以适当延长，给观众情感缓冲时间",
+                "注意高潮之间的情绪过渡要自然"
+            ],
+            "高潮迭起动作剧": [
+                "动作高潮点之间要有足够的紧张感积累",
+                "复杂动作需要足够的展示时间",
+                "动作之间的过渡要流畅"
+            ],
+            "情感波动剧情": [
+                "保持情感变化的自然流畅",
+                "情感高点要有足够的表达时间",
+                "情感转折点要清晰明确"
+            ],
+            "节奏变化剧情": [
+                "节奏变化要有逻辑依据",
+                "不同节奏段落间过渡要平滑",
+                "保持整体节奏的协调性"
+            ],
+            "持续紧张剧情": [
+                "持续紧张中要有微妙的变化避免单调",
+                "可以通过细节和微表情增加层次",
+                "紧张感的释放要有节奏"
+            ],
+            "平缓抒情剧情": [
+                "保持平缓的节奏，注重情感细节",
+                "可以通过视觉细节增加丰富度",
+                "避免节奏过于拖沓"
+            ]
+        }
+
+        recommendations.extend(profile_recommendations.get(profile, [
+            "保持自然的叙事节奏",
+            "注意节奏与情感的匹配"
+        ]))
+
+        # 基于强度曲线的具体建议
+        if intensities:
+            if max(intensities) < 1.5:
+                recommendations.append("整体节奏较缓，考虑在某些关键点增加强度")
+            elif min(intensities) > 1.8:
+                recommendations.append("整体节奏较强，考虑在某些段落放松节奏")
+
+        # 基于情感弧线的建议
+        if emotional_arc:
+            emotional_changes = []
+            for i in range(1, len(emotional_arc)):
+                change = abs(emotional_arc[i]["emotional_value"] - emotional_arc[i - 1]["emotional_value"])
+                emotional_changes.append(change)
+
+            if emotional_changes:
+                avg_change = sum(emotional_changes) / len(emotional_changes)
+                if avg_change > 0.4:
+                    recommendations.append("情感变化较大，注意情感过渡的自然性")
+
+        return recommendations
+
+    def _generate_analysis_notes(self, profile: str, key_points: List[Dict]) -> str:
+        """生成分析说明"""
+        notes = []
+
+        notes.append(f"节奏模式识别为'{profile}'")
+
+        if key_points:
+            intensity_peaks = [kp for kp in key_points if kp["type"] == "intensity_peak"]
+            emotional_turns = [kp for kp in key_points if kp["type"] == "emotional_turning_point"]
+
+            if intensity_peaks:
+                notes.append(f"检测到{len(intensity_peaks)}个节奏高潮点")
+
+            if emotional_turns:
+                notes.append(f"检测到{len(emotional_turns)}个情感转折点")
+
+        return "；".join(notes)
+
+    def _generate_continuity_anchors(self, segments: List[TimeSegment],
+                                     estimations: Dict[str, DurationEstimation]) -> List[ContinuityAnchor]:
+        """生成智能连续性锚点"""
+        anchors = []
+
+        for i in range(len(segments) - 1):
+            current_seg = segments[i]
+            next_seg = segments[i + 1]
+
+            # 分析过渡需求
+            transition_needs = self._analyze_transition_needs(
+                current_seg, next_seg, estimations
+            )
+
+            anchor = ContinuityAnchor(
+                anchor_id=f"trans_{current_seg.segment_id}_to_{next_seg.segment_id}",
+                type="segment_transition",
+                from_segment=current_seg.segment_id,
+                to_segment=next_seg.segment_id,
+                time_point=current_seg.time_range[1],
+                transition_type=transition_needs["type"],
+                requirements=transition_needs["requirements"],
+                visual_constraints=transition_needs["visual_constraints"],
+                character_continuity=transition_needs["character_continuity"],
+                priority=transition_needs["priority"],
+                description=f"从{current_seg.segment_id}到{next_seg.segment_id}的过渡分析"
+            )
+
+            anchors.append(anchor)
+
+        return anchors
+
+    def _analyze_transition_needs(self, current_seg: TimeSegment, next_seg: TimeSegment,
+                                  estimations: Dict[str, DurationEstimation]) -> Dict[str, Any]:
+        """分析过渡需求"""
+        # 分析片段类型
+        current_types = set(elem["element_type"] for elem in current_seg.contained_elements)
+        next_types = set(elem["element_type"] for elem in next_seg.contained_elements)
+
+        # 默认值
+        transition = {
+            "type": "standard",
+            "requirements": ["视觉风格保持一致", "环境光线连贯"],
+            "visual_constraints": [],
+            "character_continuity": [],
+            "priority": "medium"
+        }
+
+        # 特殊过渡类型
+        if "silence" in current_types and "dialogue" in next_types:
+            transition["type"] = "silence_to_dialogue"
+            transition["requirements"].append("沉默后的第一句话需要自然的情绪过渡")
+            transition["priority"] = "high"
+
+        elif "action" in current_types and "action" in next_types:
+            # 连续动作
+            transition["type"] = "action_sequence"
+            transition["requirements"].append("动作序列必须流畅连贯")
+            transition["visual_constraints"].append("动作轨迹必须自然")
+            transition["priority"] = "high"
+
+        elif "scene" in current_types and "scene" not in next_types:
+            # 场景转换到非场景
+            transition["type"] = "scene_exit"
+            transition["requirements"].append("离开场景的过渡要自然")
+            transition["visual_constraints"].append("镜头运动要连贯")
+
+        # 分析角色状态连续性
+        current_chars = set()
+        next_chars = set()
+
+        # 这里可以添加更复杂的角色状态分析
+        # 暂时使用简单版本
+
+        if current_chars & next_chars:  # 有共同角色
+            transition["character_continuity"].append("共同角色的状态必须连贯")
+            transition["priority"] = "high"
+
+        return transition
+
+    def _calculate_total_duration(self, segments: List[TimeSegment]) -> float:
+        """计算总时长"""
+        if not segments:
+            return 0.0
+
+        total = sum(segment.duration for segment in segments)
+        return round(total, 2)

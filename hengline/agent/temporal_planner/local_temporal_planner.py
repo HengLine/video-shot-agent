@@ -7,16 +7,15 @@
 """
 from datetime import datetime
 
-from hengline.agent.script_parser.script_parser_model import UnifiedScript
-from hengline.agent.temporal_planner.ContinuityAnchorGenerator import ContinuityAnchorGenerator
+from hengline.agent.script_parser.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.base_temporal_planner import TemporalPlanner
-from hengline.agent.temporal_planner.duration_plan.duration_analyzer import PacingAnalyzer, QualityValidator
-from hengline.agent.temporal_planner.duration_plan.duration_estimator import DurationEstimator
-from hengline.agent.temporal_planner.duration_plan.duration_segmenter import DurationSegmenter
 from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan
+from hengline.config.temporal_planner_config import get_planner_config, TemporalPlanningConfig
+from hengline.tools.action_duration_tool import ActionDurationEstimator
+from hengline.tools.langchain_memory_tool import LangChainMemoryTool
 
 
-class RuleTemporalPlanner(TemporalPlanner):
+class LocalRuleTemporalPlanner(TemporalPlanner):
     """基于规则的动作合并算法
             规则优先级：
             1. 情感强烈变化点（如震惊）→ 必须独立镜头
@@ -28,12 +27,20 @@ class RuleTemporalPlanner(TemporalPlanner):
     def __init__(self):
         """初始化时序规划智能体"""
         # 初始化各个组件
-        super().__init__()
-        self.duration_estimator = DurationEstimator(self.config.duration_config)
-        self.segmenter = DurationSegmenter(self.config.segment_config)
-        self.anchor_generator = ContinuityAnchorGenerator()
-        self.pacing_analyzer = PacingAnalyzer()
-        self.quality_validator = QualityValidator()
+        # 获取配置实例
+        self.config = get_planner_config()
+
+        self.config = TemporalPlanningConfig()
+
+
+
+        # self.rule_planner = RuleTemporalPlanner()  # 预留用于未来可能的规则规划器集成
+
+        # 初始化动作时长估算器
+        self.duration_estimator = ActionDurationEstimator()
+
+        # 初始化LangChain记忆工具（替代原有的向量记忆+状态机）
+        self.memory_tool = LangChainMemoryTool()
 
     def plan_timeline(self, structured_script: UnifiedScript) -> TimelinePlan | None:
         """

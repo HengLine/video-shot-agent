@@ -5,32 +5,15 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/12
 """
-from typing import Dict, Any
+from typing import Dict
 
-from hengline.agent.script_parser.script_parser_model import UnifiedScript
-from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan
-from hengline.config.temporal_planner_config import get_planner_config, TemporalPlanningConfig
-from hengline.logger import debug
-from hengline.tools.action_duration_tool import ActionDurationEstimator
-from hengline.tools.langchain_memory_tool import LangChainMemoryTool
+from hengline.agent.base_agent import BaseAgent
+from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan, EstimationErrorLevel, EstimationError
 
 
-class TemporalPlanner:
+class TemporalPlanner(BaseAgent):
     """时序规划"""
-
-    def __init__(self):
-        """初始化时序规划智能体"""
-        # 获取配置实例
-        self.config = get_planner_config()
-
-        self.config = TemporalPlanningConfig()
-        # self.rule_planner = RuleTemporalPlanner()  # 预留用于未来可能的规则规划器集成
-
-        # 初始化动作时长估算器
-        self.duration_estimator = ActionDurationEstimator()
-
-        # 初始化LangChain记忆工具（替代原有的向量记忆+状态机）
-        self.memory_tool = LangChainMemoryTool()
 
     def plan_timeline(self, structured_script: UnifiedScript) -> TimelinePlan | None:
         """
@@ -44,28 +27,41 @@ class TemporalPlanner:
         """
         pass
 
-    def _store_action_state(self, action: Dict[str, Any], scene_idx: int) -> None:
-        """
-        存储动作状态到LangChain记忆中
+    def _log_error(self, error_log, element_id: str, error_type: str, message: str,
+                   level: EstimationErrorLevel, recovery_action: str = "",
+                   fallback_value: float = None):
+        """记录错误"""
+        error = EstimationError(
+            element_id=element_id,
+            error_type=error_type,
+            message=message,
+            level=level,
+            recovery_action=recovery_action,
+            fallback_value=fallback_value
+        )
 
-        Args:
-            action: 动作信息
-            scene_idx: 场景索引
-        """
-        try:
-            # 构建完整的状态信息
-            state = {
-                "action": action.get("action", ""),
-                "emotion": action.get("emotion", ""),
-                "character": action.get("character", ""),
-                "scene_id": scene_idx,
-                "timestamp": len(self.memory_tool.retrieve_similar_states("")) + 1  # 简化的时间戳
-            }
+        error_log.append(error)
 
-            # 添加上下文信息
-            context = f"场景 {scene_idx} 中的动作"
+        # 打印错误信息（在实际系统中可能写入日志文件）
+        print(f"[{level.value.upper()}] {error_type}: {message} (元素: {element_id})")
+        if recovery_action:
+            print(f"  恢复操作: {recovery_action}")
+        if fallback_value is not None:
+            print(f"  备用值: {fallback_value}")
 
-            # 存储到记忆中
-            self.memory_tool.store_state(state, context)
-        except Exception as e:
-            debug(f"存储动作状态失败: {e}")
+    def get_error_summary(self, error_log) -> Dict:
+        """获取错误摘要"""
+        error_counts = {}
+        for error in error_log:
+            error_counts[error.error_type] = error_counts.get(error.error_type, 0) + 1
+
+        return {
+            "total_errors": len(error_log),
+            "error_by_type": error_counts,
+            "errors_by_level": {
+                "warning": len([e for e in error_log if e.level == EstimationErrorLevel.WARNING]),
+                "error": len([e for e in error_log if e.level == EstimationErrorLevel.ERROR]),
+                "critical": len([e for e in error_log if e.level == EstimationErrorLevel.CRITICAL])
+            },
+            "recovery_rate": len([e for e in error_log if e.recovery_action]) / len(error_log) if error_log else 0
+        }

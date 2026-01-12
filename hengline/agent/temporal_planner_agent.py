@@ -6,9 +6,9 @@
 @Time: 2025/10 - 2025/11
 """
 
-from hengline.agent.script_parser.script_parser_model import UnifiedScript
+from hengline.agent.script_parser.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.llm_temporal_planner import LLMTemporalPlanner
-from hengline.agent.temporal_planner.local_temporal_planner import RuleTemporalPlanner
+from hengline.agent.temporal_planner.local_temporal_planner import LocalRuleTemporalPlanner
 from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan
 from hengline.logger import debug, error
 from utils.log_utils import print_log_exception
@@ -31,10 +31,18 @@ class TemporalPlannerAgent:
     def __init__(self, llm):
         """初始化时序规划智能体"""
         # 初始化各个组件
-        self.rule_planner = RuleTemporalPlanner()
+        self.rule_planner = LocalRuleTemporalPlanner()
         self.llm_planner = LLMTemporalPlanner(llm)
+        """
+        estimate_strategy: 估算策略
+                - "balanced": 平衡模式（默认）
+                - "ai_intensive": AI密集型
+                - "rule_based": 规则为主
+                - "fast": 快速模式
+        """
+        self.estimate_strategy: str = "balanced"
 
-    def process(self, structured_script: UnifiedScript) -> TimelinePlan | None:
+    def plan_process(self, structured_script: UnifiedScript) -> TimelinePlan | None:
         """
         规划剧本的时序分段
         
@@ -47,9 +55,12 @@ class TemporalPlannerAgent:
         debug("开始根据规则规划时序")
         try:
 
-            return self.rule_planner.plan_timeline(structured_script)
+
+            return self.llm_planner.plan_timeline(structured_script)
 
         except Exception as e:
             print_log_exception()
             error(f"执行时序规划异常: {e}")
             return None
+
+

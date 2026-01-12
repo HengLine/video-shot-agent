@@ -72,7 +72,7 @@ class WorkflowNodes:
         debug("规划时间线节点执行中")
         try:
             # 进行时序规划
-            segments = self.temporal_planner.process(
+            segments = self.temporal_planner.plan_process(
                 state["structured_script"]
             )
 

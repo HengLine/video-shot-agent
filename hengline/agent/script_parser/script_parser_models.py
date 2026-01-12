@@ -169,6 +169,28 @@ class UnifiedScript(BaseModel):
     warnings: List[str] = Field(None, description="剧本解析评分建议列表")
     parsing_confidence: Dict[str, float] = Field(None, description="剧本解析置信度")
 
+    def get_scene_by_id(self, scene_id: str) -> Optional[Scene]:
+        """根据ID获取场景"""
+        for scene in self.scenes:
+            if scene.scene_id == scene_id:
+                return scene
+        return None
+
+    def get_dialogues_in_scene(self, scene_id: str) -> List[Dialogue]:
+        """获取场景中的所有对话"""
+        return [d for d in self.dialogues if d.scene_ref == scene_id]
+
+    def get_actions_in_scene(self, scene_id: str) -> List[Action]:
+        """获取场景中的所有动作"""
+        return [a for a in self.actions if a.scene_ref == scene_id]
+
+    def get_character_by_name(self, name: str) -> Optional[Character]:
+        """根据名称获取角色"""
+        for char in self.characters:
+            if char.name == name:
+                return char
+        return None
+
     @model_validator(mode='after')
     def validate_cross_references(self) -> 'UnifiedScript':
         """
