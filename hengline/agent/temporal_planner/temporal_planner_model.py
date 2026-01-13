@@ -62,6 +62,13 @@ class ShotComplexity(Enum):
     VERY_COMPLEX = "very_complex"  # 非常复杂：多重运动，特效，复杂构图
 
 
+class EstimationConfidence(Enum):
+    """估算置信度级别"""
+    HIGH = "high"  # 置信度 > 0.8
+    MEDIUM = "medium"  # 置信度 0.5-0.8
+    LOW = "low"  # 置信度 < 0.5
+
+
 @dataclass
 class DurationEstimation:
     """时长估算结果"""
@@ -69,6 +76,8 @@ class DurationEstimation:
     element_type: ElementType
     original_duration: float  # 解析器原始估算
     estimated_duration: float  # 混合模型调整后
+    # min_duration: float
+    # max_duration: float
     confidence: float  # 置信度 0-1
 
     # 详细分解
@@ -88,6 +97,33 @@ class DurationEstimation:
     continuity_requirements: Dict[str, Any] = field(default_factory=dict)  # 连续性信息
     estimated_at: str = None
 
+    # 来源跟踪
+    rule_based_estimate: Optional[float] = None  # 规则估算值（如果有）
+    ai_based_estimate: Optional[float] = None  # AI估算值（如果有）
+    adjustment_reason: str = ""     # 调整原因说明
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            "element_id": self.element_id,
+            "element_type": self.element_type.value,
+            "original_duration": round(self.original_duration, 2),
+            "ai_estimated_duration": round(self.estimated_duration, 2),
+            "confidence": round(self.confidence, 2),
+            "rule_based_estimate": round(self.rule_based_estimate, 2) if self.rule_based_estimate is not None else None,
+            "ai_based_estimate": round(self.ai_based_estimate, 2) if self.ai_based_estimate is not None else None,
+            "adjustment_reason": self.adjustment_reason,
+            "emotional_weight": round(self.emotional_weight, 2),
+            "visual_complexity": round(self.visual_complexity, 2),
+            "pacing_factor": round(self.pacing_factor, 2),
+            "character_states": self.character_states,
+            "prop_states": self.prop_states,
+            "reasoning_breakdown": self.reasoning_breakdown,
+            "visual_hints": self.visual_hints,
+            "key_factors": self.key_factors,
+            "pacing_notes": self.pacing_notes,
+            "estimated_at": self.estimated_at
+        }
 
 """
 复杂度判断标准：
@@ -312,10 +348,3 @@ class EstimationError:
     level: EstimationErrorLevel
     recovery_action: str = ""
     fallback_value: Optional[float] = None
-
-
-class EstimationConfidence(Enum):
-    """估算置信度级别"""
-    HIGH = "high"  # 置信度 > 0.8
-    MEDIUM = "medium"  # 置信度 0.5-0.8
-    LOW = "low"  # 置信度 < 0.5

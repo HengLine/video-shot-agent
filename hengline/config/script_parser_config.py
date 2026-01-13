@@ -10,13 +10,14 @@ from typing import Optional, Dict, List, Any
 
 import yaml
 
+from hengline.config.base_config import BaseConfig
 from hengline.logger import debug, warning, error
-from hengline.language_manage import Language, get_language_code
+from hengline.language_manage import Language
 
-class ScriptParserConfig:
+class ScriptParserConfig(BaseConfig):
     """剧本解析器配置类"""
     
-    def __init__(self, language: str = None):
+    def _initialize_config(self, language: Language = Language.ZH):
         """初始化配置类
         
         Args:
@@ -31,19 +32,13 @@ class ScriptParserConfig:
         # 配置缓存，避免频繁加载
         self._config_cache = {}
         self._last_config_update = {}
-        
-        # 设置当前语言
-        if language:
-            lang_enum = Language.from_string(language)
-            if lang_enum:
-                self._language = lang_enum.value
-            else:
-                # 语言参数无效，使用默认语言
-                self._language = get_language_code()
-        else:
-            # 使用默认语言
-            self._language = get_language_code()
-    
+
+        self._language = language
+
+    def _config_file_name(self) -> str:
+        """配置文件名"""
+        return 'script_parser_config.yaml'
+
     def _get_cached_config(self, config_filename: str = 'script_parser_config.yaml') -> Dict[str, Any]:
         """获取缓存的配置，如果缓存不存在或已过期则重新加载
         

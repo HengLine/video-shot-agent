@@ -90,7 +90,7 @@ def set_language_from_request(lang: str) -> bool:
     return set_language(lang)
 
 
-def get_language() -> Language:
+def get_language() -> Language | None:
     """
     获取当前语言枚举
     :return: 当前语言枚举对象
@@ -99,14 +99,6 @@ def get_language() -> Language:
     if _current_language is None:
         _init_language_from_env()
     return _current_language
-
-
-def get_language_code() -> str:
-    """
-    获取当前语言代码
-    :return: 当前语言代码，如'zh'或'en'
-    """
-    return get_language().value
 
 
 def is_chinese() -> bool:

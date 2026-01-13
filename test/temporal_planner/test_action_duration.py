@@ -4,7 +4,7 @@
 @Author: HengLine
 @Time: 2025/10/24 14:21
 """
-from hengline.tools.action_duration_tool import ActionDurationEstimator
+from hengline.tools.action_duration_tool import ActionDurationEstimatorTool
 from typing import List, Dict, Any
 import json
 
@@ -82,7 +82,7 @@ def extract_verbs_from_script(script: str) -> List[Dict[str, Any]]:
     return sample_actions
 
 
-def split_into_segments(actions: List[Dict[str, Any]], estimator: ActionDurationEstimator, target_duration: float = 5.0, max_deviation: float = 0.5) -> List[Dict[str, Any]]:
+def split_into_segments(actions: List[Dict[str, Any]], estimator: ActionDurationEstimatorTool, target_duration: float = 5.0, max_deviation: float = 0.5) -> List[Dict[str, Any]]:
     """
     将动作列表切分为5秒粒度的分段
     
@@ -156,7 +156,7 @@ def generate_storyboard_segments(script: str, min_shots: int = 5, max_shots: int
         优化后的分段列表
     """
     # 初始化估算器
-    estimator = ActionDurationEstimator("../hengline/config/zh/action_duration_config.yaml")
+    estimator = ActionDurationEstimatorTool()
     estimator.clear_cache()
     
     # 提取动作
@@ -219,7 +219,7 @@ if __name__ == '__main__':
     print("=== 动作时长估算和分镜切分示例 ===")
     
     # 初始化估算器（单例推荐）
-    estimator = ActionDurationEstimator("./config/action_duration_config.yaml")
+    estimator = ActionDurationEstimatorTool()
     estimator.clear_cache()
     
     # 演示基础用法

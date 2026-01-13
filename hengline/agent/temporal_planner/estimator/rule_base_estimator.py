@@ -4,14 +4,16 @@
 @Author: HengLine
 @Time: 2026/1/12 23:07
 """
-from abc import ABC
+import re
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Tuple, Dict, Any, List
-from abc import abstractmethod
-import re
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
-from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation
+from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene
+from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
+from hengline.config.keyword_config import get_keyword_config
+from hengline.config.temporal_planner_config import get_planner_config
+
 
 @dataclass
 class EstimationContext:
@@ -26,14 +28,24 @@ class EstimationContext:
     overall_pacing_target: str = "normal"  # 整体节奏目标
 
 
-class BaseDurationEstimator(ABC):
+@dataclass
+class ElementWithContext:
+    element_id: str
+    element_type: ElementType
+    data: Any
+    time_offset: float = 0.0
+
+
+class BaseDurationEstimator:
     """时长估算基类"""
 
     def __init__(self, config: Dict[str, Any] = None):
         """初始化估算器"""
         self.config = config or self._get_default_config()
-        self.rules = self._initialize_rules()
         self.context = EstimationContext()
+        self.keyword_config = get_keyword_config()
+        self.planner_config = get_planner_config()
+        self.rules = self._initialize_rules()
 
     def set_context(self, context: EstimationContext) -> None:
         """设置估算上下文"""
@@ -44,26 +56,65 @@ class BaseDurationEstimator(ABC):
         if not script_data:
             return
 
-        # 从场景数据提取上下文信息
         scenes = script_data.scenes
         if scenes:
-            scene = scenes[0]  # 取第一个场景
-            self.context.time_of_day = scene.time_of_day
-            self.context.weather = scene.weather
-            self.context.emotional_tone = scene.mood
+            self._update_context_from_scene(scenes[0])
 
-            # 判断场景类型
-            location = scene.location
-            if "室外" in location or "户外" in location or "街道" in location:
-                self.context.scene_type = "outdoor"
-            elif "室内" in location or "房间" in location or "客厅" in location:
-                self.context.scene_type = "indoor"
-            else:
-                self.context.scene_type = "special"
+        self.context.character_count = len(script_data.characters)
 
-        # 角色数量
-        characters = script_data.characters
-        self.context.character_count = len(characters)
+    def _update_context_from_scene(self, scene: Scene) -> None:
+        """从场景数据更新上下文"""
+        # 时间
+        self.context.time_of_day = self._normalize_time_of_day(scene.time_of_day)
+
+        # 天气
+        self.context.weather = self._normalize_weather(scene.weather)
+
+        # 情绪基调
+        self.context.emotional_tone = self._normalize_emotional_tone(scene.mood)
+
+        # 场景类型
+        self.context.scene_type = self._determine_scene_type_from_location(scene.location)
+
+    def _normalize_time_of_day(self, time_str: str) -> str:
+        """规范化时间描述"""
+        time_map = {
+            "夜晚": "night", "晚上": "night", "深夜": "night", "night": "night",
+            "黎明": "dawn", "拂晓": "dawn", "清晨": "dawn", "dawn": "dawn",
+            "黄昏": "dusk", "傍晚": "dusk", "dusk": "dusk",
+            "白天": "day", "上午": "day", "下午": "day", "中午": "day", "day": "day"
+        }
+        return time_map.get(time_str, "day")
+
+    def _normalize_weather(self, weather_str: str) -> str:
+        """规范化天气描述"""
+        weather_map = {
+            "大雨": "rain", "小雨": "rain", "雨": "rain", "下雨": "rain", "rain": "rain",
+            "雪": "snow", "下雪": "snow", "大雪": "snow", "snow": "snow",
+            "雾": "fog", "大雾": "fog", "雾天": "fog", "fog": "fog",
+            "晴朗": "clear", "晴天": "clear", "阳光": "clear", "clear": "clear",
+            "多云": "clear", "阴天": "clear", "cloudy": "clear"
+        }
+        return weather_map.get(weather_str, "clear")
+
+    def _normalize_emotional_tone(self, mood_str: str) -> str:
+        """规范化情绪基调"""
+        # 简单映射，实际可以更复杂
+        if any(word in mood_str for word in ["紧张", "激动", "愤怒", "恐惧"]):
+            return "tense"
+        elif any(word in mood_str for word in ["悲伤", "忧郁", "孤独", "压抑"]):
+            return "emotional"
+        elif any(word in mood_str for word in ["喜悦", "兴奋", "轻松"]):
+            return "relaxed"
+        return "neutral"
+
+    def _determine_scene_type_from_location(self, location: str) -> str:
+        """根据地点确定场景类型"""
+        if any(word in location for word in ["室外", "户外", "街道", "公园", "山", "森林"]):
+            return "outdoor"
+        elif any(word in location for word in ["室内", "房间", "客厅", "卧室", "办公室", "咖啡厅"]):
+            return "indoor"
+        return "special"
 
     @abstractmethod
     def _initialize_rules(self) -> Dict[str, Any]:
@@ -88,23 +139,28 @@ class BaseDurationEstimator(ABC):
             estimations[estimation.element_id] = estimation
         return estimations
 
-    # ============== 通用工具方法 ==============
-
+    # ============== 通用工具方法（从配置读取） ==============
     def _analyze_text_complexity(self, text: str) -> Dict[str, Any]:
         """分析文本复杂度"""
         if not text:
             return {"word_count": 0, "sentence_count": 0, "complexity_score": 0}
 
-        # 分割单词（中文按字，英文按词）
-        words = self._split_words(text)
+        # 获取分割模式
+        text_config = self.planner_config.get_base_config("text_analysis", {})
+        word_split_pattern = text_config.get("word_split_pattern", "[^\w\s\u4e00-\u9fff]")
+        sentence_split_pattern = text_config.get("sentence_split_pattern", "[。！？；.!?;]")
+
+        # 分割单词
+        cleaned = re.sub(word_split_pattern, ' ', text)
+        words = [w for w in cleaned.split() if w]
         word_count = len(words)
 
-        # 句子数量（按标点分割）
-        sentences = re.split(r'[。！？；.!?;]', text)
+        # 句子数量
+        sentences = re.split(sentence_split_pattern, text)
         sentence_count = len([s for s in sentences if s.strip()])
 
         # 计算复杂度得分
-        complexity_score = self._calculate_complexity_score(words, sentences)
+        complexity_score = self._calculate_complexity_score(word_count, sentence_count, 0, "")
 
         return {
             "word_count": word_count,
@@ -112,32 +168,25 @@ class BaseDurationEstimator(ABC):
             "complexity_score": complexity_score
         }
 
-    def _split_words(self, text: str) -> List[str]:
-        """分割单词（中英文混合处理）"""
-        # 简单的分割逻辑，实际可能需要更复杂的处理
-        # 移除标点，分割空白字符
-        cleaned = re.sub(r'[^\w\s\u4e00-\u9fff]', ' ', text)
-        words = [w for w in cleaned.split() if w]
-        return words
+    def _calculate_complexity_score(self, word_count: int, component_count: int,
+                                    fine_motor_count: int, emotion_intensity: str) -> float:
+        """计算复杂度得分"""
+        score = 0.0
 
-    def _calculate_complexity_score(self, words: List[str], sentences: List[str]) -> float:
-        """计算文本复杂度得分"""
-        if not words:
-            return 0.0
+        # 词数贡献
+        score += min(word_count / 10, 2.0)
 
-        # 基于词数和句子结构
-        word_count = len(words)
-        sentence_count = len(sentences)
+        # 组成部分数量贡献
+        score += min(component_count / 3, 1.5)
 
-        if sentence_count == 0:
-            return 0.0
+        # 精细动作贡献
+        if fine_motor_count and fine_motor_count > 0:
+            score += fine_motor_count * 0.3
 
-        # 平均句长
-        avg_sentence_length = word_count / sentence_count
-
-        # 复杂度得分：0-5范围
-        score = min(avg_sentence_length / 5, 3.0)  # 句长因素
-        score += min(word_count / 20, 2.0)  # 总词数因素
+        # 情感强度贡献
+        if emotion_intensity and emotion_intensity != "":
+            intensity_scores = {"mild": 0, "moderate": 0.5, "strong": 1.0, "dramatic": 1.5}
+            score += intensity_scores.get(emotion_intensity, 0)
 
         return round(score, 2)
 
@@ -150,36 +199,30 @@ class BaseDurationEstimator(ABC):
             emotion = metadata.get("emotion", "")
             mood = metadata.get("mood", "")
 
-            if any(word in emotion for word in ["紧张", "激动", "愤怒", "恐惧", "震惊"]):
-                intensity = 1.8
-            elif any(word in emotion for word in ["悲伤", "忧郁", "孤独", "压抑"]):
-                intensity = 1.5
-            elif any(word in emotion for word in ["喜悦", "兴奋", "轻松"]):
-                intensity = 1.2
-            elif any(word in emotion for word in ["平静", "中性"]):
-                intensity = 1.0
+            # 从配置获取情感词汇
+            emotional_words_config = self.keyword_config.get_emotion_keywords()
 
-        # 从文本中检测情感词汇
-        emotional_words = {
-            "强烈情感": ["爱", "恨", "死", "活", "痛苦", "快乐", "恐惧", "愤怒"],
-            "中等情感": ["担心", "希望", "喜欢", "讨厌", "紧张", "放松"],
-            "轻微情感": ["可能", "也许", "大概", "似乎", "好像"]
-        }
+            # 检查强烈情感
+            strong_words = emotional_words_config.get("intense_emotion", [])
+            if any(word in emotion for word in strong_words):
+                intensity = max(intensity, 2.0)
 
-        for level, words in emotional_words.items():
-            for word in words:
-                if word in text:
-                    if level == "强烈情感":
-                        intensity = max(intensity, 2.0)
-                    elif level == "中等情感":
-                        intensity = max(intensity, 1.5)
+            # 检查中等情感
+            medium_words = emotional_words_config.get("moderate_emotion", [])
+            if any(word in emotion for word in medium_words):
+                intensity = max(intensity, 1.5)
 
         return intensity
 
-    def _calculate_confidence(self, element_data: Dict[str, Any],
+    def _calculate_confidence(self, element_data: Any,
                               analysis_results: Dict[str, Any]) -> float:
         """计算估算置信度"""
-        confidence = 0.7  # 基础置信度
+        # 获取基础置信度配置
+        min_confidence = self.planner_config.get_base_config("min_confidence", 0.3)
+        max_confidence = self.planner_config.get_base_config("max_confidence", 0.95)
+        default_confidence = self.planner_config.get_base_config("default_confidence", 0.7)
+
+        confidence = default_confidence
 
         # 数据完整性
         completeness_score = self._assess_data_completeness(element_data)
@@ -188,16 +231,16 @@ class BaseDurationEstimator(ABC):
         # 分析结果的确定性
         if "complexity_score" in analysis_results:
             complexity = analysis_results["complexity_score"]
-            # 中等复杂度的置信度最高，太简单或太复杂都会降低置信度
+            # 中等复杂度的置信度最高
             if 0.5 <= complexity <= 2.0:
                 confidence *= 1.1
             elif complexity > 3.0:
                 confidence *= 0.8
 
         # 确保置信度在合理范围
-        return round(max(0.3, min(confidence, 0.95)), 2)
+        return round(max(min_confidence, min(confidence, max_confidence)), 2)
 
-    def _assess_data_completeness(self, element_data: Dict[str, Any]) -> float:
+    def _assess_data_completeness(self, element_data: Any) -> float:
         """评估数据完整性"""
         required_fields = self._get_required_fields()
 
@@ -213,7 +256,7 @@ class BaseDurationEstimator(ABC):
 
     def _get_required_fields(self) -> List[str]:
         """获取必需字段（子类可覆盖）"""
-        return []  # 基类不要求特定字段
+        return []
 
     def _apply_pacing_adjustment(self, base_duration: float) -> float:
         """应用节奏调整"""
@@ -228,16 +271,15 @@ class BaseDurationEstimator(ABC):
         elif pacing_target == "slow":
             adjustment *= 1.2  # 减慢20%
 
-        # 基于前序节奏的调整（避免突变）
+        # 基于前序节奏的调整
         if previous_pacing == "fast" and pacing_target == "slow":
-            adjustment *= 1.1  # 从快到慢需要更平缓的过渡
+            adjustment *= 1.1
         elif previous_pacing == "slow" and pacing_target == "fast":
-            adjustment *= 0.9  # 从慢到快可以稍快
+            adjustment *= 0.9
 
         return base_duration * adjustment
 
-    def _apply_context_adjustments(self, base_duration: float,
-                                   element_data: Dict[str, Any]) -> float:
+    def _apply_context_adjustments(self, base_duration: float) -> float:
         """应用上下文调整因子"""
         adjusted = base_duration
 
@@ -257,33 +299,18 @@ class BaseDurationEstimator(ABC):
 
     def _get_emotional_adjustment(self) -> float:
         """获取情绪调整因子"""
-        adjustments = {
-            "tense": 0.9,  # 紧张场景节奏更快
-            "emotional": 1.2,  # 情感场景需要更多时间
-            "relaxed": 1.1,  # 放松场景节奏稍慢
-            "neutral": 1.0
-        }
-        return adjustments.get(self.context.emotional_tone, 1.0)
+        # 这个应该由子类实现，因为不同元素类型有不同的调整规则
+        return 1.0
 
     def _get_time_of_day_adjustment(self) -> float:
         """获取时间调整因子"""
-        adjustments = {
-            "night": 1.15,  # 夜晚场景通常更慢
-            "dawn": 1.1,  # 黎明场景稍慢
-            "dusk": 1.1,  # 黄昏场景稍慢
-            "day": 1.0
-        }
-        return adjustments.get(self.context.time_of_day, 1.0)
+        # 这个应该由子类实现
+        return 1.0
 
     def _get_weather_adjustment(self) -> float:
         """获取天气调整因子"""
-        adjustments = {
-            "rain": 1.1,  # 雨景需要更多氛围时间
-            "snow": 1.15,  # 雪景节奏更慢
-            "fog": 1.2,  # 雾景节奏最慢
-            "clear": 1.0
-        }
-        return adjustments.get(self.context.weather, 1.0)
+        # 这个应该由子类实现
+        return 1.0
 
     def _calculate_duration_range(self, base_duration: float,
                                   confidence: float) -> Tuple[float, float]:
@@ -295,3 +322,12 @@ class BaseDurationEstimator(ABC):
         max_duration = base_duration * range_factor
 
         return round(min_duration, 2), round(max_duration, 2)
+
+    def _get_keywords(self, category: str, subcategory: str = None) -> Any:
+        """获取关键词配置"""
+        keywords = self.keyword_config.get_other_keywords(category)
+
+        if subcategory:
+            return keywords.get(subcategory, {})
+
+        return keywords

@@ -1015,24 +1015,6 @@ class AIDurationEstimator(TemporalPlanner):
 
         return round(total_score, 2)
 
-    def _extract_emotional_state(self, result: DurationEstimation) -> Dict:
-        """从结果中提取情感状态"""
-        if result.emotional_trajectory:
-            # 取最后一个情感点作为当前状态
-            last_point = result.emotional_trajectory[-1]
-            return {
-                "emotion": last_point.get("emotion", "neutral"),
-                "intensity": last_point.get("intensity", 5)
-            }
-        else:
-            # 基于元素类型推断
-            if result.element_type == "silence":
-                return {"emotion": "intense", "intensity": 8}
-            elif result.element_type == "dialogue" and result.estimated_duration > 3.0:
-                return {"emotion": "emotional", "intensity": 7}
-            else:
-                return {"emotion": "neutral", "intensity": 5}
-
     def clear_cache(self):
         """清空缓存"""
         self.cache.clear()

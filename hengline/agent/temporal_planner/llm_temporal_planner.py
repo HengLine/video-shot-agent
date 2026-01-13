@@ -8,21 +8,20 @@
 from datetime import datetime
 from typing import List, Dict, Any, Tuple, Optional
 
-from hengline.logger import error, debug, info
 from hengline.agent.script_parser.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.base_temporal_planner import TemporalPlanner
 from hengline.agent.temporal_planner.estimator.ai_duration_estimator import AIDurationEstimator
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, TimeSegment, ElementType, TimelinePlan, PacingAnalysis, ContinuityAnchor
-from hengline.config.temporal_planner_config import SegmentConfig
+from hengline.logger import error, debug, info
 
 
 class LLMTemporalPlanner(TemporalPlanner):
     """ LLM 时长估算 """
 
-    def __init__(self, llm_client, config: SegmentConfig = None):
+    def __init__(self, llm_client):
         """初始化时序规划智能体"""
         self.llm = llm_client
-        self.config = config or {}
+        self.config = {}
         self.ai_estimator = AIDurationEstimator(llm_client)
         # 性能跟踪
         self.processing_stats = {

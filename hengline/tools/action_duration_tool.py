@@ -9,10 +9,10 @@ from functools import lru_cache
 
 import jieba
 
-from hengline.config.action_duration_config import ActionDurationConfig
+from hengline.config.action_duration_config import action_config
 
 
-class ActionDurationEstimator:
+class ActionDurationEstimatorTool:
     """
     生产级动作时长估算器（修复版）
     - 对话时长 = max(字数 × 情绪因子, min_duration)
@@ -21,7 +21,7 @@ class ActionDurationEstimator:
     """
 
     def __init__(self):
-        self.duration_config = ActionDurationConfig().get_config()
+        self.duration_config = action_config().get_config()
 
     @lru_cache(maxsize=1024)
     def estimate(

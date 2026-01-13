@@ -42,12 +42,12 @@ class Meta(BaseModel):
     """
     元信息：描述本次解析的上下文
     """
-    schema_version: str = Field("1.1", description="Schema 版本号")
-    time_unit: str = Field("seconds", description="时间单位，固定为 seconds")
-    source_type: str = Field("screenplay_snippet", description="输入源类型")
-    target_use: str = Field("text-to-video prompt generation", description="目标用途")
-    frame_rate_assumption: Optional[str] = Field("24fps", description="假设帧率，如 '24fps'")
-    script_format: Optional[ScriptType] = Field(None, description="推断的输入剧本格式")
+    schema_version: str = Field(default="1.1", description="Schema 版本号")
+    time_unit: str = Field(default="seconds", description="时间单位，固定为 seconds")
+    source_type: str = Field(default="screenplay_snippet", description="输入源类型")
+    target_use: str = Field(default="text-to-video prompt generation", description="目标用途")
+    frame_rate_assumption: Optional[str] = Field(default="24fps", description="假设帧率，如 '24fps'")
+    script_format: Optional[ScriptType] = Field(default=None, description="推断的输入剧本格式")
 
 
 class Prop(BaseModel):

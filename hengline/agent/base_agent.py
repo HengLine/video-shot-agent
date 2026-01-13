@@ -5,12 +5,13 @@
 @Time: 2026/1/9 21:23
 """
 import time
+from abc import ABC
 from typing import Any
 
 from hengline.client.client_factory import llm_chat_complete
 
 
-class BaseAgent:
+class BaseAgent(ABC):
 
     def _call_llm_chat_with_retry(self, llm, system_prompt: str, user_prompt, max_retries: int = 3) -> Any | None:
         """调用LLM，支持重试"""

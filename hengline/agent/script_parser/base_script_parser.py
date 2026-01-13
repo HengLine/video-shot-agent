@@ -5,6 +5,7 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
+from abc import abstractmethod
 from typing import Dict, Any, List
 
 from hengline.agent.base_agent import BaseAgent
@@ -22,6 +23,7 @@ class ScriptParser(BaseAgent):
         """
         self.complexity_assessor = ComplexityAssessor()
 
+    @abstractmethod
     def process(self, script_text: Any, script_format: ScriptType | UnifiedScript) -> UnifiedScript:
         """处理输入数据（子类实现）"""
         raise NotImplementedError("子类必须实现process方法")
