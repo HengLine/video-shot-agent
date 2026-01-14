@@ -10,12 +10,12 @@ from datetime import datetime
 from typing import Dict, List, Any
 
 from hengline.agent.script_parser.script_parser_models import Dialogue
-from hengline.agent.temporal_planner.estimator.rule_base_estimator import BaseDurationEstimator
+from hengline.agent.temporal_planner.estimator.rule_base_estimator import BaseRuleDurationEstimator
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengline.logger import debug, error, info
 from utils.log_utils import print_log_exception
 
-class DialogueDurationEstimator(BaseDurationEstimator, ABC):
+class RuleDialogueDurationEstimator(BaseRuleDurationEstimator, ABC):
     """基于规则的对话时长估算器"""
 
     def _initialize_rules(self) -> Dict[str, Any]:

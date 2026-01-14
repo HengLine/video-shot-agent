@@ -4,18 +4,21 @@
 @Author: HengLine
 @Time: 2026/1/13 16:12
 """
-from hengline.agent.temporal_planner.estimator.rule_action_estimator import ActionDurationEstimator
+
+from hengline.agent.script_parser.script_parser_models import Action
+from hengline.agent.temporal_planner.estimator.rule_action_estimator import RuleActionDurationEstimator
 from hengline.agent.temporal_planner.estimator.rule_base_estimator import EstimationContext
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation
+from utils.obj_utils import batch_dict_to_dataclass, dict_to_dataclass
 
 
-def demonstrate_action_estimator():
+def test_demonstrate_action_estimator():
     """演示动作时长估算器"""
 
     print("=== 动作时长估算器演示 ===\n")
 
     # 1. 初始化配置管理器和估算器
-    estimator = ActionDurationEstimator()
+    estimator = RuleActionDurationEstimator()
 
     # 2. 设置上下文
     context = EstimationContext(
@@ -34,6 +37,7 @@ def demonstrate_action_estimator():
             "action_id": "act_1",
             "actor": "林然",
             "target": "",
+            "scene_ref": "",
             "type": "posture",
             "description": "裹着旧羊毛毯蜷在沙发里",
             "time_offset": 0.0,
@@ -43,6 +47,7 @@ def demonstrate_action_estimator():
             "action_id": "act_2",
             "actor": "手机",
             "target": "",
+            "scene_ref": "",
             "type": "device_alert",
             "description": "突然震动，屏幕亮起显示'未知号码'",
             "time_offset": 10.0,
@@ -52,6 +57,7 @@ def demonstrate_action_estimator():
             "action_id": "act_3",
             "actor": "林然",
             "target": "手机",
+            "scene_ref": "",
             "type": "gaze",
             "description": "盯着手机看了三秒，指尖悬停在接听键上方",
             "time_offset": 10.0,
@@ -61,6 +67,7 @@ def demonstrate_action_estimator():
             "action_id": "act_4",
             "actor": "林然",
             "target": "",
+            "scene_ref": "",
             "type": "physiological",
             "description": "喉头轻轻滚动",
             "time_offset": 13.0,
@@ -70,6 +77,7 @@ def demonstrate_action_estimator():
             "action_id": "act_5",
             "actor": "林然",
             "target": "手机",
+            "scene_ref": "",
             "type": "interaction",
             "description": "按下接听键，将手机贴到耳边",
             "time_offset": 14.0,
@@ -79,6 +87,7 @@ def demonstrate_action_estimator():
             "action_id": "act_6",
             "actor": "林然",
             "target": "",
+            "scene_ref": "",
             "type": "gesture",
             "description": "手指瞬间收紧，指节泛白",
             "time_offset": 16.0,
@@ -94,7 +103,7 @@ def demonstrate_action_estimator():
         print(f"原始估算: {action_data.get('duration', 'N/A')}秒")
 
         # 执行估算
-        estimation = estimator.estimate(action_data)
+        estimation = estimator.estimate(dict_to_dataclass(action_data, Action))
 
         # 显示结果
         print(f"\n规则估算结果:")
@@ -142,7 +151,7 @@ def demonstrate_action_estimator():
 
     print(f"元素ID: {estimation_dict['element_id']}")
     print(f"元素类型: {estimation_dict['element_type']}")
-    print(f"规则估算: {estimation_dict['ai_estimated_duration']}秒")
+    print(f"规则估算: {estimation_dict['estimated_duration']}秒")
     print(f"规则基准: {estimation_dict['rule_based_estimate']}秒")
     print(f"原始时长: {estimation_dict['original_duration']}秒")
     print(f"置信度: {estimation_dict['confidence']}")
@@ -150,7 +159,7 @@ def demonstrate_action_estimator():
     print(f"\n数据结构验证:")
     print(f"  是否为 DurationEstimation 实例: {isinstance(first_estimation, DurationEstimation)}")
     print(f"  是否包含 rule_based_estimate 字段: {hasattr(first_estimation, 'rule_based_estimate')}")
-    print(f"  是否包含 ai_estimated_duration 字段: {hasattr(first_estimation, 'ai_estimated_duration')}")
+    print(f"  是否包含 estimated_duration 字段: {hasattr(first_estimation, 'estimated_duration')}")
 
     return batch_results
 
@@ -165,6 +174,9 @@ def test_with_your_script():
         {
             "action_id": "act_1",
             "actor": "林然",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "type": "posture",
             "description": "裹着旧羊毛毯蜷在沙发里",
             "duration": 10.0
@@ -172,6 +184,9 @@ def test_with_your_script():
         {
             "action_id": "act_2",
             "actor": "手机",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "type": "device_alert",
             "description": "突然震动，屏幕亮起显示'未知号码'",
             "duration": 2.0
@@ -180,12 +195,18 @@ def test_with_your_script():
             "action_id": "act_3",
             "actor": "林然",
             "type": "gaze",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "description": "盯着手机看了三秒，指尖悬停在接听键上方",
             "duration": 3.0
         },
         {
             "action_id": "act_4",
             "actor": "林然",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "type": "physiological",
             "description": "喉头轻轻滚动",
             "duration": 1.0
@@ -193,6 +214,9 @@ def test_with_your_script():
         {
             "action_id": "act_5",
             "actor": "林然",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "type": "interaction",
             "description": "按下接听键，将手机贴到耳边",
             "duration": 1.0
@@ -200,6 +224,9 @@ def test_with_your_script():
         {
             "action_id": "act_6",
             "actor": "林然",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "type": "gesture",
             "description": "手指瞬间收紧，指节泛白",
             "duration": 2.0
@@ -207,6 +234,9 @@ def test_with_your_script():
         {
             "action_id": "act_7",
             "actor": "林然",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "type": "physiological",
             "description": "呼吸停滞了一瞬",
             "duration": 1.0
@@ -214,6 +244,9 @@ def test_with_your_script():
         {
             "action_id": "act_8",
             "actor": "林然",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "type": "posture",
             "description": "猛地坐直身体",
             "duration": 1.0
@@ -221,6 +254,9 @@ def test_with_your_script():
         {
             "action_id": "act_9",
             "actor": "林然",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "type": "facial",
             "description": "瞳孔收缩，泪水在眼眶中打转",
             "duration": 1.0
@@ -228,6 +264,9 @@ def test_with_your_script():
         {
             "action_id": "act_10",
             "actor": "旧羊毛毯",
+            "target": "",
+            "scene_ref": "",
+            "time_offset": 0.0,
             "type": "prop_fall",
             "description": "从林然肩头滑落",
             "duration": 1.0
@@ -235,7 +274,7 @@ def test_with_your_script():
     ]
 
     # 初始化估算器
-    estimator = ActionDurationEstimator()
+    estimator = RuleActionDurationEstimator()
 
     # 设置上下文
     context = EstimationContext(
@@ -246,7 +285,7 @@ def test_with_your_script():
     estimator.set_context(context)
 
     # 批量估算
-    results = estimator.batch_estimate(your_actions)
+    results = estimator.batch_estimate(batch_dict_to_dataclass(your_actions, Action))
 
     # 分析结果
     print(f"动作数量: {len(results)}")
@@ -277,13 +316,3 @@ def test_with_your_script():
               f"{difference:<10.1f} {estimation.confidence:<10.2f} {factors}")
 
     return results
-
-
-if __name__ == "__main__":
-    # 运行演示
-    results = demonstrate_action_estimator()
-
-    # 使用完整剧本测试
-    full_results = test_with_your_script()
-
-    print("\n=== 动作估算器测试完成 ===")

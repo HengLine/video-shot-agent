@@ -9,12 +9,12 @@ from datetime import datetime
 from typing import Dict, List, Any, Tuple
 
 from hengline.agent.script_parser.script_parser_models import Action
-from hengline.agent.temporal_planner.estimator.rule_base_estimator import BaseDurationEstimator
+from hengline.agent.temporal_planner.estimator.rule_base_estimator import BaseRuleDurationEstimator
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengline.logger import debug, error, info, warning
 from utils.log_utils import print_log_exception
 
-class ActionDurationEstimator(BaseDurationEstimator, ABC):
+class RuleActionDurationEstimator(BaseRuleDurationEstimator, ABC):
     """基于规则的动作时长估算器"""
 
     def _initialize_rules(self) -> Dict[str, Any]:
@@ -57,9 +57,7 @@ class ActionDurationEstimator(BaseDurationEstimator, ABC):
 
     def estimate(self, action_data: Action) -> DurationEstimation:
         """估算动作时长"""
-        action_id = action_data.action_id
-
-        info(f"[INFO] 开始估算动作: {action_id}")
+        info(f"[INFO] 开始估算动作: {action_data.action_id}")
 
         try:
             # 1. 基础分析
@@ -109,7 +107,7 @@ class ActionDurationEstimator(BaseDurationEstimator, ABC):
 
             # 9. 创建 DurationEstimation 对象
             estimation = self._create_duration_estimation(
-                action_id=action_id,
+                action_id=action_data.action_id,
                 original_duration=action_data.duration,
                 rule_estimated_duration=final_duration,
                 confidence=confidence,
@@ -125,8 +123,8 @@ class ActionDurationEstimator(BaseDurationEstimator, ABC):
 
         except Exception as e:
             print_log_exception()
-            error(f"[ERROR] 动作估算失败 {action_id}: {str(e)}")
-            return self._create_fallback_estimation(action_id, action_data)
+            error(f"[ERROR] 动作估算失败 {action_data.action_id}: {str(e)}")
+            return self._create_fallback_estimation(action_data.action_id, action_data)
 
     def _determine_action_type(self, description: str,
                                declared_type: str = "") -> str:

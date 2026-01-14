@@ -9,13 +9,13 @@ from datetime import datetime
 from typing import Dict, List, Any, Tuple
 
 from hengline.agent.script_parser.script_parser_models import Scene
-from hengline.agent.temporal_planner.estimator.rule_base_estimator import BaseDurationEstimator
+from hengline.agent.temporal_planner.estimator.rule_base_estimator import BaseRuleDurationEstimator
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengline.logger import debug, error
 from utils.log_utils import print_log_exception
 
 
-class SceneDurationEstimator(BaseDurationEstimator, ABC):
+class RuleSceneDurationEstimator(BaseRuleDurationEstimator, ABC):
     """使用YAML配置的场景时长估算器"""
 
     def _initialize_rules(self) -> Dict[str, Any]:

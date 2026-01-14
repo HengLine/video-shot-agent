@@ -10,10 +10,10 @@ from typing import List, Dict, Tuple
 
 from hengline.agent.script_parser.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.base_temporal_planner import TemporalPlanner
-from hengline.agent.temporal_planner.estimator.rule_action_estimator import ActionDurationEstimator
+from hengline.agent.temporal_planner.estimator.rule_action_estimator import RuleActionDurationEstimator
 from hengline.agent.temporal_planner.estimator.rule_base_estimator import EstimationContext, ElementWithContext
-from hengline.agent.temporal_planner.estimator.rule_dialogue_estimator import DialogueDurationEstimator
-from hengline.agent.temporal_planner.estimator.rule_scene_estimator import SceneDurationEstimator
+from hengline.agent.temporal_planner.estimator.rule_dialogue_estimator import RuleDialogueDurationEstimator
+from hengline.agent.temporal_planner.estimator.rule_scene_estimator import RuleSceneDurationEstimator
 from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan, ElementType, TimeSegment, DurationEstimation, PacingAnalysis, ContinuityAnchor
 from hengline.logger import debug, error, info, warning
 from utils.log_utils import print_log_exception
@@ -35,10 +35,10 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
         self.performance_stats = {}
         self.unified_script = None
         self.estimators = {
-            ElementType.SCENE: SceneDurationEstimator(),
-            ElementType.DIALOGUE: DialogueDurationEstimator(),
-            ElementType.ACTION: ActionDurationEstimator(),
-            ElementType.SILENCE: DialogueDurationEstimator()  # 沉默也使用对话估算器
+            ElementType.SCENE: RuleSceneDurationEstimator(),
+            ElementType.DIALOGUE: RuleDialogueDurationEstimator(),
+            ElementType.ACTION: RuleActionDurationEstimator(),
+            ElementType.SILENCE: RuleDialogueDurationEstimator()  # 沉默也使用对话估算器
         }
 
         # 状态跟踪
@@ -83,9 +83,6 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
         # 5. 计算总时长
         total_duration = segments[-1].time_range[1] if segments else 0
 
-        # 6. 确定节奏档案
-        pacing_profile = pacing_analysis.pacing_profile
-
         # 7. 确定全局视觉风格和主导情感
         global_visual_style = "写实"
         dominant_emotion = "平稳"
@@ -104,7 +101,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
             continuity_anchors=continuity_anchors,
             total_duration=total_duration,
             segments_count=len(segments),
-            pacing_profile=pacing_profile,
+            elements_count=len(estimations),
             global_visual_style=global_visual_style,
             dominant_emotion=dominant_emotion,
             key_transition_points=key_transition_points

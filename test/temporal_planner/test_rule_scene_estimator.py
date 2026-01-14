@@ -4,10 +4,12 @@
 @Author: HengLine
 @Time: 2026/1/13 16:12
 """
+from hengline.agent.script_parser.script_parser_models import Scene
 from hengline.agent.temporal_planner.estimator.rule_base_estimator import EstimationContext
-from hengline.agent.temporal_planner.estimator.rule_scene_estimator import SceneDurationEstimator
+from hengline.agent.temporal_planner.estimator.rule_scene_estimator import RuleSceneDurationEstimator
 from hengline.config.keyword_config import get_keyword_config
 from hengline.config.temporal_planner_config import get_planner_config
+from utils.obj_utils import dict_to_obj
 
 
 def demonstrate_yaml_config():
@@ -19,7 +21,7 @@ def demonstrate_yaml_config():
     config_manager = get_planner_config()
 
     # 2. 初始化估算器
-    estimator = SceneDurationEstimator()
+    estimator = RuleSceneDurationEstimator()
 
     # 3. 测试数据
     test_scenes = [
@@ -60,7 +62,7 @@ def demonstrate_yaml_config():
     print(f"原始估算: {scene_data['duration']}秒")
     print()
 
-    estimation = estimator.estimate(scene_data)
+    estimation = estimator.estimate(dict_to_obj(scene_data, Scene))
 
     # 显示结果
     print(f"规则估算结果:")

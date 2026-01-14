@@ -36,7 +36,7 @@ class ElementWithContext:
     time_offset: float = 0.0
 
 
-class BaseDurationEstimator:
+class BaseRuleDurationEstimator:
     """时长估算基类"""
 
     def __init__(self, config: Dict[str, Any] = None):
@@ -127,11 +127,11 @@ class BaseDurationEstimator:
         pass
 
     @abstractmethod
-    def estimate(self, element_data: Dict[str, Any]) -> DurationEstimation:
+    def estimate(self, element_data: Any) -> DurationEstimation:
         """估算单个元素（子类必须实现）"""
         pass
 
-    def batch_estimate(self, elements_data: List[Dict[str, Any]]) -> Dict[str, DurationEstimation]:
+    def batch_estimate(self, elements_data: List[Any]) -> Dict[str, DurationEstimation]:
         """批量估算多个元素"""
         estimations = {}
         for element_data in elements_data:

@@ -191,7 +191,6 @@ def test_rule_based_planner():
     print(f"\n时序规划创建完成:")
     print(f"  总时长: {timeline_plan.total_duration:.1f}秒")
     print(f"  片段数量: {timeline_plan.segments_count}")
-    print(f"  节奏档案: {timeline_plan.pacing_profile}")
     print(f"  主导情感: {timeline_plan.dominant_emotion}")
     print(f"  视觉风格: {timeline_plan.global_visual_style}")
     print(f"  关键转折点: {len(timeline_plan.key_transition_points)}个")

@@ -1,6 +1,8 @@
-from hengline.agent.temporal_planner.estimator.ai_duration_estimator import AIDurationEstimator
+from hengline.agent.script_parser.script_parser_models import Scene, Dialogue, Action
 from hengline.agent.temporal_planner.temporal_planner_model import ElementType
 from hengline.client.client_factory import get_default_llm
+from utils.obj_utils import dict_to_obj
+from .test_duration_estimator import AIDurationEstimator
 
 
 def _call_llm(self, prompt: str) -> str:
@@ -309,26 +311,26 @@ def demonstrate_complete_ai_estimator():
 
     # 测试单元素估算
     print("1. 场景估算:")
-    scene_result = estimator.estimate_scene_duration(test_scene)
+    scene_result = estimator.estimate_scene_duration(dict_to_obj(test_scene, Scene))
     print(f"   时长: {scene_result.estimated_duration}秒")
     print(f"   置信度: {scene_result.confidence}")
     print(f"   关键因素: {scene_result.key_factors}")
     print(f"   视觉建议: {list(scene_result.visual_hints.keys())[:3]}...")
 
     print("\n2. 对话估算:")
-    dialogue_result = estimator.estimate_dialogue_duration(test_dialogue)
+    dialogue_result = estimator.estimate_dialogue_duration(dict_to_obj(test_dialogue, Dialogue))
     print(f"   时长: {dialogue_result.estimated_duration}秒")
     print(f"   情感权重: {getattr(dialogue_result, 'emotional_weight', 'N/A')}")
     if hasattr(dialogue_result, 'emotional_trajectory') and dialogue_result.emotional_trajectory:
         print(f"   情感轨迹: {len(dialogue_result.emotional_trajectory)}个节点")
 
     print("\n3. 沉默估算:")
-    silence_result = estimator.estimate_dialogue_duration(test_silence)  # 会自动识别为沉默
+    silence_result = estimator.estimate_dialogue_duration(dict_to_obj(test_silence, Dialogue))  # 会自动识别为沉默
     print(f"   时长: {silence_result.estimated_duration}秒")
     print(f"   沉默类型: {getattr(silence_result, 'silence_type', 'N/A')}")
 
     print("\n4. 动作估算:")
-    action_result = estimator.estimate_action_duration(test_action)
+    action_result = estimator.estimate_action_duration(dict_to_obj(test_action, Action))
     print(f"   时长: {action_result.estimated_duration}秒")
     print(f"   复杂度得分: {getattr(action_result, 'complexity_score', 'N/A')}")
     if hasattr(action_result, 'action_components') and action_result.action_components:

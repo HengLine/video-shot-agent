@@ -8,6 +8,8 @@ import json
 from dataclasses import dataclass
 from typing import Dict, List
 
+from hengline.agent.script_parser.script_parser_models import Scene, Dialogue, Action
+from hengline.agent.temporal_planner.temporal_planner_model import ElementType
 from hengline.prompts.prompts_manager import prompt_manager
 
 
@@ -106,7 +108,7 @@ class DurationPromptTemplates:
         self.components = PromptComponent()
         self.prompt_manager = prompt_manager
 
-    def scene_duration_prompt(self, scene_data: Dict, context: Dict = None) -> str:
+    def scene_duration_prompt(self, scene_data: Scene, context: Dict = None) -> str:
         """场景时长估算提示词"""
         # 基础提示词
         prompt = prompt_manager.get_name_prompt("temporal_planner")
@@ -116,31 +118,23 @@ class DurationPromptTemplates:
         if not template:
             return prompt + "请估算以下场景的时长。\n\n" + json.dumps(scene_data, ensure_ascii=False)
 
-        # 准备数据
-        scene_id = scene_data.get("scene_id", "N/A")
-        location = scene_data.get("location", "未指定")
-        time_of_day = scene_data.get("time_of_day", "未指定")
-        mood = scene_data.get("mood", "未指定")
-        description = scene_data.get("description", "")
-
-        key_visuals = scene_data.get("key_visuals", [])
-        key_visuals_str = self.components.format_list(key_visuals)
+        key_visuals_str = self.components.format_list(scene_data.key_visuals)
 
         # 填充模板
         formatted = template.format(
-            scene_id=scene_id,
-            location=location,
-            time_of_day=time_of_day,
-            mood=mood,
+            scene_id=scene_data.scene_id,
+            location=scene_data.location,
+            time_of_day=scene_data.time_of_day,
+            mood=scene_data.mood,
             key_visuals_str=key_visuals_str,
-            description=description
+            description=scene_data.description
         )
 
         prompt += formatted
 
         # 添加上下文信息
         if context:
-            prompt += self._add_context_info(context, "场景")
+            prompt += self._add_context_info(context, ElementType.SCENE)
 
         # 添加增强分析
         if self.config.enable_enhanced_analysis:
@@ -164,10 +158,10 @@ class DurationPromptTemplates:
 
         return prompt
 
-    def dialogue_duration_prompt(self, dialogue_data: Dict, context: Dict = None) -> str:
+    def dialogue_duration_prompt(self, dialogue_data: Dialogue, context: Dict = None) -> str:
         """对话时长估算提示词"""
         # 检查是否为沉默
-        if dialogue_data.get("type") == "silence" or not dialogue_data.get("content", "").strip():
+        if dialogue_data.type == "silence" or not dialogue_data.content.strip():
             return self.silence_duration_prompt(dialogue_data, context)
 
         # 基础提示词
@@ -178,31 +172,22 @@ class DurationPromptTemplates:
         if not template:
             return prompt + "请估算以下对话的时长。\n\n" + json.dumps(dialogue_data, ensure_ascii=False)
 
-        # 准备数据
-        dialogue_id = dialogue_data.get("dialogue_id", "N/A")
-        speaker = dialogue_data.get("speaker", "未指定")
-        emotion = dialogue_data.get("emotion", "未指定")
-        voice_quality = dialogue_data.get("voice_quality", "未指定")
-        parenthetical = dialogue_data.get("parenthetical", "无")
-        dialogue_type = dialogue_data.get("type", "speech")
-        content = dialogue_data.get("content", "")
-
         # 分析对话特征
-        word_count = len(content.split())
-        punctuation_analysis = self.components.punctuation_analysis_str(content)
-        emotional_words = self.components.extract_emotional_words(content)
+        word_count = len(dialogue_data.content.split())
+        punctuation_analysis = self.components.punctuation_analysis_str(dialogue_data.content)
+        emotional_words = self.components.extract_emotional_words(dialogue_data.content)
         emotional_words_str = self.components.format_list(emotional_words)
-        sentence_complexity = self.components.assess_sentence_complexity(content)
+        sentence_complexity = self.components.assess_sentence_complexity(dialogue_data.content)
 
         # 填充基础模板
         formatted = template.format(
-            dialogue_id=dialogue_id,
-            speaker=speaker,
-            emotion=emotion,
-            voice_quality=voice_quality,
-            parenthetical=parenthetical,
-            dialogue_type=dialogue_type,
-            content=content,
+            dialogue_id=dialogue_data.dialogue_id,
+            speaker=dialogue_data.speaker,
+            emotion=dialogue_data.emotion,
+            voice_quality=dialogue_data.voice_quality,
+            parenthetical=dialogue_data.parenthetical,
+            dialogue_type=dialogue_data.type,
+            content=dialogue_data.content,
 
             # 添加语言学分析
             word_count=word_count,
@@ -215,7 +200,7 @@ class DurationPromptTemplates:
 
         # 添加上下文信息
         if context:
-            prompt += self._add_context_info(context, "对话")
+            prompt += self._add_context_info(context, ElementType.DIALOGUE)
 
         # 添加情感分析组件
         if self.config.enable_enhanced_analysis:
@@ -225,25 +210,18 @@ class DurationPromptTemplates:
 
         return prompt
 
-    def silence_duration_prompt(self, dialogue_data: Dict, context: Dict = None) -> str:
+    def silence_duration_prompt(self, dialogue_data: Dialogue, context: Dict = None) -> str:
         """沉默时长估算提示词"""
         prompt = prompt_manager.get_name_prompt("temporal_planner")
-
-        # 获取沉默模板
         template = prompt_manager.get_name_prompt("silence_planner")
         if not template:
             template = "## 沉默时长估算\n\n请估算以下沉默时刻的合理时长。\n\n{silence_info}"
 
-        # 准备数据
-        dialogue_id = dialogue_data.get("dialogue_id", "N/A")
-        emotion = dialogue_data.get("emotion", "未指定")
-        parenthetical = dialogue_data.get("parenthetical", "无动作描述")
-
         # 填充模板
         formatted = template.format(
-            dialogue_id=dialogue_id,
-            emotion=emotion,
-            parenthetical=parenthetical
+            dialogue_id=dialogue_data.dialogue_id,
+            emotion=dialogue_data.emotion,
+            parenthetical=dialogue_data.parenthetical
         )
 
         prompt += formatted
@@ -256,11 +234,11 @@ class DurationPromptTemplates:
 
         # 添加上下文信息
         if context:
-            prompt += self._add_context_info(context, "沉默")
+            prompt += self._add_context_info(context, ElementType.SILENCE)
 
         return prompt
 
-    def action_duration_prompt(self, action_data: Dict, context: Dict = None) -> str:
+    def action_duration_prompt(self, action_data: Action, context: Dict = None) -> str:
         """动作时长估算提示词"""
         prompt = prompt_manager.get_name_prompt("temporal_planner")
 
@@ -269,25 +247,18 @@ class DurationPromptTemplates:
         if not template:
             return prompt + "请估算以下动作的时长。\n\n" + json.dumps(action_data, ensure_ascii=False)
 
-        # 准备数据
-        action_id = action_data.get("action_id", "N/A")
-        actor = action_data.get("actor", "未指定")
-        action_type = action_data.get("type", "未指定")
-        target = action_data.get("target", "无")
-        description = action_data.get("description", "")
-
         # 分析动作复杂度
-        component_count = self._count_action_components(description)
-        fineness_level = self._assess_action_fineness(description)
-        movement_range = self._assess_movement_range(description)
+        component_count = self._count_action_components(action_data.description)
+        fineness_level = self._assess_action_fineness(action_data.description)
+        movement_range = self._assess_movement_range(action_data.description)
 
         # 填充基础模板
         formatted = template.format(
-            action_id=action_id,
-            actor=actor,
-            action_type=action_type,
-            target=target,
-            description=description,
+            action_id=action_data.action_id,
+            actor=action_data.actor,
+            action_type=action_data.type,
+            target=action_data.target,
+            description=action_data.description,
             # 添加复杂度评估
             component_count=component_count,
             fineness_level=fineness_level,
@@ -298,7 +269,7 @@ class DurationPromptTemplates:
 
         # 添加上下文信息
         if context:
-            prompt += self._add_context_info(context, "动作")
+            prompt += self._add_context_info(context, ElementType.ACTION)
 
         # 添加连续性提示
         if self.config.include_continuity_hints:
@@ -310,7 +281,7 @@ class DurationPromptTemplates:
 
         return prompt
 
-    def batch_scene_prompt(self, scenes: List[Dict], context: Dict = None) -> str:
+    def batch_scene_prompt(self, scenes: List[Scene], context: Dict = None) -> str:
         """批量场景估算提示词"""
         # 获取模板
         prompt = prompt_manager.get_name_prompt("temporal_planner")
@@ -322,15 +293,12 @@ class DurationPromptTemplates:
         # 准备场景摘要
         scenes_summary = []
         for i, scene in enumerate(scenes[:10]):  # 限制数量
-            scene_id = scene.get("scene_id", f"scene_{i}")
-            location = scene.get("location", "未指定")
-            mood = scene.get("mood", "未指定")
-            desc_preview = self.components.truncate_text(scene.get("description", ""), 80)
+            desc_preview = self.components.truncate_text(scene.description, 80)
 
             scenes_summary.append({
-                "scene_id": scene_id,
-                "location": location,
-                "mood": mood,
+                "scene_id": scene.scene_id,
+                "location": scene.location,
+                "mood": scene.mood,
                 "description_preview": desc_preview
             })
 
@@ -346,7 +314,7 @@ class DurationPromptTemplates:
 
         return prompt
 
-    def batch_dialogue_prompt(self, dialogues: List[Dict], context: Dict = None) -> str:
+    def batch_dialogue_prompt(self, dialogues: List[Dialogue], context: Dict = None) -> str:
         """批量对话估算提示词"""
         prompt = prompt_manager.get_name_prompt("temporal_planner")
         template = prompt_manager.get_name_prompt("dialogue_batch_planner")
@@ -356,17 +324,13 @@ class DurationPromptTemplates:
         # 准备对话摘要
         dialogues_summary = []
         for i, dialogue in enumerate(dialogues[:15]):  # 限制数量
-            dialogue_id = dialogue.get("dialogue_id", f"dialogue_{i}")
-            speaker = dialogue.get("speaker", "未指定")
-            emotion = dialogue.get("emotion", "未指定")
-            content = dialogue.get("content", "")
-            content_preview = self.components.truncate_text(content, 50)
-            is_silence = dialogue.get("type") == "silence" or not content.strip()
+            content_preview = self.components.truncate_text(dialogue.content, 50)
+            is_silence = dialogue.type == "silence" or not dialogue.content.strip()
 
             dialogues_summary.append({
-                "dialogue_id": dialogue_id,
-                "speaker": speaker,
-                "emotion": emotion,
+                "dialogue_id": dialogue.dialogue_id,
+                "speaker": dialogue.speaker,
+                "emotion": dialogue.emotion,
                 "content_preview": content_preview,
                 "is_silence": is_silence
             })
@@ -383,7 +347,7 @@ class DurationPromptTemplates:
 
         return prompt
 
-    def batch_action_prompt(self, actions: List[Dict], context: Dict = None) -> str:
+    def batch_action_prompt(self, actions: List[Action], context: Dict = None) -> str:
         """批量动作估算提示词"""
         prompt = prompt_manager.get_name_prompt("temporal_planner")
         template = prompt_manager.get_name_prompt("action_batch_planner")
@@ -393,16 +357,12 @@ class DurationPromptTemplates:
         # 准备动作摘要
         actions_summary = []
         for i, action in enumerate(actions[:20]):  # 限制数量
-            action_id = action.get("action_id", f"action_{i}")
-            actor = action.get("actor", "未指定")
-            action_type = action.get("type", "未指定")
-            description = action.get("description", "")
-            desc_preview = self.components.truncate_text(description, 60)
+            desc_preview = self.components.truncate_text(action.description, 60)
 
             actions_summary.append({
-                "action_id": action_id,
-                "actor": actor,
-                "action_type": action_type,
+                "action_id": action.action_id,
+                "actor": action.actor,
+                "action_type": action.type,
                 "description_preview": desc_preview
             })
 
@@ -418,7 +378,7 @@ class DurationPromptTemplates:
 
         return prompt
 
-    def _add_context_info(self, context: Dict, element_type: str) -> str:
+    def _add_context_info(self, context: Dict, element_type: ElementType) -> str:
         """添加上下文信息"""
         if not context:
             return ""

@@ -4,9 +4,8 @@
 @Author: HengLine
 @Time: 2026/1/11 23:39
 """
-from types import SimpleNamespace
-from dataclasses import is_dataclass, asdict
-from typing import Any, get_type_hints, get_origin, get_args, Dict, List, Union, Optional
+from dataclasses import is_dataclass, asdict, fields
+from typing import Any, get_type_hints, get_origin, get_args, Dict, List, Union
 
 
 class JSONObject:
@@ -88,7 +87,82 @@ def obj_to_dict(obj: Any) -> Union[Dict, List, str, int, float, bool, None]:
     return str(obj)
 
 
+def batch_dict_to_dataclass(datas: List[Any], cls) -> [Any]:
+    """ 将字典列表转换为指定的 dataclass 对象列表。"""
+    if datas is None or datas == []:
+        return datas
+
+    if isinstance(datas, dict):
+        return [dict_to_dataclass(datas, cls)]
+
+    if isinstance(datas, list):
+        try:
+            return [dict_to_dataclass(item, cls) for item in datas]
+        except Exception as e:
+            print(f"Error in batch_dict_to_dataclass: {e}")
+            return [cls(**d) for d in datas]
+
+
+def dict_to_dataclass(data, cls) -> Any:
+    """ 将字典转换为指定的 dataclass 对象。"""
+    #  or not is_dataclass(cls):
+    if data is None or data == {} or not isinstance(data, dict):
+        return data
+
+    try:
+        # pip install dacite
+        from dacite import from_dict, Config
+        return from_dict(data_class=cls, data=data, config=Config(strict=False))
+    except Exception as e:
+        print(f"Error in dict_to_dataclass from dacite: {e}")
+
+        try:
+            return cls(**data)
+        except Exception as e:
+            print(f"Error in dict_to_dataclass manual: {e}")
+            hints = get_type_hints(cls)
+            kwargs = {}
+
+            for field in fields(cls):
+                key = field.name
+                field_type = hints[key]
+
+                if key not in data:
+                    if field.default is not field.default_factory.__class__ or field.default is not None:
+                        kwargs[key] = field.default
+                    elif hasattr(field, 'default_factory') and field.default_factory is not None:
+                        kwargs[key] = field.default_factory()
+                    continue
+
+                value = data[key]
+                origin = get_origin(field_type)
+                args = get_args(field_type)
+
+                # 处理 Optional[T] == Union[T, None]
+                if origin is Union:
+                    non_none_types = [t for t in args if t is not type(None)]
+                    if len(non_none_types) == 1:
+                        field_type = non_none_types[0]
+                        origin = get_origin(field_type)
+                        args = get_args(field_type)
+
+                # 递归处理嵌套 dataclass
+                if is_dataclass(field_type):
+                    kwargs[key] = dict_to_dataclass(value, field_type)
+                # 处理 List[SomeDataclass]
+                elif origin is list and args and is_dataclass(args[0]):
+                    kwargs[key] = [dict_to_dataclass(item, args[0]) for item in value]
+                # 处理 Dict[str, SomeDataclass]
+                elif origin is dict and len(args) == 2 and is_dataclass(args[1]):
+                    kwargs[key] = {k: dict_to_dataclass(v, args[1]) for k, v in value.items()}
+                else:
+                    kwargs[key] = value
+
+            return cls(**kwargs)
+
+
 def dict_to_obj(data: Any, clazz) -> Any:
+    """ 将字典或其他数据结构转换为指定类型的对象。"""
     if data is None:
         return None
 
@@ -142,14 +216,15 @@ def dict_to_obj(data: Any, clazz) -> Any:
     return data
 
 
-
 if __name__ == '__main__':
     from dataclasses import dataclass
+
 
     @dataclass
     class Person:
         name: str
         age: int
+
 
     # 示例 2: dataclass
     p = Person("Alice", 30)
@@ -163,5 +238,3 @@ if __name__ == '__main__':
         "meta": ["a", {"b": Person("Bob", 25)}]
     }
     print(obj_to_dict(data))
-
-

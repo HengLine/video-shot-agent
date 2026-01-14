@@ -82,6 +82,7 @@ class DurationEstimation:
 
     # 详细分解
     reasoning_breakdown: Dict[str, Any] = field(default_factory=dict)   # 估算依据
+    duration_breakdown: Dict[str, float] = field(default_factory=dict)  # 时长分解
     visual_hints: Dict[str, Any] = field(default_factory=dict)  # 视觉线索
     key_factors: List[str] = field(default_factory=list)    # 关键影响因素
     pacing_notes: str = ""      # 节奏调整说明
@@ -95,12 +96,14 @@ class DurationEstimation:
     character_states: Dict[str, str] = field(default_factory=dict)  # 角色状态变化
     prop_states: Dict[str, str] = field(default_factory=dict)  # 道具状态变化
     continuity_requirements: Dict[str, Any] = field(default_factory=dict)  # 连续性信息
-    estimated_at: str = None
+    shot_suggestions: List[str] = field(default_factory=list)
+    emotional_trajectory: List[Dict] = field(default_factory=list)
 
     # 来源跟踪
     rule_based_estimate: Optional[float] = None  # 规则估算值（如果有）
     ai_based_estimate: Optional[float] = None  # AI估算值（如果有）
     adjustment_reason: str = ""     # 调整原因说明
+    estimated_at: str = None
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
@@ -108,7 +111,7 @@ class DurationEstimation:
             "element_id": self.element_id,
             "element_type": self.element_type.value,
             "original_duration": round(self.original_duration, 2),
-            "ai_estimated_duration": round(self.estimated_duration, 2),
+            "estimated_duration": round(self.estimated_duration, 2),
             "confidence": round(self.confidence, 2),
             "rule_based_estimate": round(self.rule_based_estimate, 2) if self.rule_based_estimate is not None else None,
             "ai_based_estimate": round(self.ai_based_estimate, 2) if self.ai_based_estimate is not None else None,
@@ -119,6 +122,9 @@ class DurationEstimation:
             "character_states": self.character_states,
             "prop_states": self.prop_states,
             "reasoning_breakdown": self.reasoning_breakdown,
+            "duration_breakdown": self.duration_breakdown,
+            "emotional_trajectory": self.emotional_trajectory,
+            "shot_suggestions": self.shot_suggestions,
             "visual_hints": self.visual_hints,
             "key_factors": self.key_factors,
             "pacing_notes": self.pacing_notes,
@@ -265,8 +271,10 @@ class TimelinePlan:
     # 元数据
     total_duration: float
     segments_count: int
-    pacing_profile: str  # "紧张累积型" | "平稳叙述型" | "情感波动型"
+    elements_count: int
 
+    estimations: Dict[str, Any] = field(default_factory=dict)  # 多模型估算结果
+    script_summary: Dict[str, float] = field(default_factory=dict)  # 原始剧本摘要
     processing_stats: Dict[str, Any] = field(default_factory=dict)
 
     # 为分镜生成准备的全局参数
@@ -280,7 +288,7 @@ class TimelinePlan:
             "meta": {
                 "total_duration": round(self.total_duration, 2),
                 "segments_count": self.segments_count,
-                "pacing_profile": self.pacing_profile,
+                "elements_count": self.elements_count,
                 "generated_at": datetime.now().isoformat()
             },
             "segments": [seg.to_dict() for seg in self.timeline_segments],
@@ -330,21 +338,3 @@ class TimelinePlan:
         summary["total_adjustment"] = round(total_ai - total_original, 2)
 
         return dict(summary)  # 转换回普通dict
-
-
-class EstimationErrorLevel(Enum):
-    """错误级别"""
-    WARNING = "warning"
-    ERROR = "error"
-    CRITICAL = "critical"
-
-
-@dataclass
-class EstimationError:
-    """估算错误信息"""
-    element_id: str
-    error_type: str
-    message: str
-    level: EstimationErrorLevel
-    recovery_action: str = ""
-    fallback_value: Optional[float] = None

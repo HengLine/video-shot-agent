@@ -5,11 +5,32 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/12
 """
-from typing import Dict
+from dataclasses import dataclass
+from enum import Enum
+from typing import Dict, Optional
 
 from hengline.agent.base_agent import BaseAgent
 from hengline.agent.script_parser.script_parser_models import UnifiedScript
-from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan, EstimationErrorLevel, EstimationError
+from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan
+
+
+class EstimationErrorLevel(Enum):
+    """错误级别"""
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
+
+@dataclass
+class EstimationError:
+    """估算错误信息"""
+    element_id: str
+    error_type: str
+    message: str
+    level: EstimationErrorLevel
+    recovery_action: str = ""
+    fallback_value: Optional[float] = None
+    timestamp: str = None
 
 
 class TemporalPlanner(BaseAgent):
