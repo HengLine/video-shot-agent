@@ -18,6 +18,7 @@ class ElementType(Enum):
     ACTION = "action"
     TRANSITION = "transition"
     SILENCE = "silence"
+    UNKNOWN = "unknown"
 
 
 @unique
@@ -76,9 +77,9 @@ class DurationEstimation:
     element_type: ElementType
     original_duration: float  # 解析器原始估算
     estimated_duration: float  # 混合模型调整后
-    # min_duration: float
-    # max_duration: float
-    confidence: float  # 置信度 0-1
+    min_duration: float = 0.0
+    max_duration: float = 9999.0
+    confidence: float = 0.0  # 置信度 0-1
 
     # 详细分解
     reasoning_breakdown: Dict[str, Any] = field(default_factory=dict)   # 估算依据
@@ -91,6 +92,11 @@ class DurationEstimation:
     emotional_weight: float = 1.0  # 情绪权重 (沉默、高潮>1.0)
     visual_complexity: float = 1.0  # 视觉复杂度
     pacing_factor: float = 1.0  # 节奏因子 (快速>1.0, 慢速<1.0)
+
+    # 为5秒分片准备的信息
+    can_be_split: bool = True  # 是否可以被切割
+    split_priority: int = 5  # 切割优先级（1-10，越低越优先不切割）
+    key_moment_percentage: float = 0.5  # 关键时刻在元素中的位置（0-1）
 
     # 为智能体3准备的状态信息
     character_states: Dict[str, str] = field(default_factory=dict)  # 角色状态变化
@@ -130,6 +136,18 @@ class DurationEstimation:
             "pacing_notes": self.pacing_notes,
             "estimated_at": self.estimated_at
         }
+
+@dataclass
+class ContainedElement:
+    """片段中包含的元素信息"""
+    element_id: str
+    element_type: ElementType
+    start_offset: float          # 在片段内的开始时间偏移
+    duration: float   # 在片段内的持续时间
+    is_partial: bool = False     # 是否为部分元素
+    partial_type: str = ""       # "start", "middle", "end"
+    element_data: Dict[str, Any] = field(default_factory=dict)  # 原始元素数据
+
 
 """
 复杂度判断标准：
@@ -175,13 +193,9 @@ class TimeSegment:
 
     # 内容组成
     visual_summary: str = None  # 视觉内容摘要（给分镜生成）
-    contained_elements: List[Dict[str, Any]] = None  # 包含的元素ID与类型
-
-    # === 新增属性：为后续智能体提供高级信号 ===
-    content_type: Optional[ContentType] = None  # 核心内容类型识别
-    emotional_tone: Optional[EmotionalTone] = EmotionalTone.NEUTRAL  # 情绪氛围
-    action_intensity: float = 1.0  # 动作强度 1.0-3.0
-    shot_complexity: ShotComplexity = ShotComplexity.MEDIUM  # 视觉复杂度
+    contained_elements: List[ContainedElement] = None  # 包含的元素
+    segment_type: str = "normal"  # normal, transition, climax, setup
+    requires_special_attention: bool = False
 
     # === 为智能体3准备的连贯性锚点 ===
     start_anchor: Dict[str, Any] = field(default_factory=dict)  # 开始状态约束
@@ -192,14 +206,19 @@ class TimeSegment:
     shot_type_suggestion: str = ""  # 镜头类型建议
     lighting_suggestion: str = ""  # 灯光建议
     focus_elements: List[str] = field(default_factory=list)  # 焦点元素
-
-    # === 新增：技术参数建议 ===
     camera_movement: str = "static"  # 相机运动：static, slow_pan, dolly_in, etc.
     color_palette_suggestion: str = ""  # 色彩调色板建议
     sound_design_hint: str = ""  # 音效设计提示
 
-    # === 新增：风格一致性标记 ===
-    style_consistency_tags: List[str] = field(default_factory=list)  # 风格标签
+    content_type: Optional[ContentType] = None  # 核心内容类型识别
+    emotional_tone: Optional[EmotionalTone] = EmotionalTone.NEUTRAL  # 情绪氛围
+    action_intensity: float = 1.0  # 动作强度 1.0-3.0
+    shot_complexity: ShotComplexity = ShotComplexity.MEDIUM  # 视觉复杂度
+
+    # 片段质量指标
+    pacing_score: float = 0.0  # 节奏得分 0-10
+    completeness_score: float = 0.0  # 完整性得分 0-1
+    split_quality: float = 0.0  # 切割质量得分 0-1
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为可序列化字典（用于JSON输出）"""
@@ -222,8 +241,29 @@ class TimeSegment:
             "camera_movement": self.camera_movement,
             "color_palette_suggestion": self.color_palette_suggestion,
             "sound_design_hint": self.sound_design_hint,
-            "style_consistency_tags": self.style_consistency_tags
+            "pacing_score": self.pacing_score
         }
+
+    @property
+    def start_time(self) -> float:
+        """片段开始时间"""
+        return self.time_range[0]
+
+    @property
+    def end_time(self) -> float:
+        """片段结束时间"""
+        return self.time_range[1]
+
+    def contains_element(self, element_id: str) -> bool:
+        """检查是否包含指定元素"""
+        return any(elem.element_id == element_id for elem in self.contained_elements)
+
+    def get_element_by_id(self, element_id: str) -> Optional[ContainedElement]:
+        """根据ID获取元素"""
+        for elem in self.contained_elements:
+            if elem.element_id == element_id:
+                return elem
+        return None
 
 
 @dataclass

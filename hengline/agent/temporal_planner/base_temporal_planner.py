@@ -5,13 +5,14 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/12
 """
+from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from hengline.agent.base_agent import BaseAgent
 from hengline.agent.script_parser.script_parser_models import UnifiedScript
-from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan
+from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan, DurationEstimation
 
 
 class EstimationErrorLevel(Enum):
@@ -33,9 +34,10 @@ class EstimationError:
     timestamp: str = None
 
 
-class TemporalPlanner(BaseAgent):
+class BaseTemporalPlanner(BaseAgent):
     """时序规划"""
 
+    @abstractmethod
     def plan_timeline(self, structured_script: UnifiedScript) -> TimelinePlan | None:
         """
         规划剧本的时序分段
@@ -47,6 +49,37 @@ class TemporalPlanner(BaseAgent):
             分段计划列表
         """
         pass
+
+
+    def _organize_estimations(self, estimations: Dict[str, DurationEstimation],
+                              script_data: UnifiedScript) -> Dict[str, List]:
+        """组织估算结果"""
+        organized = {
+            "scenes": [],
+            "dialogues": [],
+            "actions": []
+        }
+
+        # 按原始顺序组织场景
+        for scene in script_data.scenes:
+            scene_id = scene.scene_id
+            if scene_id in estimations:
+                organized["scenes"].append(estimations[scene_id])
+
+        # 按原始顺序组织对话
+        for dialogue in script_data.dialogues:
+            dialogue_id = dialogue.dialogue_id
+            if dialogue_id in estimations:
+                organized["dialogues"].append(estimations[dialogue_id])
+
+        # 按原始顺序组织动作
+        for action in script_data.actions:
+            action_id = action.action_id
+            if action_id in estimations:
+                organized["actions"].append(estimations[action_id])
+
+        return organized
+
 
     def _log_error(self, error_log, element_id: str, error_type: str, message: str,
                    level: EstimationErrorLevel, recovery_action: str = "",

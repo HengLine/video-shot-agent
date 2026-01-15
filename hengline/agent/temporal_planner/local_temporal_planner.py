@@ -9,17 +9,17 @@ from datetime import datetime
 from typing import List, Dict, Tuple
 
 from hengline.agent.script_parser.script_parser_models import UnifiedScript
-from hengline.agent.temporal_planner.base_temporal_planner import TemporalPlanner
+from hengline.agent.temporal_planner.base_temporal_planner import BaseTemporalPlanner
 from hengline.agent.temporal_planner.estimator.rule_action_estimator import RuleActionDurationEstimator
 from hengline.agent.temporal_planner.estimator.rule_base_estimator import EstimationContext, ElementWithContext
 from hengline.agent.temporal_planner.estimator.rule_dialogue_estimator import RuleDialogueDurationEstimator
 from hengline.agent.temporal_planner.estimator.rule_scene_estimator import RuleSceneDurationEstimator
-from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan, ElementType, TimeSegment, DurationEstimation, PacingAnalysis, ContinuityAnchor
+from hengline.agent.temporal_planner.temporal_planner_model import TimelinePlan, ElementType, TimeSegment, DurationEstimation, PacingAnalysis, ContinuityAnchor, ContainedElement
 from hengline.logger import debug, error, info, warning
 from utils.log_utils import print_log_exception
 
 
-class LocalRuleTemporalPlanner(TemporalPlanner):
+class LocalRuleTemporalPlanner(BaseTemporalPlanner):
     """基于规则的动作合并算法
             规则优先级：
             1. 情感强烈变化点（如震惊）→ 必须独立镜头
@@ -361,13 +361,15 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
                     current_start_time += current_segment_duration
 
                 # 开始新片段
-                current_segment_elements = [{
-                    "element_id": element_id,
-                    "element_type": estimation.element_type.value,
-                    "duration": element_duration,
-                    "start_in_segment": 0.0,
-                    "estimation": estimation.to_dict()
-                }]
+                current_segment_elements = [ContainedElement(
+                    element_id=element.element_id,
+                    element_type=element.element_type,
+                    start_offset=0.0,
+                    duration=element_duration,
+                    is_partial=False,
+                    element_data=estimation.to_dict()
+                )]
+
                 current_segment_duration = element_duration
 
         # 处理最后一个片段
@@ -382,7 +384,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
         return segments
 
     def _create_segment(self, segment_index: int, start_time: float, duration: float,
-                        elements: List[Dict]) -> TimeSegment:
+                        elements: List[ContainedElement]) -> TimeSegment:
         """创建单个时间片段"""
         segment_id = f"seg_{segment_index:03d}"
         end_time = start_time + duration
@@ -413,7 +415,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
             focus_elements=focus_elements
         )
 
-    def _generate_visual_summary(self, elements: List[Dict]) -> str:
+    def _generate_visual_summary(self, elements: List[ContainedElement]) -> str:
         """生成视觉内容摘要"""
         if not elements:
             return "空片段"
@@ -422,23 +424,23 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
         element_count = {}
 
         for elem in elements:
-            element_type = elem["element_type"]
+            element_type = elem.element_type
             element_count[element_type] = element_count.get(element_type, 0) + 1
 
         # 构建摘要
-        if element_count.get("scene", 0) > 0:
+        if element_count.get(ElementType.SCENE, 0) > 0:
             summaries.append("场景")
-        if element_count.get("dialogue", 0) > 0:
+        if element_count.get(ElementType.DIALOGUE, 0) > 0:
             summaries.append("对话")
-        if element_count.get("silence", 0) > 0:
+        if element_count.get(ElementType.SILENCE, 0) > 0:
             summaries.append("沉默")
-        if element_count.get("action", 0) > 0:
+        if element_count.get(ElementType.ACTION, 0) > 0:
             summaries.append("动作")
 
         # 添加关键元素信息
         key_elements = []
         for elem in elements[:3]:
-            elem_id = elem["element_id"]
+            elem_id = elem.element_id
             if elem_id in self.estimations:
                 est = self.estimations[elem_id]
                 if est.emotional_weight > 1.5:
@@ -453,7 +455,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
 
         return " | ".join(summaries)
 
-    def _generate_continuity_anchors(self, elements: List[Dict]) -> Tuple[Dict, Dict]:
+    def _generate_continuity_anchors(self, elements: List[ContainedElement]) -> Tuple[Dict, Dict]:
         """生成连续性锚点"""
         start_anchor = {
             "type": "segment_start",
@@ -475,7 +477,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
         all_prop_states = {}
 
         for elem in elements:
-            elem_id = elem["element_id"]
+            elem_id = elem.element_id
             if elem_id in self.estimations:
                 est = self.estimations[elem_id]
                 all_character_states.update(est.character_states)
@@ -483,7 +485,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
 
         # 设置开始状态
         if elements:
-            first_elem_id = elements[0]["element_id"]
+            first_elem_id = elements[0].element_id
             if first_elem_id in self.estimations:
                 first_est = self.estimations[first_elem_id]
                 start_anchor["character_states"].update(first_est.character_states)
@@ -495,7 +497,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
             end_anchor["prop_states"].update(all_prop_states)
 
             # 添加过渡提示
-            last_elem_id = elements[-1]["element_id"]
+            last_elem_id = elements[-1].element_id
             if last_elem_id in self.estimations:
                 last_est = self.estimations[last_elem_id]
                 if last_est.element_type == ElementType.DIALOGUE:
@@ -510,7 +512,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
 
         return start_anchor, end_anchor
 
-    def _generate_shot_suggestions(self, elements: List[Dict]) -> Tuple[str, str, List[str]]:
+    def _generate_shot_suggestions(self, elements: List[ContainedElement]) -> Tuple[str, str, List[str]]:
         """生成镜头建议"""
         shot_type = "medium_shot"
         lighting = "natural"
@@ -520,24 +522,24 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
             return shot_type, lighting, focus_elements
 
         # 分析元素类型
-        element_types = [elem["element_type"] for elem in elements]
+        element_types = [elem.element_type for elem in elements]
 
         # 确定镜头类型
-        if "silence" in element_types:
+        if ElementType.SILENCE in element_types:
             shot_type = "close_up"
             lighting = "soft_dramatic"
-        elif "dialogue" in element_types:
+        elif ElementType.DIALOGUE in element_types:
             shot_type = "medium_close_up"
             lighting = "natural_with_emphasis"
-        elif "action" in element_types:
+        elif ElementType.ACTION in element_types:
             shot_type = "medium_shot"
             lighting = "dynamic"
 
         # 确定焦点元素
         for elem in elements:
-            if elem["element_type"] == "dialogue":
+            if elem.element_type == ElementType.DIALOGUE:
                 focus_elements.append("speaker_face")
-            elif elem["element_type"] == "silence":
+            elif elem.element_type == ElementType.SILENCE:
                 focus_elements.append("emotional_expression")
 
         # 去重并限制数量
@@ -545,14 +547,14 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
 
         return shot_type, lighting, focus_elements
 
-    def _extract_continuity_requirements(self, elements: List[Dict]) -> List[str]:
+    def _extract_continuity_requirements(self, elements: List[ContainedElement]) -> List[str]:
         """提取连续性要求"""
         requirements = []
 
         # 检查是否有状态变化
         has_state_changes = False
         for elem in elements:
-            elem_id = elem["element_id"]
+            elem_id = elem.element_id
             if elem_id in self.estimations:
                 est = self.estimations[elem_id]
                 if est.character_states or est.prop_states:
@@ -563,7 +565,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
             requirements.append("状态变化连贯")
 
         # 对话相关要求
-        if any(elem["element_type"] == "dialogue" for elem in elements):
+        if any(elem.element_type == ElementType.DIALOGUE for elem in elements):
             requirements.append("对话情绪自然")
 
         return requirements
@@ -631,7 +633,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
         intensity = 0.0
 
         for elem in segment.contained_elements:
-            elem_id = elem["element_id"]
+            elem_id = elem.element_id
             if elem_id in self.estimations:
                 est = self.estimations[elem_id]
 
@@ -724,7 +726,7 @@ class LocalRuleTemporalPlanner(TemporalPlanner):
 
         for segment in segments:
             for elem in segment.contained_elements:
-                elem_id = elem["element_id"]
+                elem_id = elem.element_id
                 if elem_id in self.estimations:
                     est = self.estimations[elem_id]
 
