@@ -8,9 +8,9 @@ import json
 from typing import Dict, Any
 
 from hengline.agent.script_parser.script_parser_models import Dialogue
-from hengline.agent.temporal_planner.base_temporal_planner import EstimationErrorLevel
 from hengline.agent.temporal_planner.estimator.ai_base_estimator import BaseAIDurationEstimator
-from hengline.agent.temporal_planner.temporal_planner_model import ElementType, DurationEstimation
+from hengline.agent.temporal_planner.estimator.base_estimator import EstimationErrorLevel
+from hengline.agent.temporal_planner.temporal_planner_model import ElementType, DurationEstimation, EstimationSource
 
 
 class AIDialogueDurationEstimator(BaseAIDurationEstimator):
@@ -113,6 +113,8 @@ class AIDialogueDurationEstimator(BaseAIDurationEstimator):
             element_type=ElementType.DIALOGUE,
             original_duration=round(dialogue_data.duration, 2),
             estimated_duration=round(duration, 2),
+            llm_estimated=round(duration, 2),
+            estimator_source=EstimationSource.LLM,
             confidence=round(confidence, 2),
             reasoning_breakdown=parsed_result.get("reasoning", {}),
             visual_hints=parsed_result.get("visual_hints", {}),
@@ -150,6 +152,8 @@ class AIDialogueDurationEstimator(BaseAIDurationEstimator):
             element_type=ElementType.DIALOGUE,
             original_duration=round(dialogue_data.duration, 2),
             estimated_duration=round(total_duration, 2),
+            llm_estimated=round(total_duration, 2),
+            estimator_source=EstimationSource.FALLBACK,
             confidence=0.4,
             reasoning_breakdown={"fallback_estimation": True, "method": "word_count_with_emotion"},
             visual_hints={"fallback": True},
@@ -255,6 +259,8 @@ class AISilenceDurationEstimator(AIDialogueDurationEstimator):
             element_id=dialogue_data.dialogue_id,
             element_type=ElementType.SILENCE,
             estimated_duration=round(duration, 2),
+            llm_estimated=round(duration, 2),
+            estimator_source=EstimationSource.LLM,
             original_duration=round(dialogue_data.duration, 2),
             confidence=round(confidence, 2),
             reasoning_breakdown=parsed_result.get("reasoning", {}),
@@ -284,6 +290,8 @@ class AISilenceDurationEstimator(AIDialogueDurationEstimator):
             element_type=ElementType.SILENCE,
             original_duration=round(dialogue_data.duration, 2),
             estimated_duration=round(base_duration, 2),
+            llm_estimated=round(base_duration, 2),
+            estimator_source=EstimationSource.FALLBACK,
             confidence=0.5,
             reasoning_breakdown={"fallback_estimation": True, "method": "parenthetical_based"},
             visual_hints={"fallback": True, "suggested_shot_types": ["close_up"]},

@@ -8,9 +8,9 @@ import json
 from typing import Dict, Any
 
 from hengline.agent.script_parser.script_parser_models import Action
-from hengline.agent.temporal_planner.base_temporal_planner import EstimationErrorLevel
 from hengline.agent.temporal_planner.estimator.ai_base_estimator import BaseAIDurationEstimator
-from hengline.agent.temporal_planner.temporal_planner_model import ElementType, DurationEstimation
+from hengline.agent.temporal_planner.estimator.base_estimator import EstimationErrorLevel
+from hengline.agent.temporal_planner.temporal_planner_model import ElementType, DurationEstimation, EstimationSource
 
 
 class AIActionDurationEstimator(BaseAIDurationEstimator):
@@ -88,6 +88,8 @@ class AIActionDurationEstimator(BaseAIDurationEstimator):
             element_id=action_data.action_id,
             element_type=ElementType.ACTION,
             estimated_duration=round(duration, 2),
+            llm_estimated=round(duration, 2),
+            estimator_source=EstimationSource.LLM,
             original_duration=round(action_data.duration, 2),
             confidence=round(confidence, 2),
             reasoning_breakdown=parsed_result.get("reasoning", {}),
@@ -128,6 +130,8 @@ class AIActionDurationEstimator(BaseAIDurationEstimator):
             element_id=action_data.action_id,
             element_type=ElementType.ACTION,
             estimated_duration=round(total_duration, 2),
+            llm_estimated=round(total_duration, 2),
+            estimator_source=EstimationSource.FALLBACK,
             original_duration=round(action_data.duration, 2),
             confidence=0.4,
             reasoning_breakdown={"fallback_estimation": True, "method": "type_and_complexity"},

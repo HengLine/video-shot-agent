@@ -10,9 +10,18 @@ from dataclasses import dataclass
 from typing import Tuple, Dict, Any, List
 
 from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene
+from hengline.agent.temporal_planner.estimator.base_estimator import BaseDurationEstimator
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengline.config.keyword_config import get_keyword_config
 from hengline.config.temporal_planner_config import get_planner_config
+
+
+@dataclass
+class ElementWithContext:
+    element_id: str
+    element_type: ElementType
+    data: Any
+    time_offset: float = 0.0
 
 
 @dataclass
@@ -24,23 +33,40 @@ class EstimationContext:
     location_complexity: float = 1.0  # 1-5 scale
     time_of_day: str = "day"  # day/night/dawn/dusk
     weather: str = "clear"  # clear/rain/snow/fog
+    # 节奏信息
     previous_pacing: str = "normal"  # fast/normal/slow
-    overall_pacing_target: str = "normal"  # 整体节奏目标
+    overall_pacing: str = "normal"
+
+    # 语义特征
+    semantic_density: float = 1.0
+    visual_complexity: float = 1.0
+
+    # 序列信息
+    position_in_sequence: int = 0
+    total_elements: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            "scene_type": self.scene_type,
+            "emotional_tone": self.emotional_tone,
+            "character_count": self.character_count,
+            "location_complexity": self.location_complexity,
+            "previous_pacing": self.previous_pacing,
+            "overall_pacing": self.overall_pacing,
+            "semantic_density": self.semantic_density,
+            "visual_complexity": self.visual_complexity,
+            "position_in_sequence": self.position_in_sequence,
+            "total_elements": self.total_elements
+        }
 
 
-@dataclass
-class ElementWithContext:
-    element_id: str
-    element_type: ElementType
-    data: Any
-    time_offset: float = 0.0
-
-
-class BaseRuleDurationEstimator:
+class BaseRuleDurationEstimator(BaseDurationEstimator):
     """时长估算基类"""
 
     def __init__(self, config: Dict[str, Any] = None):
         """初始化估算器"""
+        super().__init__()
         self.config = config or self._get_default_config()
         self.context = EstimationContext()
         self.keyword_config = get_keyword_config()
@@ -262,7 +288,7 @@ class BaseRuleDurationEstimator:
         """应用节奏调整"""
         adjustment = 1.0
 
-        pacing_target = self.context.overall_pacing_target
+        pacing_target = self.context.overall_pacing
         previous_pacing = self.context.previous_pacing
 
         # 基于整体节奏目标的调整

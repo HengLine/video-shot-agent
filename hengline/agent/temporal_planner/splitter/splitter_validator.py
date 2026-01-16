@@ -4,10 +4,8 @@
 @Author: HengLine
 @Time: 2026/1/15 0:04
 """
-import json
 from typing import List, Dict, Any
 
-from hengline.agent.temporal_planner.splitter.splitter_model import SegmentSplitResult
 from hengline.agent.temporal_planner.temporal_planner_model import TimeSegment
 
 
@@ -63,7 +61,7 @@ class SegmentValidator:
         return errors
 
     @staticmethod
-    def validate_split_result(result: SegmentSplitResult) -> Dict[str, Any]:
+    def validate_split_result(result: List[TimeSegment]) -> Dict[str, Any]:
         """验证分片结果"""
         validation_result = {
             "valid": True,
@@ -78,7 +76,7 @@ class SegmentValidator:
         }
 
         # 验证每个片段
-        for segment in result.segments:
+        for segment in result:
             errors = SegmentValidator.validate_segment(segment)
             if errors:
                 validation_result["valid"] = False
@@ -91,13 +89,13 @@ class SegmentValidator:
             validation_result["statistics"]["elements_checked"] += len(segment.contained_elements)
 
         # 检查时间连续性
-        time_errors = SegmentValidator.check_time_continuity(result.segments)
+        time_errors = SegmentValidator.check_time_continuity(result)
         if time_errors:
             validation_result["warnings"].extend(time_errors)
             validation_result["statistics"]["warnings_found"] += len(time_errors)
 
         # 检查元素完整性
-        completeness_warnings = SegmentValidator.check_element_completeness(result.segments)
+        completeness_warnings = SegmentValidator.check_element_completeness(result)
         if completeness_warnings:
             validation_result["warnings"].extend(completeness_warnings)
             validation_result["statistics"]["warnings_found"] += len(completeness_warnings)
@@ -276,68 +274,3 @@ class SegmentVisualizer:
             table_lines.append(" | ".join(stats))
 
         return "\n".join(table_lines)
-
-
-class SplitterExporter:
-    """分片结果导出器"""
-
-    @staticmethod
-    def export_to_json(result: SegmentSplitResult, filepath: str) -> None:
-        """导出为JSON文件"""
-        export_data = {
-            "metadata": {
-                "export_time": "current_time",  # 实际应该用datetime
-                "splitter_version": "1.0",
-                "target_segment_duration": 5.0
-            },
-            "result": result.to_dict()
-        }
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(export_data, f, ensure_ascii=False, indent=2)
-
-    @staticmethod
-    def export_to_readable_format(result: SegmentSplitResult, filepath: str) -> None:
-        """导出为可读格式"""
-        lines = []
-
-        lines.append("=" * 80)
-        lines.append("5秒分片结果报告")
-        lines.append("=" * 80)
-
-        # 基本信息
-        lines.append(f"\n基本信息:")
-        lines.append(f"  片段总数: {len(result.segments)}")
-        lines.append(f"  总时长: {result.statistics.get('total_duration', 0):.1f}秒")
-        lines.append(f"  切割决策数: {len(result.split_decisions)}")
-        lines.append(f"  总体质量评分: {result.overall_quality_score:.2f}/1.0")
-
-        # 统计信息
-        lines.append(f"\n统计信息:")
-        stats = result.statistics
-        lines.append(f"  平均片段时长: {stats.get('duration_stats', {}).get('average', 0):.2f}秒")
-        lines.append(f"  部分元素比例: {stats.get('partial_ratio', 0) * 100:.1f}%")
-        lines.append(f"  每分钟片段数: {stats.get('segments_per_minute', 0):.1f}")
-
-        # 片段详情
-        lines.append(f"\n片段详情:")
-        lines.append(SegmentVisualizer.generate_segment_summary_table(result.segments))
-
-        # 切割决策
-        if result.split_decisions:
-            lines.append(f"\n切割决策:")
-            for i, decision in enumerate(result.split_decisions[:10]):  # 只显示前10个
-                lines.append(f"  {i + 1}. {decision.element_id} - 切割点: {decision.split_point:.2f}")
-                lines.append(f"     原因: {decision.reason}")
-                lines.append(f"     质量: {decision.quality_score:.2f}")
-
-            if len(result.split_decisions) > 10:
-                lines.append(f"  ... 还有 {len(result.split_decisions) - 10} 个切割决策")
-
-        # 可视化时间线
-        lines.append(f"\n时间线可视化:")
-        lines.append(SegmentVisualizer.generate_timeline_visualization(result.segments, width=60))
-
-        # 写入文件
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write("\n".join(lines))

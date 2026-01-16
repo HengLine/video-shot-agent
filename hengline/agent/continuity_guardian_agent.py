@@ -12,7 +12,6 @@ from typing import Dict, List, Optional, Any
 
 import numpy as np
 
-from .continuity_guardian.continuity_guardian_manager import IntegratedContinuityGuardian
 from .continuity_guardian.model.continuity_guard_guardian import GuardianConfig, AnalysisDepth, GuardMode
 from hengline.logger import info, error, debug
 from .continuity_guardian.model.continuity_guardian_report import AnchoredTimeline
@@ -69,13 +68,6 @@ class ContinuityGuardianAgent:
 
         return GuardianConfig(**base_config)
 
-    def initialize(self):
-        """初始化智能体（延迟初始化）"""
-        if not self._initialized:
-            self.guardian = IntegratedContinuityGuardian(self.task_id, self.config)
-            self._initialized = True
-            info("连续性守护智能体初始化完成")
-        return self
 
     def process(self, plan: TimelinePlan) -> AnchoredTimeline:
         """

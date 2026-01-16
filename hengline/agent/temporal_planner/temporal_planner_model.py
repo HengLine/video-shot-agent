@@ -10,6 +10,8 @@ from datetime import datetime
 from enum import Enum, unique
 from typing import List, Dict, Any, Optional, Tuple
 
+from hengline.agent.temporal_planner.splitter.splitter_anchor import AnchorType, AnchorPriority
+
 
 @unique
 class ElementType(Enum):
@@ -70,6 +72,14 @@ class EstimationConfidence(Enum):
     LOW = "low"  # 置信度 < 0.5
 
 
+class EstimationSource(Enum):
+    """估算来源"""
+    LLM = "llm"
+    LOCAL_RULE = "local_rule"
+    HYBRID = "hybrid"
+    FALLBACK = "fallback"
+
+
 @dataclass
 class DurationEstimation:
     """时长估算结果"""
@@ -77,14 +87,21 @@ class DurationEstimation:
     element_type: ElementType
     original_duration: float  # 解析器原始估算
     estimated_duration: float  # 混合模型调整后
-    min_duration: float = 0.0
-    max_duration: float = 9999.0
-    confidence: float = 0.0  # 置信度 0-1
+
+    # 质量指标
+    confidence: float = 0.7  # 置信度 0-1
+    min_duration: float = 0.0  # 最小可能时长
+    max_duration: float = 0.0  # 最大可能时长
+
+    # 来源信息
+    llm_estimated: Optional[float] = None  # LLM估算值
+    rule_estimated: Optional[float] = None  # 规则估算值
+    estimator_source: EstimationSource = EstimationSource.HYBRID
+    adjustment_reason: str = ""     # 调整原因说明
 
     # 详细分解
     reasoning_breakdown: Dict[str, Any] = field(default_factory=dict)   # 估算依据
     duration_breakdown: Dict[str, float] = field(default_factory=dict)  # 时长分解
-    visual_hints: Dict[str, Any] = field(default_factory=dict)  # 视觉线索
     key_factors: List[str] = field(default_factory=list)    # 关键影响因素
     pacing_notes: str = ""      # 节奏调整说明
 
@@ -103,12 +120,9 @@ class DurationEstimation:
     prop_states: Dict[str, str] = field(default_factory=dict)  # 道具状态变化
     continuity_requirements: Dict[str, Any] = field(default_factory=dict)  # 连续性信息
     shot_suggestions: List[str] = field(default_factory=list)
+    visual_hints: Dict[str, Any] = field(default_factory=dict)  # 视觉线索
     emotional_trajectory: List[Dict] = field(default_factory=list)
 
-    # 来源跟踪
-    rule_based_estimate: Optional[float] = None  # 规则估算值（如果有）
-    ai_based_estimate: Optional[float] = None  # AI估算值（如果有）
-    adjustment_reason: str = ""     # 调整原因说明
     estimated_at: str = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -119,8 +133,11 @@ class DurationEstimation:
             "original_duration": round(self.original_duration, 2),
             "estimated_duration": round(self.estimated_duration, 2),
             "confidence": round(self.confidence, 2),
-            "rule_based_estimate": round(self.rule_based_estimate, 2) if self.rule_based_estimate is not None else None,
-            "ai_based_estimate": round(self.ai_based_estimate, 2) if self.ai_based_estimate is not None else None,
+            "min_duration": self.min_duration,
+            "max_duration": self.max_duration,
+            "rule_estimated": round(self.rule_estimated, 2) if self.rule_estimated is not None else None,
+            "llm_estimated": round(self.llm_estimated, 2) if self.llm_estimated is not None else None,
+            "estimator_source": self.estimator_source,
             "adjustment_reason": self.adjustment_reason,
             "emotional_weight": round(self.emotional_weight, 2),
             "visual_complexity": round(self.visual_complexity, 2),
@@ -129,6 +146,7 @@ class DurationEstimation:
             "prop_states": self.prop_states,
             "reasoning_breakdown": self.reasoning_breakdown,
             "duration_breakdown": self.duration_breakdown,
+            "continuity_requirements": self.continuity_requirements,
             "emotional_trajectory": self.emotional_trajectory,
             "shot_suggestions": self.shot_suggestions,
             "visual_hints": self.visual_hints,
@@ -270,15 +288,29 @@ class TimeSegment:
 class ContinuityAnchor:
     """连续性锚点"""
     anchor_id: str
-    type: str  # "visual_match" | "transition" | "keyframe" | "character_state"
-    from_segment: str
-    to_segment: str
-    time_point: float  # 时间点（秒）
-    description: str
-    priority: int  # 1-10，越高越重要
+    anchor_type: AnchorType  # "visual_match" | "transition" | "keyframe" | "character_state"
+    # time_point: float  # 时间点（秒）
+    priority: AnchorPriority  # 1-10，越高越重要
+
+    # 作用范围
+    from_segment: str  # 来源片段ID
+    to_segment: str  # 目标片段ID
+    temporal_constraint: str  # 时间约束
+
+    # 约束描述
+    description: str  # 人类可读描述
+    sora_prompt: str  # Sora兼容提示
+    visual_reference: Optional[str] = None  # 视觉参考
+
+    # 验证信息
+    verification_method: str = "visual_check"  # 验证方法
+    mandatory: bool = True  # 是否强制
+
+    # 状态变化跟踪
+    state_change: Optional[Dict] = None  # 状态变化详情
+    confidence: float = 0.9  # 置信度
 
     # 可选的特定字段
-    required_elements: List[str] = field(default_factory=list)
     prohibited_elements: List[str] = field(default_factory=list)
     timestamp: Optional[float] = None  # 对于keyframe类型
     transition_type: str = "cut"  # cut | dissolve | fade | match
@@ -288,16 +320,24 @@ class ContinuityAnchor:
 
 
 @dataclass
-class PacingAnalysis:
+class PacingProfile:
     """节奏分析"""
-    pacing_profile: str     # 节奏类型描述
-    intensity_curve: []    # 强度曲线描述
+    intensity_curve: List[float]    # 强度曲线描述
     emotional_arc: List[Dict]      # 情绪弧线描述
     visual_complexity: List[float]  # 视觉复杂度描述
     key_points: List[Dict]         # 关键节点描述
     recommendations: List[str]    # 优化建议描述
     analysis_notes: str     # 额外分析备注
     statistics: dict[str, float]    # 统计数据
+
+    pace_type: str  # 节奏类型
+    peak_segments: List[int]  # 峰值片段索引
+    rest_points: List[int]  # 休息点片段索引
+
+    # 统计指标
+    avg_dialogue_rate: float  # 平均对话速度
+    action_density: float  # 动作密度
+    scene_transition_frequency: float  # 场景切换频率
 
 
 @dataclass
@@ -306,7 +346,7 @@ class TimelinePlan:
     timeline_segments: List[TimeSegment]  # 5秒时间片段
     duration_estimations: Dict[str, DurationEstimation]  # 每个元素的时长估算
     continuity_anchors: List[ContinuityAnchor]  # 连续性锚点
-    pacing_analysis: PacingAnalysis  # 节奏分析
+    pacing_analysis: PacingProfile  # 节奏分析
     # quality_metrics: Dict[str, float]  # 质量指标
     # 元数据
     total_duration: float

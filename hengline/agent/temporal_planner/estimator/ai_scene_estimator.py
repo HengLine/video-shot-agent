@@ -9,9 +9,9 @@ import json
 from typing import Dict, Any
 
 from hengline.agent.script_parser.script_parser_models import Scene
-from hengline.agent.temporal_planner.base_temporal_planner import EstimationErrorLevel
 from hengline.agent.temporal_planner.estimator.ai_base_estimator import BaseAIDurationEstimator
-from hengline.agent.temporal_planner.temporal_planner_model import ElementType, DurationEstimation
+from hengline.agent.temporal_planner.estimator.base_estimator import EstimationErrorLevel
+from hengline.agent.temporal_planner.temporal_planner_model import ElementType, DurationEstimation, EstimationSource
 
 
 class AISceneDurationEstimator(BaseAIDurationEstimator):
@@ -92,6 +92,8 @@ class AISceneDurationEstimator(BaseAIDurationEstimator):
             element_type=ElementType.SCENE,
             original_duration=round(scene_data.duration, 2),
             estimated_duration=round(duration, 2),
+            llm_estimated=round(duration, 2),
+            estimator_source=EstimationSource.LLM,
             confidence=round(confidence, 2),
             reasoning_breakdown=parsed_result.get("reasoning", {}),
             visual_hints=parsed_result.get("visual_hints", {}),
@@ -130,6 +132,8 @@ class AISceneDurationEstimator(BaseAIDurationEstimator):
             element_type=ElementType.SCENE,
             original_duration=round(scene_data.duration, 2),
             estimated_duration=round(total_duration, 2),
+            llm_estimated=round(total_duration, 2),
+            estimator_source=EstimationSource.FALLBACK,
             confidence=0.4,
             reasoning_breakdown={"fallback_estimation": True, "method": "word_count_based"},
             visual_hints={"fallback": True, "suggested_shot_types": ["establishing_shot"]},

@@ -10,7 +10,7 @@ from typing import Dict, List, Any, Tuple
 
 from hengline.agent.script_parser.script_parser_models import Scene
 from hengline.agent.temporal_planner.estimator.rule_base_estimator import BaseRuleDurationEstimator
-from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
+from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType, EstimationSource
 from hengline.logger import debug, error
 from utils.log_utils import print_log_exception
 
@@ -468,7 +468,8 @@ class RuleSceneDurationEstimator(BaseRuleDurationEstimator, ABC):
             original_duration=original_duration,
             estimated_duration=rule_estimated_duration,  # 对于规则估算器，这是规则估算值
             confidence=confidence,
-            rule_based_estimate=rule_estimated_duration,  # 规则估算值
+            rule_estimated=rule_estimated_duration,  # 规则估算值
+            estimator_source=EstimationSource.LOCAL_RULE,
             adjustment_reason=adjustment_reason,
             emotional_weight=emotional_weight,
             visual_complexity=visual_complexity,

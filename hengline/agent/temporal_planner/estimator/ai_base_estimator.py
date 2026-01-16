@@ -8,28 +8,24 @@ import hashlib
 import json
 import re
 import time
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from datetime import datetime
 from typing import List, Dict, Any
 
-from hengline.agent.temporal_planner.base_temporal_planner import EstimationError, EstimationErrorLevel
+from hengline.agent.temporal_planner.estimator.base_estimator import BaseDurationEstimator, EstimationErrorLevel
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengline.prompts.temporal_planner_prompt import PromptConfig
 from hengline.prompts.temporal_planner_specialized_prompt import SpecializedPromptTemplates
 
 
-class BaseAIDurationEstimator(ABC):
+class BaseAIDurationEstimator(BaseDurationEstimator):
     """AI估算器基类"""
-    def __init__(self, llm_client, config: PromptConfig = None):
-        self.llm = llm_client
+
+    def __init__(self, llm, config: PromptConfig = None):
+        super().__init__()
+        self.llm = llm
         self.config = config or PromptConfig()
         self.prompt_templates = SpecializedPromptTemplates(config)
-
-        self.error_log: List[EstimationError] = []
-        self.cache: Dict[str, DurationEstimation] = {}
-
-        self.error_log: List[EstimationError] = []
-        self.cache: Dict[str, DurationEstimation] = {}
 
     # ============================ 抽象属性（子类必须实现）============================
     @abstractmethod
@@ -63,12 +59,10 @@ class BaseAIDurationEstimator(ABC):
         # 基础提示词由子类实现
         raise NotImplementedError("子类必须实现 _generate_prompt 方法")
 
-
     # ============================ 公共方法 ============================
     def estimate(self, element_data: Any, context: Dict = None) -> DurationEstimation:
         """公共接口：估算元素时长"""
         return self.estimate_with_context(element_data, context)
-
 
     def estimate_with_context(self, element_data: Any, context: Dict = None) -> DurationEstimation:
         """带上下文的估算"""
@@ -139,8 +133,8 @@ class BaseAIDurationEstimator(ABC):
     def _enhance_estimation(self, result: DurationEstimation, element_data: Any) -> DurationEstimation:
         """增强估算结果（子类可重写）"""
         # 基础增强：添加时间戳
-        if not result.timestamp:
-            result.timestamp = datetime.now().isoformat()
+        if not result.estimated_at:
+            result.estimated_at = datetime.now().isoformat()
         return result
 
     def _update_context(self, context: Dict, result: DurationEstimation) -> Dict:
@@ -189,33 +183,6 @@ class BaseAIDurationEstimator(ABC):
 
         return cleaned
 
-    def _log_error(self, element_id: str, error_type: str, message: str,
-                   level: EstimationErrorLevel, recovery_action: str = "",
-                   fallback_value: float = None):
-        """记录错误"""
-        error = EstimationError(
-            element_id=element_id,
-            error_type=error_type,
-            message=message,
-            level=level,
-            recovery_action=recovery_action,
-            fallback_value=fallback_value,
-            timestamp=datetime.now().isoformat()
-        )
-
-        self.error_log.append(error)
-
-        # 打印错误信息
-        level_icon = {
-            EstimationErrorLevel.WARNING: "⚠️",
-            EstimationErrorLevel.ERROR: "❌",
-            EstimationErrorLevel.CRITICAL: "🔥"
-        }.get(level, "ℹ️")
-
-        print(f"{level_icon} [{level.value.upper()}] {error_type}: {message}")
-        if recovery_action:
-            print(f"  恢复操作: {recovery_action}")
-
     def _handle_estimation_error(self, element_data: Any, context: Dict,
                                  error_message: str, start_time: datetime) -> DurationEstimation:
         """处理估算错误"""
@@ -237,22 +204,6 @@ class BaseAIDurationEstimator(ABC):
         fallback_result.confidence = min(fallback_result.confidence, 0.4)  # 降低置信度
 
         return fallback_result
-
-    def get_error_summary(self) -> Dict[str, Any]:
-        """获取错误摘要"""
-        error_counts = {}
-        for error in self.error_log:
-            error_counts[error.error_type] = error_counts.get(error.error_type, 0) + 1
-
-        return {
-            "total_errors": len(self.error_log),
-            "error_by_type": error_counts,
-            "errors_by_level": {
-                "warning": len([e for e in self.error_log if e.level == EstimationErrorLevel.WARNING]),
-                "error": len([e for e in self.error_log if e.level == EstimationErrorLevel.ERROR]),
-                "critical": len([e for e in self.error_log if e.level == EstimationErrorLevel.CRITICAL])
-            }
-        }
 
     def clear_cache(self):
         """清空缓存"""
