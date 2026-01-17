@@ -338,8 +338,8 @@ class BaseRuleDurationEstimator(BaseDurationEstimator):
         # 置信度越高，范围越小
         range_factor = 1.5 - (confidence * 0.5)  # 0.7-1.3之间
 
-        min_duration = base_duration * (1.0 - (range_factor - 1.0) * 0.3)
-        max_duration = base_duration * range_factor
+        min_duration = round(base_duration * (1.0 - (range_factor - 1.0) * 0.3), 2)
+        max_duration = round(base_duration * range_factor, 2)
 
         return round(min_duration, 2), round(max_duration, 2)
 

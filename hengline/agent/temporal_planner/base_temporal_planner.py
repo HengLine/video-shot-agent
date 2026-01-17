@@ -104,8 +104,8 @@ class BaseTemporalPlanner(BaseAgent):
 
         # 设置合理的范围
         base_duration = estimation.estimated_duration
-        estimation.min_duration = base_duration * 0.7
-        estimation.max_duration = base_duration * 1.5
+        estimation.min_duration = round(base_duration * 0.7, 2)
+        estimation.max_duration = round(base_duration * 1.5, 2)
 
         # 根据元素类型调整范围
         if estimation.element_type == ElementType.SCENE:

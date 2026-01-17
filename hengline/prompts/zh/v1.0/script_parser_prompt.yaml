@@ -78,7 +78,7 @@ script_parser:
          - type: 动作类型，必须是其中枚举值之一（'posture'、'gesture'、'facial'、'gaze'、'physiological'、'interaction'、'device_alert'、'prop_fill'、'prop_fall'、'vocal'、'audio'）
          - target: 动作目标（如果有）
          - time_offset: 时间偏移（秒）
-         - duration: 持续时间（秒），注意动作对象，老人行动就慢
+         - duration: 动作的持续时间（秒），注意动作对象，老人行动就慢
 
     时间与数值：
       - time_offset 和 duration 必须为数字（单位：秒）

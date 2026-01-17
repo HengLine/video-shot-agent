@@ -18,6 +18,13 @@ class SegmentSplitter:
         self.min_segment_fill = 2.0  # 最小片段填充时长
         self.max_split_tolerance = 0.3  # 分割容忍度
 
+        # 2. 识别不应该独立分片的元素类型
+        self.non_standalone_elements = [
+            "prop_fall",  # 道具掉落（余韵）
+            "silence",  # 沉默（应附着于前后内容）
+            "brief_reaction"  # 短暂反应
+        ]
+
     def split_into_segments(
             self,
             elements: List[ScriptElement],

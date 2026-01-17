@@ -617,16 +617,16 @@ class RuleActionDurationEstimator(BaseRuleDurationEstimator, ABC):
         complexity_level = complexity_analysis.get("complexity_level", "simple")
         complexity_factor = self.rules["complexity_factors"].get(complexity_level, 1.0)
         if complexity_factor != 1.0:
-            breakdown["complexity_adjustment"] = action_base * (complexity_factor - 1.0)
+            breakdown["complexity_adjustment"] = round(action_base * (complexity_factor - 1.0), 2)
 
         # 执行者和目标调整
         actor_factor = actor_analysis.get("adjustment_factor", 1.0)
         if actor_factor != 1.0:
-            breakdown["actor_adjustment"] = action_base * (actor_factor - 1.0)
+            breakdown["actor_adjustment"] = round(action_base * (actor_factor - 1.0), 2)
 
         target_factor = target_analysis.get("adjustment_factor", 1.0)
         if target_factor != 1.0:
-            breakdown["target_adjustment"] = action_base * (target_factor - 1.0)
+            breakdown["target_adjustment"] = round(action_base * (target_factor - 1.0), 2)
 
         # 应用的所有调整因子
         adjustment_factors = getattr(self, '_current_adjustment_factors', {})

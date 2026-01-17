@@ -27,6 +27,14 @@ scene_estimator:
     emotional_background: 4.5  # 情感背景
     default: 3.0          # 默认值
 
+    #  视觉类型
+  key_visual_durations:
+    establishing_shot: 2.0  # 建立镜头
+    close_up: 1.5   # 特写镜头
+    prop_focus: 1.0 # 道具聚焦
+    background_detail: 0.5  # 背景细节
+    default: 0.8
+
   # 文本复杂度系数
   text_complexity_factors:
     very_low: 0.7    # 0-20词

@@ -4,6 +4,7 @@
 @Author: HengLine
 @Time: 2025/10/27 17:24
 """
+from functools import lru_cache
 from typing import Dict, Any
 
 from hengline.config.base_config import BaseConfig
@@ -53,6 +54,7 @@ class TemporalPlannerConfig(BaseConfig):
         # 默认动作时长
         self._default_duration = 0.8
 
+    @lru_cache(maxsize=100)
     def get_base_config(self, name: str, default=None) -> Any:
         """获取基础动作时长"""
         return self._base_config.get(name, default)

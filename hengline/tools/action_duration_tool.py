@@ -24,7 +24,7 @@ class ActionDurationEstimatorTool:
         self.duration_config = action_config().get_config()
 
     @lru_cache(maxsize=1024)
-    def estimate(
+    def estimate_action(
             self,
             action_text: str,
             emotion: str = "",

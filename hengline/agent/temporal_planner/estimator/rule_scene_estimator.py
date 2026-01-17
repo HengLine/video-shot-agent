@@ -574,7 +574,7 @@ class RuleSceneDurationEstimator(BaseRuleDurationEstimator, ABC):
         complexity_level = text_analysis.get("complexity_level", "medium")
         complexity_factor = self.rules["text_complexity_factors"].get(complexity_level, 1.0)
         if complexity_factor != 1.0:
-            breakdown["text_complexity_adjustment"] = scene_base * (complexity_factor - 1.0)
+            breakdown["text_complexity_adjustment"] = round(scene_base * (complexity_factor - 1.0), 2)
 
         # 视觉元素
         visual_breakdown = visual_analysis.get("breakdown", {})
@@ -584,7 +584,7 @@ class RuleSceneDurationEstimator(BaseRuleDurationEstimator, ABC):
         # 空间元素
         spatial_elements = text_analysis.get("spatial_elements", 0)
         if spatial_elements > 0:
-            breakdown["spatial_elements"] = spatial_elements * 0.2
+            breakdown["spatial_elements"] = round(spatial_elements * 0.2, 2)
 
         # 应用的所有调整因子
         adjustment_factors = getattr(self, '_current_adjustment_factors', {})
