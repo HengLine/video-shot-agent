@@ -3,13 +3,14 @@
 测试动作时长估算器对时间标注的处理
 """
 import os
-from hengline.tools.action_duration_tool import ActionDurationEstimator
+
+from hengline.agent.temporal_planner.estimator.rule_action_estimator import RuleActionDurationEstimator
+
 
 def test_time_annotations():
     """测试不同类型的时间标注处理"""
     # 使用正确的配置文件路径（中文）
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "hengline", "config", "zh", "action_duration_config.yaml")
-    estimator = ActionDurationEstimator(config_path)
+    estimator = RuleActionDurationEstimator()
     
     test_cases = [
         # 动作中的时间标注
@@ -40,7 +41,7 @@ def test_time_annotations():
         else:
             input_text = text
         
-        duration = estimator.estimate(input_text, emotion, char_type)
+        duration = estimator.estimate(input_text)
         
         # 检查结果
         passed = abs(duration - expected) < 0.1

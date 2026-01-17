@@ -64,10 +64,9 @@ class EstimationContext:
 class BaseRuleDurationEstimator(BaseDurationEstimator):
     """时长估算基类"""
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self):
         """初始化估算器"""
         super().__init__()
-        self.config = config or self._get_default_config()
         self.context = EstimationContext()
         self.keyword_config = get_keyword_config()
         self.planner_config = get_planner_config()
@@ -148,20 +147,15 @@ class BaseRuleDurationEstimator(BaseDurationEstimator):
         pass
 
     @abstractmethod
-    def _get_default_config(self) -> Dict[str, Any]:
-        """获取默认配置（子类必须实现）"""
-        pass
-
-    @abstractmethod
-    def estimate(self, element_data: Any) -> DurationEstimation:
+    def estimate(self, element_data: Any, context: Dict = None) -> DurationEstimation:
         """估算单个元素（子类必须实现）"""
         pass
 
-    def batch_estimate(self, elements_data: List[Any]) -> Dict[str, DurationEstimation]:
+    def batch_estimate(self, elements_data: List[Any], context: Dict = None) -> Dict[str, DurationEstimation]:
         """批量估算多个元素"""
         estimations = {}
         for element_data in elements_data:
-            estimation = self.estimate(element_data)
+            estimation = self.estimate(element_data, context)
             estimations[estimation.element_id] = estimation
         return estimations
 

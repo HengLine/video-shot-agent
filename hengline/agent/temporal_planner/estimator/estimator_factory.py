@@ -50,26 +50,24 @@ class DurationEstimatorFactory:
             raise ValueError(f"不支持的元素类型: {element_type}")
 
     @classmethod
-    def get_rule_estimator(cls, element_type: ElementType, config: PromptConfig = None) -> BaseAIDurationEstimator:
+    def get_rule_estimator(cls, element_type: ElementType) -> BaseAIDurationEstimator:
         """获取指定类型的估算器"""
         if element_type not in cls._rule_estimators:
-            cls._rule_estimators[element_type] = cls._create_rule_estimator(element_type, config)
+            cls._rule_estimators[element_type] = cls._create_rule_estimator(element_type)
 
         return cls._rule_estimators[element_type]
 
     @classmethod
-    def _create_rule_estimator(cls, element_type: ElementType, config: PromptConfig = None) -> BaseRuleDurationEstimator:
+    def _create_rule_estimator(cls, element_type: ElementType) -> BaseRuleDurationEstimator:
         """创建估算器"""
-        config = config or PromptConfig()
-
         if element_type == ElementType.SCENE:
-            return RuleSceneDurationEstimator(config)
+            return RuleSceneDurationEstimator()
         elif element_type == ElementType.DIALOGUE:
-            return RuleDialogueDurationEstimator(config)
+            return RuleDialogueDurationEstimator()
         elif element_type == ElementType.SILENCE:
-            return RuleDialogueDurationEstimator(config)
+            return RuleDialogueDurationEstimator()
         elif element_type == ElementType.ACTION:
-            return RuleActionDurationEstimator(config)
+            return RuleActionDurationEstimator()
         else:
             raise ValueError(f"不支持的元素类型: {element_type}")
 
@@ -89,36 +87,36 @@ class DurationEstimatorFactory:
         return estimator.estimate(element_data, context)
 
     @classmethod
-    def estimate_script(cls, script_data: UnifiedScript, estimator_type: EstimationSource, llm=None) -> Dict[str, DurationEstimation]:
+    def estimate_script(cls, script_data: UnifiedScript, estimator_type: EstimationSource, context: Dict = None, llm=None) -> Dict[str, DurationEstimation]:
         """估算整个剧本"""
         results = {}
 
         # 估算场景
         for scene in script_data.scenes:
-            result = cls.estimate_element(scene, estimator_type, ElementType.SCENE, llm)
+            result = cls.estimate_element(scene, estimator_type, ElementType.SCENE, context, llm)
             results[scene.scene_id] = result
 
         # 估算对话
         for dialogue in script_data.dialogues:
-            result = cls.estimate_element(dialogue, estimator_type, ElementType.DIALOGUE, llm)
+            result = cls.estimate_element(dialogue, estimator_type, ElementType.DIALOGUE, context, llm)
             results[dialogue.dialogue_id] = result
 
         # 估算动作
         for action in script_data.actions:
-            result = cls.estimate_element(action, estimator_type, ElementType.ACTION, llm)
+            result = cls.estimate_element(action, estimator_type, ElementType.ACTION, context, llm)
             results[action.action_id] = result
 
         return results
 
     @classmethod
-    def estimate_script_with_llm(cls, llm, script_data: UnifiedScript) -> Dict[str, DurationEstimation]:
+    def estimate_script_with_llm(cls, llm, script_data: UnifiedScript, context: Dict = None) -> Dict[str, DurationEstimation]:
         """使用LLM估算整个剧本"""
-        return cls.estimate_script(script_data, EstimationSource.LLM, llm)
+        return cls.estimate_script(script_data, EstimationSource.LLM, context, llm)
 
     @classmethod
-    def estimate_script_with_rules(cls, script_data: UnifiedScript) -> Dict[str, DurationEstimation]:
+    def estimate_script_with_rules(cls, script_data: UnifiedScript, context: Dict = None) -> Dict[str, DurationEstimation]:
         """使用规则估算整个剧本"""
-        return cls.estimate_script(script_data, EstimationSource.LOCAL_RULE)
+        return cls.estimate_script(script_data, EstimationSource.LOCAL_RULE, context)
 
     @classmethod
     def _infer_element_type(cls, element_data: Any) -> ElementType:

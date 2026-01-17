@@ -55,7 +55,7 @@ class RuleActionDurationEstimator(BaseRuleDurationEstimator, ABC):
             }
         }
 
-    def estimate(self, action_data: Action) -> DurationEstimation:
+    def estimate(self, action_data: Action, context: Dict = None) -> DurationEstimation:
         """估算动作时长"""
         info(f"[INFO] 开始估算动作: {action_data.action_id}")
 

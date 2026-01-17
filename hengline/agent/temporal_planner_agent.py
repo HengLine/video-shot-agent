@@ -6,6 +6,7 @@
 @Time: 2025/10 - 2025/11
 """
 import copy
+import json
 from datetime import datetime
 from typing import Dict, List, Any
 
@@ -46,7 +47,7 @@ class TemporalPlannerAgent:
         self.anchor_generator = AnchorGenerator()
         self.validator = SplitterValidator()
 
-    def plan_process(self, structured_script: UnifiedScript) -> TimelinePlan | None:
+    def plan_process(self, structured_script: UnifiedScript, save_estimations: bool = False) -> TimelinePlan | None:
         """
         规划剧本的时序分段
         
@@ -57,11 +58,20 @@ class TemporalPlannerAgent:
             分段计划列表
         """
         debug("开始根据规则规划时序")
-        start_time = datetime.now()
-
         try:
             # 时长估算字典，key为元素ID
             duration_estimations = self.temporal_planner.plan_timeline(structured_script)
+
+            # duration_estimations保存为JSON
+            if save_estimations:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                with open(f"duration_estimations_{timestamp}.json", "w", encoding="utf-8") as f:
+                    json.dump(
+                        {k: v.to_dict() for k, v in duration_estimations.items()},
+                        f,
+                        ensure_ascii=False,
+                        indent=4
+                    )
 
             #  创建TimelinePlan
             timeline_plan = self._create_timeline_plan(

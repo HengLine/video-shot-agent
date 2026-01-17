@@ -16,6 +16,7 @@ from hengline.agent.temporal_planner.estimator.base_estimator import BaseDuratio
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengline.prompts.temporal_planner_prompt import PromptConfig
 from hengline.prompts.temporal_planner_specialized_prompt import SpecializedPromptTemplates
+from utils.log_utils import print_log_exception
 
 
 class BaseAIDurationEstimator(BaseDurationEstimator):
@@ -103,9 +104,10 @@ class BaseAIDurationEstimator(BaseDurationEstimator):
             return result
 
         except Exception as e:
+            print_log_exception()
             return self._handle_estimation_error(element_data, context, str(e), start_time)
 
-    def batch_estimate(self, elements: List[Dict], context: Dict = None) -> List[DurationEstimation]:
+    def batch_estimate(self, elements: List[Any], context: Dict = None) -> List[DurationEstimation]:
         """批量估算"""
         results = []
 
@@ -157,7 +159,7 @@ class BaseAIDurationEstimator(BaseDurationEstimator):
         element_type = self._get_element_type().value
 
         # 使用元素内容和上下文生成哈希
-        content_str = json.dumps(element_data, sort_keys=True)
+        content_str = json.dumps(element_data.to_dict(), sort_keys=True)
         context_str = json.dumps(context, sort_keys=True) if context else ""
 
         combined = f"{element_type}:{element_id}:{content_str}:{context_str}"

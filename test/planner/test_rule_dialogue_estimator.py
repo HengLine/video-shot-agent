@@ -21,7 +21,7 @@ def test_demonstrate_dialogue_estimator():
     # 2. 设置上下文
     context = EstimationContext(
         emotional_tone="tense",
-        overall_pacing_target="normal"
+        overall_pacing="normal"
     )
     estimator.set_context(context)
 

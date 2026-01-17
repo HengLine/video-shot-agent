@@ -39,7 +39,7 @@ class RuleSceneDurationEstimator(BaseRuleDurationEstimator, ABC):
         debug("场景规则加载完成")
         return rules
 
-    def estimate(self, scene_data: Scene) -> DurationEstimation:
+    def estimate(self, scene_data: Scene, context: Dict = None) -> DurationEstimation:
         """估算场景时长"""
         scene_id = scene_data.scene_id
 
@@ -372,8 +372,11 @@ class RuleSceneDurationEstimator(BaseRuleDurationEstimator, ABC):
         # 找到适用的调整因子
         adjustment = adjustments.get("default", 1.2)
 
+        # 过滤并排序
+        int_adjustments = [(k, v) for k, v in adjustments.items() if isinstance(k, int)]
+        int_adjustments.sort(key=lambda x: x[0], reverse=True)
         # 检查具体的数量
-        for count, adj in sorted(adjustments.items(), reverse=True):
+        for count, adj in int_adjustments:
             if isinstance(count, int) and char_count >= count:
                 adjustment = adj
                 break
@@ -684,9 +687,9 @@ class RuleSceneDurationEstimator(BaseRuleDurationEstimator, ABC):
             factor *= 0.8  # 更慢节奏
 
         # 整体节奏目标
-        if self.context.overall_pacing_target == "fast":
+        if self.context.overall_pacing == "fast":
             factor *= 1.1
-        elif self.context.overall_pacing_target == "slow":
+        elif self.context.overall_pacing == "slow":
             factor *= 0.9
 
         return round(factor, 2)

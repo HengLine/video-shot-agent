@@ -276,14 +276,15 @@ def load_from_json(json_path: str):
 
 def test_main():
     # 初始化智能体
-    planner = TemporalPlannerAgent(get_default_llm())
+    # planner = TemporalPlannerAgent(get_default_llm())
+    planner = TemporalPlannerAgent(None)
 
     # 加载数据
     script_data = load_from_json("script_parser_result.json")
 
     # 创建时间线规划
     timeline_plan = planner.plan_process(
-        script_data
+        script_data, True
     )
 
     # 输出结果

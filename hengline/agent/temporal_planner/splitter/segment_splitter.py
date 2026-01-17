@@ -79,7 +79,7 @@ class SegmentSplitter:
 
                         # 新片段从后部分开始
                         current_segment_elements = [split_result["second_part"]]
-                        current_duration = split_result["second_part"].estimated_duration.base_duration
+                        current_duration = split_result["second_part"].estimated_duration.estimated_duration
                     else:
                         # 直接开始新片段
                         if current_duration >= self.min_segment_fill:

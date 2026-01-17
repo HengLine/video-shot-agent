@@ -39,7 +39,7 @@ class RuleDialogueDurationEstimator(BaseRuleDurationEstimator, ABC):
         debug("对话规则加载完成")
         return rules
 
-    def estimate(self, dialogue_data: Dialogue) -> DurationEstimation:
+    def estimate(self, dialogue_data: Dialogue, context: Dict = None) -> DurationEstimation:
         """估算对话时长"""
         dialogue_id = dialogue_data.dialogue_id
         content = dialogue_data.content
@@ -999,9 +999,9 @@ class RuleDialogueDurationEstimator(BaseRuleDurationEstimator, ABC):
             factor *= 0.9
 
         # 整体节奏目标
-        if self.context.overall_pacing_target == "fast":
+        if self.context.overall_pacing == "fast":
             factor *= 1.1
-        elif self.context.overall_pacing_target == "slow":
+        elif self.context.overall_pacing == "slow":
             factor *= 0.9
 
         return round(factor, 2)

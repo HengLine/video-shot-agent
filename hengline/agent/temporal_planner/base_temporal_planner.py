@@ -13,6 +13,7 @@ from hengline.agent.base_agent import BaseAgent
 from hengline.agent.script_parser.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType, EstimationSource
 from hengline.logger import info, warning, error
+from utils.log_utils import print_log_exception
 
 
 class BaseTemporalPlanner(BaseAgent):
@@ -28,14 +29,14 @@ class BaseTemporalPlanner(BaseAgent):
         }
 
     @abstractmethod
-    def estimate_all_elements(self, script_data: UnifiedScript) -> Dict[str, DurationEstimation]:
+    def estimate_all_elements(self, script_data: UnifiedScript, context: Dict = None) -> Dict[str, DurationEstimation]:
         """
         估算所有元素（抽象方法）
         子类必须实现此方法，可以调用现有的工厂方法
         """
         pass
 
-    def plan_timeline(self, script_data: UnifiedScript) -> Dict[str, DurationEstimation]:
+    def plan_timeline(self, script_data: UnifiedScript, context: Dict = None) -> Dict[str, DurationEstimation]:
         """
         规划剧本的时序分段
         
@@ -50,7 +51,7 @@ class BaseTemporalPlanner(BaseAgent):
 
         try:
             # 2. 使用工厂方法估算所有元素
-            estimations = self.estimate_all_elements(script_data)
+            estimations = self.estimate_all_elements(script_data, context)
 
             # 3. 验证和修复
             validated = self._validate_estimations(estimations)
@@ -69,6 +70,7 @@ class BaseTemporalPlanner(BaseAgent):
             return validated
 
         except Exception as e:
+            print_log_exception()
             error(f"剧本估算失败: {str(e)}")
             raise
 

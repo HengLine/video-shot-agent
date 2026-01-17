@@ -27,7 +27,7 @@ def test_demonstrate_action_estimator():
         character_count=2,
         time_of_day="night",
         weather="rain",
-        overall_pacing_target="normal"
+        overall_pacing="normal"
     )
     estimator.set_context(context)
 

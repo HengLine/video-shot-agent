@@ -13,6 +13,7 @@ from hengline.agent.temporal_planner.base_temporal_planner import BaseTemporalPl
 from hengline.agent.temporal_planner.estimator.estimator_factory import estimator_factory
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation
 from hengline.logger import error, debug
+from utils.log_utils import print_log_exception
 
 
 class LLMTemporalPlanner(BaseTemporalPlanner):
@@ -25,14 +26,14 @@ class LLMTemporalPlanner(BaseTemporalPlanner):
         # 使用工厂方法创建估算器
         self.factory = estimator_factory
 
-    def estimate_all_elements(self, script_data: UnifiedScript) -> Dict[str, DurationEstimation]:
+    def estimate_all_elements(self, script_data: UnifiedScript, context: Dict = None) -> Dict[str, DurationEstimation]:
         """
         使用LLM估算单个元素（实现抽象方法）
         """
         start_time = time.time()
         try:
             # 根据元素类型调用不同的AI估算方法
-            estimation = self.factory.estimate_script_with_llm(script_data, self.llm)
+            estimation = self.factory.estimate_script_with_llm(self.llm, script_data, context)
 
             # 记录处理时间
             processing_time = time.time() - start_time
@@ -41,5 +42,6 @@ class LLMTemporalPlanner(BaseTemporalPlanner):
             return estimation
 
         except Exception as e:
+            print_log_exception()
             error(f"LLM估算失败 {script_data.meta}: {str(e)}")
             return {}

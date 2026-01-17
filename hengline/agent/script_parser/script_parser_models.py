@@ -81,6 +81,10 @@ class Scene(BaseModel):
     duration: float = Field(..., gt=0, description="持续时间（秒）")
     props: List[Prop] = Field(default_factory=list, description="场景内道具列表")
 
+    def to_dict(self) -> dict:
+        """转换为字典表示"""
+        return self.model_dump()
+
 
 class Character(BaseModel):
     """
@@ -114,6 +118,10 @@ class Dialogue(BaseModel):
     time_offset: float = Field(..., ge=0, description="相对于场景开始的时间偏移（秒）")
     duration: Optional[float] = Field(None, gt=0, description="持续时间（秒），可选")
 
+    def to_dict(self) -> dict:
+        """转换为字典表示"""
+        return self.model_dump()
+
     @field_validator('type', mode='before')
     @classmethod
     def infer_type_from_speaker(cls, v, info):
@@ -136,6 +144,10 @@ class Action(BaseModel):
     description: str = Field(..., description="动作描述")
     time_offset: float = Field(..., ge=0, description="时间偏移（秒）")
     duration: float = Field(..., gt=0, description="持续时间（秒）")
+
+    def to_dict(self) -> dict:
+        """转换为字典表示"""
+        return self.model_dump()
 
 
 class Relationship(BaseModel):

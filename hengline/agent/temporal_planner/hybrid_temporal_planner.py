@@ -21,12 +21,14 @@ class HybridTemporalPlanner(BaseTemporalPlanner, ABC):
 
     def __init__(self, llm):
         super().__init__()
+        self.llm = llm
         # 初始化子规划器
         self.llm_planner = LLMTemporalPlanner(llm)
         self.rule_planner = LocalRuleTemporalPlanner()
 
         # 混合策略配置
         self.mixing_strategy = {
+            "enable_llm_planner": True,
             "default_blend_ratio": 0.5,  # 默认LLM:规则 = 50:50
             "llm_priority_elements": ["scene", "dialogue", "silence"],  # LLM优先的元素类型
             "rule_priority_elements": ["action"],  # 规则优先的元素类型
@@ -34,18 +36,20 @@ class HybridTemporalPlanner(BaseTemporalPlanner, ABC):
             "max_duration_diff_ratio": 0.5  # 最大时长差异比率
         }
 
-    def estimate_all_elements(self, script_data: UnifiedScript) -> Dict[str, DurationEstimation]:
+    def estimate_all_elements(self, script_data: UnifiedScript, context: Dict = None) -> Dict[str, DurationEstimation]:
         """
         估算所有元素 - 实现基类抽象方法
         合并LLM和规则的结果
         """
         # 1. 获取LLM估算结果
         debug("开始LLM估算...")
-        llm_estimations = self.llm_planner.estimate_all_elements(script_data)
+        llm_estimations = {}
+        if self.llm and self.mixing_strategy['enable_llm_planner'] == True:
+            llm_estimations = self.llm_planner.estimate_all_elements(script_data, context)
 
         # 2. 获取规则估算结果
         debug("开始规则估算...")
-        rule_estimations = self.rule_planner.estimate_all_elements(script_data)
+        rule_estimations = self.rule_planner.estimate_all_elements(script_data, context)
 
         # 3. 合并两个结果
         info("开始合并估算结果...")
