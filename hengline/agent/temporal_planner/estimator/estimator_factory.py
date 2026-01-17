@@ -79,7 +79,7 @@ class DurationEstimatorFactory:
         if element_type is None:
             element_type = cls._infer_element_type(element_data)
 
-        if estimator_type == EstimationSource.LLM:
+        if estimator_type == EstimationSource.AI_LLM:
             estimator = cls.get_llm_estimator(llm, element_type)
         else:
             estimator = cls.get_rule_estimator(element_type)
@@ -111,7 +111,7 @@ class DurationEstimatorFactory:
     @classmethod
     def estimate_script_with_llm(cls, llm, script_data: UnifiedScript, context: Dict = None) -> Dict[str, DurationEstimation]:
         """使用LLM估算整个剧本"""
-        return cls.estimate_script(script_data, EstimationSource.LLM, context, llm)
+        return cls.estimate_script(script_data, EstimationSource.AI_LLM, context, llm)
 
     @classmethod
     def estimate_script_with_rules(cls, script_data: UnifiedScript, context: Dict = None) -> Dict[str, DurationEstimation]:

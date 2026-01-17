@@ -9,29 +9,8 @@ from typing import List, Optional, Literal, Set, Dict
 
 from pydantic import BaseModel, Field, model_validator, field_validator
 
+from hengline.agent.temporal_planner.analyzer.action_analyzer import ActionIntensityAnalyzer
 from hengline.agent.workflow.workflow_models import ScriptType
-
-
-# ==============================
-# 枚举定义
-# ==============================
-
-class ActionType(str, Enum):
-    """
-    动作类型枚举，用于 actions[].type
-    确保 LLM 输出的动作分类标准化，便于下游动画控制
-    """
-    POSTURE = "posture"  # 姿态（如蜷缩、坐直）
-    GESTURE = "gesture"  # 手势（如悬停、收紧）
-    FACIAL = "facial"  # 面部表情（如瞳孔收缩、流泪）
-    GAZE = "gaze"  # 视线行为（如盯看）
-    PHYSIOLOGICAL = "physiological"  # 生理反应（如喉头滚动、呼吸停滞）
-    INTERACTION = "interaction"  # 与物体交互（如接听电话）
-    DEVICE_ALERT = "device_alert"  # 设备触发（如手机震动）
-    PROP_FILL = "prop_fill"  # 道具状态填充（较少用）
-    PROP_FALL = "prop_fall"  # 道具掉落/滑落
-    VOCAL = "vocal"  # 发声尝试（如张嘴无声）
-    AUDIO = "audio"  # 环境音（如汽笛声）
 
 
 # ==============================
@@ -49,7 +28,9 @@ class Meta(BaseModel):
     frame_rate_assumption: Optional[str] = Field(default="24fps", description="假设帧率，如 '24fps'")
     script_format: Optional[ScriptType] = Field(default=None, description="推断的输入剧本格式")
 
-
+# ==============================
+# 道具模型
+# ==============================
 class Prop(BaseModel):
     """
     场景中的道具/环境对象
@@ -60,7 +41,9 @@ class Prop(BaseModel):
     state: str = Field(..., description="当前状态，如 '凝出水雾'、'摊开'")
     position: str = Field(..., description="空间位置，如 '茶几上'、'林然肩上'")
 
-
+# ==============================
+# 场景模型
+# ==============================
 class Scene(BaseModel):
     """
     场景描述单元
@@ -85,7 +68,9 @@ class Scene(BaseModel):
         """转换为字典表示"""
         return self.model_dump()
 
-
+# ==============================
+# 角色模型
+# ==============================
 class Character(BaseModel):
     """
     角色信息
@@ -101,7 +86,13 @@ class Character(BaseModel):
         description="当前状态，如 {'emotional': '震惊', 'physical': '颤抖'}"
     )
 
+    def to_dict(self) -> dict:
+        """转换为字典表示"""
+        return self.model_dump()
 
+# ==============================
+# 对话模型
+# ==============================
 class Dialogue(BaseModel):
     """
     对话或沉默事件
@@ -112,6 +103,7 @@ class Dialogue(BaseModel):
     content: str = Field(..., description="台词内容，沉默时为空字符串")
     target: Optional[str] = Field(None, description="对话对象，必须在 characters.name 中；若没有则为 null")
     emotion: Optional[str] = Field(None, description="情绪标签")
+    intensity: float = Field(1.0, description="强度 1.0-3.0")
     voice_quality: Optional[str] = Field(None, description="声音特质，如 '沙哑'、'低沉'")
     parenthetical: Optional[str] = Field(None, description="剧本中的旁注，如 '声音微颤'")
     type: Literal["speech", "silence"] = Field("speech", description="类型：speech 或 silence")
@@ -131,6 +123,34 @@ class Dialogue(BaseModel):
             return "silence" if speaker is None else "speech"
         return v
 
+# ==============================
+# 动作模型及枚举
+# ==============================
+class ActionType(str, Enum):
+    """
+    动作类型枚举，用于 actions[].type
+    确保 LLM 输出的动作分类标准化，便于下游动画控制
+    """
+    POSTURE = "posture"  # 姿态（如蜷缩、坐直）
+    GESTURE = "gesture"  # 手势（如悬停、收紧）
+    FACIAL = "facial"  # 面部表情（如瞳孔收缩、流泪）
+    GAZE = "gaze"  # 视线行为（如盯看）
+    PHYSIOLOGICAL = "physiological"  # 生理反应（如喉头滚动、呼吸停滞）
+    INTERACTION = "interaction"  # 与物体交互（如接听电话）
+    DEVICE_ALERT = "device_alert"  # 设备触发（如手机震动）
+    PROP_FILL = "prop_fill"  # 道具状态填充（较少用）
+    PROP_FALL = "prop_fall"  # 道具掉落/滑落
+    VOCAL = "vocal"  # 发声尝试（如张嘴无声）
+    AUDIO = "audio"  # 环境音（如汽笛声）
+
+class ActionIntensityLevel(Enum):
+    """动作强度等级枚举"""
+    VERY_LOW = 1.0    # 极低强度：静止、细微变化
+    LOW = 1.3         # 低强度：日常动作
+    MEDIUM = 1.7      # 中等强度：有目的性动作
+    HIGH = 2.2        # 高强度：激烈动作
+    VERY_HIGH = 2.8   # 极高强度：极限动作
+    EXTREME = 3.0     # 极端强度：生死攸关
 
 class Action(BaseModel):
     """
@@ -141,6 +161,8 @@ class Action(BaseModel):
     actor: str = Field(..., min_length=1, description="执行者：必须是角色名、道具名或固定实体（如 '手机'）")
     target: Optional[str] = Field(..., description="动作目标")
     type: ActionType = Field(..., description="动作类型，必须为预定义枚举值")
+    intensity: ActionIntensityLevel = Field(ActionIntensityLevel.LOW, description="动作强度，如 '轻微'、'剧烈'")
+    is_crucial: bool = Field(False, description="是否为关键动作，影响剧情走向")
     description: str = Field(..., description="动作描述")
     time_offset: float = Field(..., ge=0, description="时间偏移（秒）")
     duration: float = Field(..., gt=0, description="持续时间（秒）")
@@ -149,7 +171,67 @@ class Action(BaseModel):
         """转换为字典表示"""
         return self.model_dump()
 
+    def analyze_action(self, context: Dict):
+        """分析动作强度和相关属性"""
+        analyzer = ActionIntensityAnalyzer()
 
+        # 分析强度
+        intensity, breakdown = analyzer.analyze_intensity(
+            self.description, self.action_type, context
+        )
+
+        self.intensity_score = intensity
+        self.intensity_breakdown = breakdown
+
+        # 确定强度等级
+        if intensity < 1.3:
+            self.intensity_level = "very_low"
+        elif intensity < 1.7:
+            self.intensity_level = "low"
+        elif intensity < 2.2:
+            self.intensity_level = "medium"
+        elif intensity < 2.8:
+            self.intensity_level = "high"
+        else:
+            self.intensity_level = "very_high"
+
+        # 估算时长
+        self.estimated_duration = analyzer.calculate_action_duration(
+            self.description, self.action_type, intensity
+        )
+
+        # 建议镜头类型
+        self.recommended_shot_types = self._get_recommended_shots(intensity)
+
+        # 建议摄像机运动
+        self.camera_movement_suggestions = self._get_camera_suggestions(intensity)
+
+    def _get_recommended_shots(self, intensity: float) -> List[str]:
+        """根据强度推荐镜头类型"""
+        if intensity < 1.5:
+            return ["close_up", "extreme_close_up", "static"]
+        elif intensity < 2.0:
+            return ["medium", "two_shot", "pan"]
+        elif intensity < 2.5:
+            return ["action_wide", "handheld", "tracking"]
+        else:
+            return ["extreme_close_up", "slow_motion", "wide"]
+
+    def _get_camera_suggestions(self, intensity: float) -> List[str]:
+        """根据强度推荐摄像机运动"""
+        if intensity < 1.5:
+            return ["static", "slow_pan", "slight_zoom"]
+        elif intensity < 2.0:
+            return ["pan", "tilt", "dolly_slow"]
+        elif intensity < 2.5:
+            return ["handheld", "fast_pan", "tracking", "dolly_fast"]
+        else:
+            return ["crane", "extreme_angle", "rapid_zoom", "shaky_cam"]
+
+
+# ==============================
+# 关系模型
+# ==============================
 class Relationship(BaseModel):
     """
     角色间关系（用于情感/叙事建模）

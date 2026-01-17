@@ -87,7 +87,7 @@ class HybridTemporalPlanner(BaseTemporalPlanner, ABC):
             elif llm_est:
                 # 只有LLM有值
                 merged = llm_est
-                merged.source = EstimationSource.LLM
+                merged.source = EstimationSource.AI_LLM
             elif rule_est:
                 # 只有规则有值
                 merged = rule_est
@@ -133,7 +133,7 @@ class HybridTemporalPlanner(BaseTemporalPlanner, ABC):
         elif llm_duration > 0:
             # 只有LLM有值
             final_duration = llm_duration
-            source = EstimationSource.LLM
+            source = EstimationSource.AI_LLM
 
         elif rule_duration > 0:
             # 只有规则有值

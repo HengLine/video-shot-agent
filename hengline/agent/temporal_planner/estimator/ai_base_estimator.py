@@ -7,7 +7,6 @@
 import hashlib
 import json
 import re
-import time
 from abc import abstractmethod
 from datetime import datetime
 from typing import List, Dict, Any
@@ -82,7 +81,7 @@ class BaseAIDurationEstimator(BaseDurationEstimator):
             prompt_hash = self._hash_prompt(prompt)
 
             # 调用AI
-            raw_response = self._call_llm_with_retry(prompt)
+            raw_response = self._call_llm_with_retry(self.llm, prompt)
 
             # 解析响应
             parsed_result = self._parse_ai_response(raw_response, element_data)
@@ -120,17 +119,6 @@ class BaseAIDurationEstimator(BaseDurationEstimator):
                 context = self._update_context(context, result)
 
         return results
-
-    def _call_llm_with_retry(self, prompt: str, max_retries: int = 3) -> Any | None:
-        """调用LLM，支持重试"""
-        for attempt in range(max_retries):
-            try:
-                return self.llm.invoke(prompt)
-
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise Exception(f"LLM调用失败: {e}")
-                time.sleep(1)
 
     def _enhance_estimation(self, result: DurationEstimation, element_data: Any) -> DurationEstimation:
         """增强估算结果（子类可重写）"""

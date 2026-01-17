@@ -61,11 +61,16 @@ script_parser:
          - content: 对话内容，沉默时为空字符串
          - target: 对话对象，必须在 characters.name 中；若没有则为 null
          - emotion: 情绪语调，如：紧张、哽咽
+         - intensity: 说话强度等级（1-3），浮点数，含义如下：
+            a) 1.0 表示极低强度
+            b) 1.7 表示中等强度
+            c) 2.2 表示高强度
+            d) 3.0 表示极端强度
          - voice_quality: 声音特质，如 '沙哑'、'低沉'
          - parenthetical: 剧本中的旁注，如 '声音微颤'
          - type: 类型：'speech' 或 'silence'
          - time_offset: 相对于场景开始的时间偏移（秒）
-         - duration: 对话持续的时间（秒），注意说话的语气和对象，愤怒时语气较快
+         - duration: 对话持续的预计时间（秒），注意说话的语气和对象，愤怒时语气较快
   
       4. actions (动作):
          - action_id: 动作唯一ID，格式：act_1
@@ -76,9 +81,15 @@ script_parser:
             c) 固定实体：如"手机"、"电视"、"环境"、"窗户"
          - description: 动作描述
          - type: 动作类型，必须是其中枚举值之一（'posture'、'gesture'、'facial'、'gaze'、'physiological'、'interaction'、'device_alert'、'prop_fill'、'prop_fall'、'vocal'、'audio'）
+         - intensity: 动作强度等级（1-3），浮点数，含义如下：
+            a) 1.0 表示极低强度：静止、细微变化
+            b) 1.7 表示中等强度：有目的性动作
+            c) 2.2 表示高强度：激烈动作
+            d) 3.0 表示极端强度：生死攸关
+         - is_crucial: 是否关键动作，布尔值（False 或 True）
          - target: 动作目标（如果有）
          - time_offset: 时间偏移（秒）
-         - duration: 动作的持续时间（秒），注意动作对象，老人行动就慢
+         - duration: 动作的持续预计时长（秒），注意动作对象，老人行动就慢，小孩动作快
 
     时间与数值：
       - time_offset 和 duration 必须为数字（单位：秒）

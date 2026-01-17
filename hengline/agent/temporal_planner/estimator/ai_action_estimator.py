@@ -89,7 +89,7 @@ class AIActionDurationEstimator(BaseAIDurationEstimator):
             element_type=ElementType.ACTION,
             estimated_duration=round(duration, 2),
             llm_estimated=round(duration, 2),
-            estimator_source=EstimationSource.LLM,
+            estimator_source=EstimationSource.AI_LLM,
             original_duration=round(action_data.duration, 2),
             confidence=round(confidence, 2),
             reasoning_breakdown=parsed_result.get("reasoning", {}),

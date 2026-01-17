@@ -71,7 +71,7 @@ class EstimationConfidence(Enum):
 
 class EstimationSource(Enum):
     """估算来源"""
-    LLM = "llm"
+    AI_LLM = "ai_llm"
     LOCAL_RULE = "local_rule"
     HYBRID = "hybrid"
     FALLBACK = "fallback"

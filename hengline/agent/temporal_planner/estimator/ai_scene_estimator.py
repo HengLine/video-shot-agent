@@ -93,7 +93,7 @@ class AISceneDurationEstimator(BaseAIDurationEstimator):
             original_duration=round(scene_data.duration, 2),
             estimated_duration=round(duration, 2),
             llm_estimated=round(duration, 2),
-            estimator_source=EstimationSource.LLM,
+            estimator_source=EstimationSource.AI_LLM,
             confidence=round(confidence, 2),
             reasoning_breakdown=parsed_result.get("reasoning", {}),
             visual_hints=parsed_result.get("visual_hints", {}),

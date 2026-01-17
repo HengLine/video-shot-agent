@@ -4,12 +4,12 @@
 @Author: HengLine
 @Time: 2026/1/15 17:42
 """
-from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Dict
 
+from hengline.agent.base_agent import BaseAgent
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation
 
 
@@ -33,7 +33,7 @@ class EstimationError:
 
 
 
-class BaseDurationEstimator(ABC):
+class BaseDurationEstimator(BaseAgent):
     """时长估算器基类"""
     def __init__(self):
         self.error_log: List[EstimationError] = []
