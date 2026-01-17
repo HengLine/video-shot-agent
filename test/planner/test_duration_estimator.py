@@ -11,16 +11,18 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 from hengline.agent.script_parser.script_parser_models import Scene, Dialogue, Action
-from hengline.agent.temporal_planner.base_temporal_planner import TemporalPlanner, EstimationError, EstimationErrorLevel
+from hengline.agent.temporal_planner.base_temporal_planner import BaseTemporalPlanner
+from hengline.agent.temporal_planner.estimator.base_estimator import EstimationError, EstimationErrorLevel
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengline.prompts.temporal_planner_prompt import DurationPromptTemplates
 
 
-class AIDurationEstimator(TemporalPlanner):
+class AIDurationEstimator(BaseTemporalPlanner):
     """ AI 时长估算器 """
 
     def __init__(self, llm_client):
         """初始化时序规划智能体"""
+        super().__init__()
         self.llm = llm_client
         self.prompt_templates = DurationPromptTemplates()
         self.error_log: List[EstimationError] = []
@@ -308,7 +310,7 @@ class AIDurationEstimator(TemporalPlanner):
             result = {
                 "element_id": scene_data.scene_id,
                 "element_type": "scene",
-                "ai_estimated_duration": float(data.get("estimated_duration", 3.0)),
+                "estimated_duration": float(data.get("estimated_duration", 3.0)),
                 "confidence": float(data.get("confidence", 0.7)),
                 "reasoning": data.get("reasoning_breakdown", {}),
                 "visual_hints": data.get("visual_hints", {}),
@@ -339,7 +341,7 @@ class AIDurationEstimator(TemporalPlanner):
                 return {
                     "element_id": scene_data.scene_id,
                     "element_type": "scene",
-                    "ai_estimated_duration": float(duration_match.group(1)),
+                    "estimated_duration": float(duration_match.group(1)),
                     "confidence": 0.5,
                     "reasoning": {"extracted_from_text": True},
                     "visual_hints": {},
@@ -358,7 +360,7 @@ class AIDurationEstimator(TemporalPlanner):
             result = {
                 "element_id": dialogue_data.dialogue_id,
                 "element_type": "dialogue",
-                "ai_estimated_duration": float(data.get("estimated_duration", 2.0)),
+                "estimated_duration": float(data.get("estimated_duration", 2.0)),
                 "confidence": float(data.get("confidence", 0.7)),
                 "reasoning": data.get("reasoning_breakdown", {}),
                 "visual_hints": data.get("visual_hints", {}),
@@ -393,7 +395,7 @@ class AIDurationEstimator(TemporalPlanner):
             return {
                 "element_id": dialogue_data.dialogue_id,
                 "element_type": "dialogue",
-                "ai_estimated_duration": fallback_duration,
+                "estimated_duration": fallback_duration,
                 "confidence": 0.4,
                 "reasoning": {"fallback_word_based": True, "word_count": word_count},
                 "visual_hints": {},
@@ -409,7 +411,7 @@ class AIDurationEstimator(TemporalPlanner):
             result = {
                 "element_id": dialogue_data.dialogue_id,
                 "element_type": "silence",
-                "ai_estimated_duration": float(data.get("estimated_duration", 2.5)),
+                "estimated_duration": float(data.get("estimated_duration", 2.5)),
                 "confidence": float(data.get("confidence", 0.7)),
                 "reasoning": data.get("reasoning_breakdown", {}),
                 "visual_hints": data.get("visual_hints", {}),
@@ -438,7 +440,7 @@ class AIDurationEstimator(TemporalPlanner):
             return {
                 "element_id": dialogue_data.dialogue_id,
                 "element_type": "silence",
-                "ai_estimated_duration": 3.0,
+                "estimated_duration": 3.0,
                 "confidence": 0.5,
                 "reasoning": {"fallback_default_silence": True},
                 "visual_hints": {},
@@ -454,7 +456,7 @@ class AIDurationEstimator(TemporalPlanner):
             result = {
                 "element_id": action_data.action_id,
                 "element_type": "action",
-                "ai_estimated_duration": float(data.get("estimated_duration", 1.5)),
+                "estimated_duration": float(data.get("estimated_duration", 1.5)),
                 "confidence": float(data.get("confidence", 0.7)),
                 "reasoning": data.get("reasoning_breakdown", {}),
                 "visual_hints": data.get("visual_hints", {}),
@@ -490,7 +492,7 @@ class AIDurationEstimator(TemporalPlanner):
             return {
                 "element_id": action_data.get("action_id", "unknown"),
                 "element_type": "action",
-                "ai_estimated_duration": fallback_duration,
+                "estimated_duration": fallback_duration,
                 "confidence": 0.4,
                 "reasoning": {"fallback_word_based": True, "word_count": word_count},
                 "visual_hints": {},
@@ -716,8 +718,8 @@ class AIDurationEstimator(TemporalPlanner):
         # 根据动作描述调整
         if "张了张嘴" in dialogue_data.parenthetical:
             # 尝试说话但失败的动作需要时间
-            if result.ai_estimated_duration < 2.0:
-                result.ai_estimated_duration = 2.5
+            if result.estimated_duration < 2.0:
+                result.estimated_duration = 2.5
                 result.confidence = min(result.confidence, 0.7)
 
         # 添加视觉建议

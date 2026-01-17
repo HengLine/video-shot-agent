@@ -8,11 +8,11 @@ from hengline.agent.script_parser.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.estimator.ai_action_estimator import AIActionDurationEstimator
 from hengline.agent.temporal_planner.estimator.ai_dialogue_estimator import AIDialogueDurationEstimator
 from hengline.agent.temporal_planner.estimator.ai_scene_estimator import AISceneDurationEstimator
-from hengline.agent.temporal_planner.estimator.timeline_planner_factory import TimelinePlannerFactory
+from hengline.agent.temporal_planner.estimator.estimator_factory import estimator_factory
 from hengline.agent.temporal_planner.llm_temporal_planner import LLMTemporalPlanner
 from hengline.agent.temporal_planner.temporal_planner_model import ElementType
 from hengline.prompts.temporal_planner_prompt import PromptConfig
-from utils.obj_utils import dict_to_obj, dict_to_dataclass
+from utils.obj_utils import dict_to_dataclass
 
 
 def demonstrate_complete_system():
@@ -79,26 +79,26 @@ def demonstrate_complete_system():
     # 3. 使用工厂类直接估算
     print("1. 使用工厂类直接估算元素:")
 
-    script_data : UnifiedScript = dict_to_dataclass(test_script, UnifiedScript)
+    script_data: UnifiedScript = dict_to_dataclass(test_script, UnifiedScript)
 
     # 估算场景
-    scene_estimator = TimelinePlannerFactory.get_estimator(ElementType.SCENE, config)
+    scene_estimator = estimator_factory.get_llm_estimator(ElementType.SCENE, config)
     scene_result = scene_estimator.estimate(script_data.scenes[0])
     print(f"   场景时长: {scene_result.estimated_duration}秒 (置信度: {scene_result.confidence})")
 
     # 估算对话
-    dialogue_estimator = TimelinePlannerFactory.get_estimator(ElementType.DIALOGUE, config)
+    dialogue_estimator = estimator_factory.get_llm_estimator(ElementType.DIALOGUE, config)
     dialogue_result = dialogue_estimator.estimate(script_data.dialogues[0])
     print(f"   对话时长: {dialogue_result.estimated_duration}秒 (置信度: {dialogue_result.confidence})")
 
     # 估算动作
-    action_estimator = TimelinePlannerFactory.get_estimator(ElementType.ACTION, config)
+    action_estimator = estimator_factory.get_llm_estimator(ElementType.ACTION, config)
     action_result = action_estimator.estimate(script_data.actions[0])
     print(f"   动作时长: {action_result.estimated_duration}秒 (置信度: {action_result.confidence})")
 
     # 4. 使用工厂类估算整个剧本
     print("\n2. 估算整个剧本:")
-    all_estimations = TimelinePlannerFactory.estimate_script(script_data)
+    all_estimations = estimator_factory.estimate_script_with_llm(script_data)
     print(f"   总估算元素数: {len(all_estimations)}")
 
     # 显示估算结果摘要
@@ -109,7 +109,7 @@ def demonstrate_complete_system():
 
     # 5. 使用主规划器创建完整计划
     print("\n3. 创建完整时序规划:")
-    planner = LLMTemporalPlanner(config)
+    planner = LLMTemporalPlanner()
 
     try:
         timeline_plan = planner.plan_timeline(script_data)
@@ -130,7 +130,7 @@ def demonstrate_complete_system():
 
     # 6. 错误统计
     print("\n4. 错误统计:")
-    error_summary = TimelinePlannerFactory.get_error_summary()
+    error_summary = estimator_factory.get_error_summary()
     print(f"   总估算器数: {error_summary['total_estimators']}")
     print(f"   有错误的估算器: {error_summary['estimators_with_errors']}")
 

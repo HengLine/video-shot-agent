@@ -51,11 +51,10 @@ class HybridTemporalPlanner(BaseTemporalPlanner, ABC):
         info("开始合并估算结果...")
         merged_estimations = {}
 
-        #
+        # 合并各类元素
         self._merge_element_estimations(script_data.scenes, ElementType.SCENE, llm_estimations, rule_estimations, merged_estimations)
         self._merge_element_estimations(script_data.dialogues, ElementType.DIALOGUE, llm_estimations, rule_estimations, merged_estimations)
         self._merge_element_estimations(script_data.actions, ElementType.ACTION, llm_estimations, rule_estimations, merged_estimations)
-
 
         return merged_estimations
 
@@ -91,7 +90,7 @@ class HybridTemporalPlanner(BaseTemporalPlanner, ABC):
                 merged.source = EstimationSource.LOCAL_RULE
             else:
                 # 两个都没有值，使用降级估算
-                merged = self._create_fallback_estimation(element)
+                merged = self._create_fallback_estimation(element_id, element, element_type)
 
             merged_estimations[element_id] = merged
 
@@ -210,17 +209,3 @@ class HybridTemporalPlanner(BaseTemporalPlanner, ABC):
 
         return base_ratio
 
-    def _create_fallback_estimation(self, element: Any) -> DurationEstimation:
-        """
-        创建降级估算
-        """
-        fallback_duration = self._get_default_duration(element.element_type)
-
-        return DurationEstimation(
-            element_id=element.element_id,
-            element_type=element.element_type,
-            estimated_duration=fallback_duration,
-            original_duration=element.original_duration,
-            estimator_source=EstimationSource.FALLBACK,
-            confidence=0.3
-        )

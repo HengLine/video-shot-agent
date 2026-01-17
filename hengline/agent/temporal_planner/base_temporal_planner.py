@@ -124,16 +124,16 @@ class BaseTemporalPlanner(BaseAgent):
         }
         return defaults.get(element_type, 2.0)
 
-    def _create_fallback_estimation(self, element: Any) -> DurationEstimation:
+    def _create_fallback_estimation(self, element_id: str, element: Any, element_type: ElementType) -> DurationEstimation:
         """
         创建降级估算（当主要估算方法失败时）
         """
-        fallback_duration = self._get_fallback_duration(element)
+        fallback_duration = self._get_fallback_duration(element, element_type)
 
         estimation = DurationEstimation(
-            element_id=element.element_id,
-            element_type=element.element_type,
-            original_duration=element.original_duration,
+            element_id=element_id,
+            element_type=element_type,
+            original_duration=element.duration,
             estimated_duration=fallback_duration,
             estimator_source=EstimationSource.FALLBACK,
             confidence=0.3,  # 低置信度
@@ -143,25 +143,25 @@ class BaseTemporalPlanner(BaseAgent):
 
         return estimation
 
-    def _get_fallback_duration(self, element: Any) -> float:
+    def _get_fallback_duration(self, element: Any, element_type: ElementType) -> float:
         """
         获取降级估算时长（基于简单规则）
         """
-        if element.element_type == ElementType.SCENE:
+        if element_type == ElementType.SCENE:
             # 基于描述长度
             word_count = len(element.description.split())
             return min(word_count * 0.05, 10.0)
 
-        elif element.element_type == ElementType.DIALOGUE:
+        elif element_type == ElementType.DIALOGUE:
             # 基于词数
-            word_count = len(element.description.split())
+            word_count = len(element.content.split())
             return word_count * 0.4 if word_count > 0 else 1.5
 
-        elif element.element_type == ElementType.SILENCE:
+        elif element_type == ElementType.SILENCE:
             # 固定沉默时长
             return 2.5
 
-        elif element.element_type == ElementType.ACTION:
+        elif element_type == ElementType.ACTION:
             # 基于描述长度
             word_count = len(element.description.split())
             return min(word_count * 0.3, 5.0)

@@ -1,8 +1,9 @@
-from hengline.agent.script_parser.script_parser_models import Scene, Dialogue, Action
-from hengline.agent.temporal_planner.temporal_planner_model import ElementType
+import json
+
+from hengline.agent import TemporalPlannerAgent
+from hengline.agent.script_parser.script_parser_models import UnifiedScript
 from hengline.client.client_factory import get_default_llm
 from utils.obj_utils import dict_to_obj
-from .test_duration_estimator import AIDurationEstimator
 
 
 def _call_llm(self, prompt: str) -> str:
@@ -265,108 +266,48 @@ def _mock_batch_action_response(self, prompt: str) -> str:
        }"""
 
 
-def demonstrate_complete_ai_estimator():
-    """演示完整AI估算器功能"""
+def load_from_json(json_path: str):
+    """从JSON文件加载数据"""
+    with open(json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
 
-    print("=== 完整的AI时长估算器演示 ===\n")
-
-    estimator = AIDurationEstimator(get_default_llm())
-
-    # 创建测试数据（基于你提供的剧本）
-    test_scene = {
-        "scene_id": "scene_1",
-        "description": "深夜，窗外雨势猛烈。客厅昏暗，电视播放着无声的黑白老电影，光影在墙上晃动。林然蜷缩在沙发上，裹着旧羊毛毯，茶几上放着半杯凉茶和一本摊开的旧相册。气氛静谧而压抑。",
-        "location": "城市公寓客厅",
-        "time_of_day": "夜晚",
-        "mood": "孤独紧张",
-        "key_visuals": ["电视静音播放黑白电影", "凝出水雾的玻璃杯", "摊开的旧相册", "亮起的手机屏幕", "滑落的羊毛毯"]
-    }
-
-    test_dialogue = {
-        "dialogue_id": "dial_1",
-        "speaker": "林然",
-        "content": "……陈默？你还好吗？",
-        "emotion": "微颤",
-        "voice_quality": "轻柔沙哑",
-        "parenthetical": "声音微颤",
-        "type": "speech"
-    }
-
-    test_silence = {
-        "dialogue_id": "dial_4",
-        "speaker": "林然",
-        "content": "",
-        "emotion": "哽咽",
-        "parenthetical": "张了张嘴，却发不出声音",
-        "type": "silence"
-    }
-
-    test_action = {
-        "action_id": "act_3",
-        "actor": "林然",
-        "type": "gaze",
-        "description": "盯着手机看了三秒，指尖悬停在接听键上方",
-        "target": "手机"
-    }
-
-    # 测试单元素估算
-    print("1. 场景估算:")
-    scene_result = estimator.estimate_scene_duration(dict_to_obj(test_scene, Scene))
-    print(f"   时长: {scene_result.estimated_duration}秒")
-    print(f"   置信度: {scene_result.confidence}")
-    print(f"   关键因素: {scene_result.key_factors}")
-    print(f"   视觉建议: {list(scene_result.visual_hints.keys())[:3]}...")
-
-    print("\n2. 对话估算:")
-    dialogue_result = estimator.estimate_dialogue_duration(dict_to_obj(test_dialogue, Dialogue))
-    print(f"   时长: {dialogue_result.estimated_duration}秒")
-    print(f"   情感权重: {getattr(dialogue_result, 'emotional_weight', 'N/A')}")
-    if hasattr(dialogue_result, 'emotional_trajectory') and dialogue_result.emotional_trajectory:
-        print(f"   情感轨迹: {len(dialogue_result.emotional_trajectory)}个节点")
-
-    print("\n3. 沉默估算:")
-    silence_result = estimator.estimate_dialogue_duration(dict_to_obj(test_silence, Dialogue))  # 会自动识别为沉默
-    print(f"   时长: {silence_result.estimated_duration}秒")
-    print(f"   沉默类型: {getattr(silence_result, 'silence_type', 'N/A')}")
-
-    print("\n4. 动作估算:")
-    action_result = estimator.estimate_action_duration(dict_to_obj(test_action, Action))
-    print(f"   时长: {action_result.estimated_duration}秒")
-    print(f"   复杂度得分: {getattr(action_result, 'complexity_score', 'N/A')}")
-    if hasattr(action_result, 'action_components') and action_result.action_components:
-        print(f"   动作组件: {len(action_result.action_components)}个")
-
-    # 测试批量估算
-    print("\n5. 批量对话估算:")
-    dialogues = [test_dialogue, test_silence]
-    batch_results = estimator.batch_estimate(dialogues, ElementType.DIALOGUE)
-    print(f"   批量处理 {len(batch_results)} 个对话")
-
-    # 测试上下文链估算
-    print("\n6. 上下文链动作估算:")
-    actions = [test_action, {
-        "action_id": "act_5",
-        "actor": "林然",
-        "type": "interaction",
-        "description": "按下接听键，将手机贴到耳边",
-        "target": "手机"
-    }]
-
-    chain_results = estimator.estimate_with_context_chain(actions, ElementType.ACTION)
-    print(f"   链式处理 {len(chain_results)} 个动作")
-
-    # 显示错误摘要
-    print("\n7. 错误摘要:")
-    error_log = []
-    error_summary = estimator.get_error_summary(error_log)
-    print(f"   总错误数: {error_summary['total_errors']}")
-    if error_summary['total_errors'] > 0:
-        print(f"   按类型分布: {error_summary['error_by_type']}")
-        print(f"   按级别分布: {error_summary['errors_by_level']}")
-        print(f"   恢复率: {error_summary['recovery_rate']:.1%}")
-
-    print("\n=== 演示完成 ===")
+    return dict_to_obj(data, UnifiedScript)
 
 
-if __name__ == "__main__":
-    demonstrate_complete_ai_estimator()
+def test_main():
+    # 初始化智能体
+    planner = TemporalPlannerAgent(get_default_llm())
+
+    # 加载数据
+    script_data = load_from_json("script_parser_result.json")
+
+    # 创建时间线规划
+    timeline_plan = planner.plan_process(
+        script_data
+    )
+
+    # 输出结果
+    print("\n" + "=" * 50)
+    print("时间线规划结果")
+    print("=" * 50)
+
+    for segment in timeline_plan.timeline_segments:
+        print(f"\n{segment.segment_id}: {segment.time_range}")
+        print(f"  内容: {segment.visual_content}")
+        print(f"  元素: {segment.element_coverage}")
+
+    print(f"\n节奏类型: {timeline_plan.pacing_analysis.pace_type}")
+    print(f"连贯性锚点: {len(timeline_plan.continuity_anchors)}个")
+
+    # 验证结果
+    if timeline_plan.validation_report.get("is_valid"):
+        print("\n规划验证通过！")
+    else:
+        print(f"\n规划存在问题: {timeline_plan.validation_report['critical_issues']}个关键问题")
+
+    # 保存为JSON
+    with open("timeline_plan_output.json", "w", encoding="utf-8") as f:
+        json.dump(timeline_plan.to_dict(), f, ensure_ascii=False, indent=2)
+
+    print("\n结果已保存到 timeline_plan_output.json")
+

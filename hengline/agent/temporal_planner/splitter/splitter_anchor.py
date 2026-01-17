@@ -1,942 +1,535 @@
 """
 @FileName: splitter_anchor.py
-@Description: 连续性锚点生成模型
+@Description: 连贯性锚点生成器
 @Author: HengLine
-@Time: 2026/1/16 0:57
+@Time: 2026/1/16 23:55
 """
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any
-from typing import List, Dict, Set, Optional
 
-from hengline.agent.temporal_planner.splitter.splitter_detector import KeyframeDetector
-from hengline.agent.temporal_planner.splitter.splitter_parser import ActionParser
-from hengline.agent.temporal_planner.temporal_planner_model import ContinuityAnchor
+from typing import List, Dict, Set, Any
+
+from hengline.agent.temporal_planner.temporal_planner_model import TimeSegment, ContinuityAnchor, ElementType, ScriptElement
 
 
-class AnchorType(Enum):
-    """锚点类型分类"""
-    CHARACTER_APPEARANCE = "character_appearance"  # 角色外观
-    CHARACTER_POSITION = "character_position"  # 角色位置
-    CHARACTER_POSTURE = "character_posture"  # 角色姿势
-    CHARACTER_EXPRESSION = "character_expression"  # 面部表情
-    PROP_STATE = "prop_state"  # 道具状态
-    PROP_POSITION = "prop_position"  # 道具位置
-    ENVIRONMENT = "environment"  # 环境
-    SPATIAL_RELATION = "spatial_relation"  # 空间关系
-    VISUAL_MATCH = "visual_match"  # 视觉匹配
-    TRANSITION = "transition"  # 过渡要求
-
-
-class AnchorPriority(Enum):
-    """锚点优先级"""
-    CRITICAL = 10  # 必须遵守，否则明显不连贯
-    HIGH = 7  # 重要，观众会注意到
-    MEDIUM = 5  # 建议遵守，提升质量
-    LOW = 3  # 可选项，细微优化
-
-
-@dataclass
-class CharacterStateVector:
-    """角色状态向量（供智能体3状态跟踪）"""
-    character_name: str
-    timestamp: float
-
-    # 外观特征
-    appearance: Dict[str, str] = field(default_factory=dict)  # 服装、发型等
-
-    # 姿势状态
-    posture: str = "unknown"  # 坐、站、躺等
-    posture_details: Dict[str, str] = field(default_factory=dict)  # 详细姿势
-
-    # 空间位置
-    location: str = "unknown"  # 具体位置描述
-    relative_position: Dict[str, str] = field(default_factory=dict)  # 相对位置
-
-    # 面部状态
-    facial_expression: str = "neutral"  # 面部表情
-    gaze_direction: str = "unknown"  # 视线方向
-
-    # 交互状态
-    interacting_with: List[str] = field(default_factory=list)  # 交互对象
-    interaction_type: str = "none"  # 交互类型
-
-    # 情绪状态
-    emotional_state: str = "neutral"  # 情绪
-    emotional_intensity: float = 0.5  # 情绪强度 0-1
-
-
-@dataclass
-class PropStateVector:
-    """道具状态向量"""
-    prop_name: str
-    timestamp: float
-
-    # 基本状态
-    current_state: str = "unknown"  # 状态描述
-    position: str = "unknown"  # 位置描述
-    owner: str = "none"  # 持有者
-
-    # 视觉特征
-    visual_description: str = ""  # 视觉描述
-    is_visible: bool = True  # 是否可见
-
-    # 交互状态
-    is_interacted: bool = False  # 是否被交互
-    interaction_details: Dict[str, str] = field(default_factory=dict)
-
-
-class ContinuityAnchorGenerator:
-    """增强版连续性锚点生成器"""
+class AnchorGenerator:
+    """生成片段间的连贯性锚点"""
 
     def __init__(self):
-        # 状态跟踪器
-        self.character_states: Dict[str, List[CharacterStateVector]] = {}
-        self.prop_states: Dict[str, List[PropStateVector]] = {}
+        self.anchor_id_counter = 1
 
-        # 时间索引缓存
-        self.time_index_cache: Dict[float, Dict[str, Any]] = {}
-
-        # 锚点生成规则
-        self.rules = self._initialize_rules()
-
-        # 关键帧检测器
-        self.keyframe_detector = KeyframeDetector()
-
-        # 动作解析器
-        self.action_parser = ActionParser()
-
-    def _initialize_rules(self) -> Dict[str, Dict]:
-        """初始化锚点生成规则"""
-        return {
-            "character_appearance": {
-                "trigger": ["服装变化", "发型变化", "配饰变化"],
-                "priority": AnchorPriority.CRITICAL,
-                "mandatory": True
-            },
-            "character_position": {
-                "trigger": ["位置移动", "场景切换"],
-                "priority": AnchorPriority.HIGH,
-                "mandatory": True
-            },
-            "character_posture": {
-                "trigger": ["姿势变化", "动作序列"],
-                "priority": AnchorPriority.MEDIUM,
-                "mandatory": True
-            },
-            "prop_state": {
-                "trigger": ["道具状态变化", "道具交互"],
-                "priority": AnchorPriority.HIGH,
-                "mandatory": True
-            },
-            "spatial_relation": {
-                "trigger": ["相对位置变化", "距离变化"],
-                "priority": AnchorPriority.MEDIUM,
-                "mandatory": False
-            }
-        }
-
-    def generate_anchors_for_scene(self,
-                                   scene_data: Dict,
-                                   timeline_segments: List[Dict]) -> List[ContinuityAnchor]:
-        """为整个场景生成连续性锚点"""
+    def generate_anchors(
+            self,
+            segments: List[TimeSegment],
+            all_elements: List[ScriptElement]
+    ) -> List[ContinuityAnchor]:
+        """为所有片段生成连贯性锚点"""
 
         anchors = []
 
-        # 1. 初始化状态跟踪
-        self._initialize_states(scene_data)
+        for i in range(len(segments) - 1):
+            current_segment = segments[i]
+            next_segment = segments[i + 1]
 
-        # 2. 按时间顺序处理时间片段
-        sorted_segments = sorted(timeline_segments, key=lambda x: x["time_range"][0])
-
-        for i in range(len(sorted_segments) - 1):
-            current_seg = sorted_segments[i]
-            next_seg = sorted_segments[i + 1]
-
-            # 3. 生成片段间锚点
-            segment_anchors = self._generate_segment_anchors(
-                current_seg,
-                next_seg,
-                scene_data
+            # 生成各类锚点
+            visual_anchors = self._generate_visual_match_anchors(
+                current_segment, next_segment, all_elements
             )
-            anchors.extend(segment_anchors)
+            anchors.extend(visual_anchors)
 
-            # 4. 更新状态跟踪
-            self._update_states(current_seg, scene_data)
+            transition_anchors = self._generate_transition_anchors(
+                current_segment, next_segment, all_elements
+            )
+            anchors.extend(transition_anchors)
 
-        # 5. 生成全局一致性锚点
-        global_anchors = self._generate_global_anchors(scene_data, sorted_segments)
-        anchors.extend(global_anchors)
+            character_anchors = self._generate_character_state_anchors(
+                current_segment, next_segment, all_elements
+            )
+            anchors.extend(character_anchors)
+
+            keyframe_anchors = self._generate_keyframe_anchors(
+                current_segment, next_segment, all_elements
+            )
+            anchors.extend(keyframe_anchors)
 
         return anchors
 
-        # ==================== 更新现有的状态跟踪方法 ====================
+    def _generate_visual_match_anchors(
+            self,
+            current_segment: TimeSegment,
+            next_segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> List[ContinuityAnchor]:
+        """生成视觉匹配锚点"""
+        anchors = []
 
-    def _update_states(self, segment: Dict, scene_data: Dict):
-        """更新状态跟踪"""
-        segment_end_time = segment["time_range"][1]
+        # 1. 检查环境一致性
+        current_env_tags = current_segment.visual_consistency_tags
+        next_env_tags = next_segment.visual_consistency_tags
+        common_env_tags = current_env_tags.intersection(next_env_tags)
 
-        # 更新角色状态
-        for char_name in self._get_characters_in_segment(segment, scene_data):
-            predicted_state = self._predict_next_character_state(
-                char_name,
-                segment_end_time - 0.1,  # 稍微提前一点
-                {"time_range": (segment_end_time, segment_end_time + 5.0)}  # 模拟下一片段
+        if common_env_tags:
+            anchor_id = f"anchor_visual_{self.anchor_id_counter:03d}"
+            self.anchor_id_counter += 1
+
+            anchor = ContinuityAnchor(
+                anchor_id=anchor_id,
+                anchor_type="visual_match",
+                priority=9.0,
+                from_segment=current_segment.segment_id,
+                to_segment=next_segment.segment_id,
+                temporal_constraint=f"t={current_segment.end_time}:{next_segment.start_time}",
+                description=f"环境一致性匹配：{', '.join(sorted(common_env_tags))}",
+                sora_prompt=self._create_visual_match_prompt(common_env_tags),
+                visual_reference=None,
+                verification_method="visual_comparison",
+                mandatory=True,
+                visual_constraints={
+                    "required_tags": list(common_env_tags),
+                    "consistency_level": "high",
+                    "allowed_variations": ["lighting_intensity", "camera_angle"]
+                }
             )
+            anchors.append(anchor)
 
-            if predicted_state:
-                if char_name not in self.character_states:
-                    self.character_states[char_name] = []
-                self.character_states[char_name].append(predicted_state)
+        return anchors
 
-        # 更新道具状态
-        for prop_name in self._get_props_in_segment(segment, scene_data):
-            predicted_state = self._predict_next_prop_state(
-                prop_name,
-                segment_end_time - 0.1,
-                {"time_range": (segment_end_time, segment_end_time + 5.0)}
+    def _generate_transition_anchors(
+            self,
+            current_segment: TimeSegment,
+            next_segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> List[ContinuityAnchor]:
+        """生成过渡锚点"""
+        anchors = []
+
+        # 分析两个片段的叙事关系
+        narrative_relationship = self._analyze_narrative_relationship(
+            current_segment, next_segment, all_elements
+        )
+
+        # 根据关系确定过渡类型
+        transition_type = self._determine_transition_type(
+            current_segment, next_segment, narrative_relationship
+        )
+
+        anchor_id = f"anchor_transition_{self.anchor_id_counter:03d}"
+        self.anchor_id_counter += 1
+
+        # 提取关键元素用于过渡描述
+        key_elements = self._extract_key_elements_for_transition(
+            current_segment, next_segment, all_elements
+        )
+
+        anchor = ContinuityAnchor(
+            anchor_id=anchor_id,
+            anchor_type="transition",
+            priority=7.0,
+            from_segment=current_segment.segment_id,
+            to_segment=next_segment.segment_id,
+            temporal_constraint=f"transition at {current_segment.end_time}",
+            description=f"从'{current_segment.narrative_arc}'过渡到'{next_segment.narrative_arc}'",
+            sora_prompt=self._create_transition_prompt(
+                transition_type, current_segment, next_segment, key_elements
+            ),
+            verification_method="temporal_flow",
+            mandatory=True,
+            transition_type=transition_type,
+            requirements={
+                "smoothness_level": "high" if narrative_relationship == "continuous" else "medium",
+                "motion_flow": "continuous" if transition_type == "dissolve" else "sharp",
+                "audio_transition": "seamless" if transition_type in ["dissolve", "fade"] else "cut"
+            },
+            prohibited_elements=["abrupt_cut", "jump_cut"] if transition_type == "dissolve" else []
+        )
+        anchors.append(anchor)
+
+        return anchors
+
+    def _generate_character_state_anchors(
+            self,
+            current_segment: TimeSegment,
+            next_segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> List[ContinuityAnchor]:
+        """生成角色状态锚点"""
+        anchors = []
+
+        # 获取两个片段中的角色及其状态
+        current_characters = self._extract_character_states(current_segment, all_elements)
+        next_characters = self._extract_character_states(next_segment, all_elements)
+
+        # 为共同角色生成状态锚点
+        for char_name, current_state in current_characters.items():
+            if char_name in next_characters:
+                next_state = next_characters[char_name]
+
+                # 检查状态是否需要连续性约束
+                if self._needs_continuity_constraint(current_state, next_state):
+                    anchor_id = f"anchor_char_{self.anchor_id_counter:03d}"
+                    self.anchor_id_counter += 1
+
+                    anchor = ContinuityAnchor(
+                        anchor_id=anchor_id,
+                        anchor_type="character_state",
+                        priority=8.5,
+                        from_segment=current_segment.segment_id,
+                        to_segment=next_segment.segment_id,
+                        temporal_constraint=f"character {char_name} continuity",
+                        description=f"角色'{char_name}'状态连续性：{current_state['summary']} → {next_state['summary']}",
+                        sora_prompt=self._create_character_continuity_prompt(char_name, current_state, next_state),
+                        verification_method="character_tracking",
+                        mandatory=True,
+                        state_change={
+                            "character_name": char_name,
+                            "from_state": current_state,
+                            "to_state": next_state,
+                            "allowed_changes": ["micro_expressions", "breathing_pattern"],
+                            "prohibited_changes": ["clothing", "hairstyle", "position_jump"]
+                        },
+                        character_continuity={
+                            "appearance_consistency": "strict",
+                            "emotion_transition": "smooth",
+                            "position_continuity": "required",
+                            "gaze_direction": "maintained_if_speaking"
+                        }
+                    )
+                    anchors.append(anchor)
+
+        return anchors
+
+    def _generate_keyframe_anchors(
+            self,
+            current_segment: TimeSegment,
+            next_segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> List[ContinuityAnchor]:
+        """生成关键帧锚点"""
+        anchors = []
+
+        # 在当前片段的结尾处生成关键帧锚点
+        keyframe_time = current_segment.end_time
+
+        # 提取关键帧视觉元素
+        keyframe_elements = self._extract_keyframe_elements(current_segment, all_elements)
+
+        if keyframe_elements:
+            anchor_id = f"anchor_keyframe_{self.anchor_id_counter:03d}"
+            self.anchor_id_counter += 1
+
+            anchor = ContinuityAnchor(
+                anchor_id=anchor_id,
+                anchor_type="keyframe",
+                priority=6.0,
+                from_segment=current_segment.segment_id,
+                to_segment=next_segment.segment_id,
+                temporal_constraint=f"keyframe at {keyframe_time}s",
+                description=f"关键帧：{current_segment.segment_id}的结束状态",
+                sora_prompt=self._create_keyframe_prompt(keyframe_elements),
+                verification_method="frame_analysis",
+                mandatory=False,  # 关键帧通常不是强制的
+                timestamp=keyframe_time,
+                visual_constraints={
+                    "key_elements": keyframe_elements,
+                    "composition_importance": "high",
+                    "reference_for_next": True
+                },
+                requirements={
+                    "frame_accuracy": "medium",
+                    "visual_clarity": "high",
+                    "serves_as_bridge": True
+                }
             )
+            anchors.append(anchor)
 
-            if predicted_state:
-                if prop_name not in self.prop_states:
-                    self.prop_states[prop_name] = []
-                self.prop_states[prop_name].append(predicted_state)
+        return anchors
 
-    def _get_characters_in_segment(self, segment: Dict, scene_data: Dict) -> Set[str]:
-        """获取片段中涉及的角色（增强版）"""
+    def _analyze_narrative_relationship(
+            self,
+            current_segment: TimeSegment,
+            next_segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> str:
+        """分析两个片段间的叙事关系"""
+        # 获取两个片段的元素类型分布
+        current_types = self._get_segment_element_types(current_segment, all_elements)
+        next_types = self._get_segment_element_types(next_segment, all_elements)
+
+        # 简单的叙事关系判断逻辑
+        if current_segment.narrative_arc == next_segment.narrative_arc:
+            return "continuous"
+
+        # 检查是否有对话延续
+        current_dialogue_chars = self._get_dialogue_characters(current_segment, all_elements)
+        next_dialogue_chars = self._get_dialogue_characters(next_segment, all_elements)
+
+        if current_dialogue_chars and next_dialogue_chars:
+            if any(char in next_dialogue_chars for char in current_dialogue_chars):
+                return "dialogue_continuation"
+
+        # 检查场景变化
+        current_env_tags = current_segment.visual_consistency_tags
+        next_env_tags = next_segment.visual_consistency_tags
+
+        if len(current_env_tags.intersection(next_env_tags)) < 2:
+            return "scene_change"
+
+        return "moderate_transition"
+
+    def _determine_transition_type(
+            self,
+            current_segment: TimeSegment,
+            next_segment: TimeSegment,
+            narrative_relationship: str
+    ) -> str:
+        """确定过渡类型"""
+        transition_map = {
+            "continuous": "dissolve",
+            "dialogue_continuation": "cut",
+            "scene_change": "fade",
+            "moderate_transition": "cut",
+            "time_jump": "fade",
+            "emotional_shift": "dissolve"
+        }
+
+        return transition_map.get(narrative_relationship, "cut")
+
+    def _extract_character_states(
+            self,
+            segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> Dict[str, Dict[str, Any]]:
+        """提取片段中角色的状态信息"""
+        character_states = {}
+
+        for element_id in segment.element_coverage:
+            element = next((e for e in all_elements if e.element_id == element_id), None)
+            if not element:
+                continue
+
+            if element.element_type == ElementType.DIALOGUE:
+                dialogue = element.original_data
+                if dialogue.speaker not in character_states:
+                    character_states[dialogue.speaker] = {
+                        "is_speaking": True,
+                        "emotion": dialogue.emotion,
+                        "summary": f"说：'{dialogue.content[:20]}...'",
+                        "action_context": "dialogue"
+                    }
+                else:
+                    character_states[dialogue.speaker]["is_speaking"] = True
+                    character_states[dialogue.speaker]["emotion"] = dialogue.emotion
+
+            elif element.element_type == ElementType.ACTION:
+                action = element.original_data
+                if action.actor and not action.actor.startswith("prop_"):
+                    if action.actor not in character_states:
+                        character_states[action.actor] = {
+                            "is_speaking": False,
+                            "action": action.description,
+                            "action_type": action.type,
+                            "summary": f"动作：{action.description}",
+                            "action_context": action.type
+                        }
+                    else:
+                        # 更新动作信息
+                        character_states[action.actor]["action"] = action.description
+                        character_states[action.actor]["summary"] = f"动作：{action.description}"
+
+        return character_states
+
+    def _needs_continuity_constraint(
+            self,
+            current_state: Dict[str, Any],
+            next_state: Dict[str, Any]
+    ) -> bool:
+        """判断是否需要连续性约束"""
+        # 如果角色在对话中，需要连续性
+        if current_state.get("is_speaking") or next_state.get("is_speaking"):
+            return True
+
+        # 如果有显著动作变化，需要连续性
+        if current_state.get("action_context") == "physiological" and next_state.get("action_context") == "physiological":
+            return True
+
+        # 情绪变化显著时也需要连续性
+        current_emotion = current_state.get("emotion", "")
+        next_emotion = next_state.get("emotion", "")
+        if current_emotion and next_emotion and current_emotion != next_emotion:
+            emotion_intensity = {"紧张": 3, "激动": 3, "悲伤": 2, "平静": 1, "微颤": 2, "哽咽": 3}
+            if abs(emotion_intensity.get(current_emotion, 1) - emotion_intensity.get(next_emotion, 1)) >= 2:
+                return True
+
+        return False
+
+    def _extract_keyframe_elements(
+            self,
+            segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> List[Dict[str, Any]]:
+        """提取关键帧元素"""
+        key_elements = []
+
+        # 获取片段的最后几个元素作为关键帧参考
+        relevant_elements = segment.element_coverage[-3:] if len(segment.element_coverage) > 3 else segment.element_coverage
+
+        for element_id in relevant_elements:
+            element = next((e for e in all_elements if e.element_id == element_id), None)
+            if element:
+                if element.element_type == ElementType.ACTION:
+                    action = element.original_data
+                    key_elements.append({
+                        "type": "action",
+                        "actor": action.actor,
+                        "description": action.description,
+                        "significance": "high" if action.type in ["facial", "physiological", "gesture"] else "medium"
+                    })
+                elif element.element_type == ElementType.DIALOGUE:
+                    dialogue = element.original_data
+                    key_elements.append({
+                        "type": "dialogue",
+                        "speaker": dialogue.speaker,
+                        "content": dialogue.content[:30],
+                        "emotion": dialogue.emotion
+                    })
+
+        return key_elements
+
+    def _create_visual_match_prompt(self, tags: Set[str]) -> str:
+        """创建视觉匹配的Sora提示"""
+        tag_descriptions = {
+            "location_城市公寓客厅": "城市公寓客厅内景",
+            "time_夜晚": "夜间灯光氛围",
+            "weather_大雨滂沱": "窗外大雨效果"
+        }
+
+        descriptions = [tag_descriptions.get(tag, tag) for tag in sorted(tags)]
+        return f"保持视觉一致性：{', '.join(descriptions)}。"
+
+    def _create_transition_prompt(
+            self,
+            transition_type: str,
+            current_segment: TimeSegment,
+            next_segment: TimeSegment,
+            key_elements: List[Dict[str, Any]]
+    ) -> str:
+        """创建过渡的Sora提示"""
+        transition_prompts = {
+            "cut": "直接切换到下一镜头",
+            "dissolve": "淡入淡出过渡到下一场景",
+            "fade": "渐隐渐现过渡",
+            "match": "动作匹配剪辑"
+        }
+
+        base_prompt = transition_prompts.get(transition_type, "平滑过渡")
+
+        # 添加关键元素信息
+        if key_elements:
+            element_desc = "，".join([f"{e.get('actor', e.get('speaker', ''))}的{e.get('description', e.get('content', ''))[:20]}"
+                                     for e in key_elements[:2]])
+            return f"{base_prompt}，保持{element_desc}的连贯性。"
+
+        return base_prompt
+
+    def _create_character_continuity_prompt(
+            self,
+            character_name: str,
+            current_state: Dict[str, Any],
+            next_state: Dict[str, Any]
+    ) -> str:
+        """创建角色连续性的Sora提示"""
+        prompt_parts = [f"保持角色'{character_name}'的连续性"]
+
+        # 添加情绪连续性
+        if current_state.get("emotion") and next_state.get("emotion"):
+            if current_state["emotion"] != next_state["emotion"]:
+                prompt_parts.append(f"情绪从{current_state['emotion']}过渡到{next_state['emotion']}")
+            else:
+                prompt_parts.append(f"保持{current_state['emotion']}情绪")
+
+        # 添加动作连续性
+        if current_state.get("action") and next_state.get("action"):
+            prompt_parts.append(f"动作从'{current_state['action']}'自然过渡")
+
+        return "，".join(prompt_parts) + "。"
+
+    def _create_keyframe_prompt(self, keyframe_elements: List[Dict[str, Any]]) -> str:
+        """创建关键帧的Sora提示"""
+        if not keyframe_elements:
+            return "保持画面构图和氛围的一致性。"
+
+        descriptions = []
+        for element in keyframe_elements:
+            if element["type"] == "action":
+                desc = f"{element['actor']}的{element['description']}"
+            else:
+                desc = f"{element['speaker']}说：'{element['content']}'"
+            descriptions.append(desc)
+
+        return f"关键帧参考：{'，'.join(descriptions[:2])}。"
+
+    def _get_segment_element_types(
+            self,
+            segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> Dict[ElementType, int]:
+        """获取片段的元素类型分布"""
+        type_count = {ElementType.SCENE: 0, ElementType.DIALOGUE: 0, ElementType.ACTION: 0}
+
+        for element_id in segment.element_coverage:
+            element = next((e for e in all_elements if e.element_id == element_id), None)
+            if element:
+                type_count[element.element_type] = type_count.get(element.element_type, 0) + 1
+
+        return type_count
+
+    def _get_dialogue_characters(
+            self,
+            segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> Set[str]:
+        """获取片段中的对话角色"""
         characters = set()
 
-        # 从动作中提取角色
-        for action in scene_data.get("actions", []):
-            action_id = action.get("action_id", "")
-
-            # 检查这个动作是否在当前片段中
-            if action_id in segment.get("element_coverage", []):
-                actor = action.get("actor", "")
-                if actor and actor != "手机" and actor != "旧羊毛毯":  # 排除道具
-                    characters.add(actor)
-
-        # 从对话中提取角色
-        for dialogue in scene_data.get("dialogues", []):
-            dialogue_id = dialogue.get("dialogue_id", "")
-
-            if dialogue_id in segment.get("element_coverage", []):
-                speaker = dialogue.get("speaker", "")
-                target = dialogue.get("target", "")
-
-                if speaker:
-                    characters.add(speaker)
-                if target:
-                    characters.add(target)
+        for element_id in segment.element_coverage:
+            element = next((e for e in all_elements if e.element_id == element_id), None)
+            if element and element.element_type == ElementType.DIALOGUE:
+                dialogue = element.original_data
+                characters.add(dialogue.speaker)
 
         return characters
 
-    def _initialize_states(self, scene_data: Dict):
-        """初始化状态跟踪"""
-
-        # 初始化角色状态
-        for character in scene_data.get("characters", []):
-            char_name = character["name"]
-            self.character_states[char_name] = []
-
-            # 创建初始状态
-            initial_state = CharacterStateVector(
-                character_name=char_name,
-                timestamp=0.0,
-                appearance=self._extract_appearance(character),
-                posture="unknown",
-                location="unknown",
-                facial_expression="neutral",
-                emotional_state=character.get("state", {}).get("emotional", "neutral")
-            )
-            self.character_states[char_name].append(initial_state)
-
-        # 初始化道具状态
-        for scene in scene_data.get("scenes", []):
-            for prop in scene.get("props", []):
-                prop_name = prop["name"]
-                self.prop_states[prop_name] = []
-
-                initial_prop_state = PropStateVector(
-                    prop_name=prop_name,
-                    timestamp=0.0,
-                    current_state=prop.get("state", "unknown"),
-                    position=prop.get("position", "unknown"),
-                    owner=prop.get("owner", "none"),
-                    visual_description=prop.get("description", "")
-                )
-                self.prop_states[prop_name].append(initial_prop_state)
-
-    def _generate_segment_anchors(self,
-                                  current_seg: Dict,
-                                  next_seg: Dict,
-                                  scene_data: Dict) -> List[ContinuityAnchor]:
-        """生成两个相邻片段间的锚点"""
-
-        anchors = []
-
-        # 1. 角色连续性锚点
-        character_anchors = self._generate_character_continuity_anchors(
-            current_seg, next_seg, scene_data
-        )
-        anchors.extend(character_anchors)
-
-        # 2. 道具连续性锚点
-        prop_anchors = self._generate_prop_continuity_anchors(
-            current_seg, next_seg, scene_data
-        )
-        anchors.extend(prop_anchors)
-
-        # 3. 环境一致性锚点
-        env_anchors = self._generate_environment_anchors(
-            current_seg, next_seg, scene_data
-        )
-        anchors.extend(env_anchors)
-
-        # 4. 空间关系锚点
-        spatial_anchors = self._generate_spatial_anchors(
-            current_seg, next_seg, scene_data
-        )
-        anchors.extend(spatial_anchors)
-
-        # 5. 视觉匹配锚点
-        visual_anchors = self._generate_visual_match_anchors(
-            current_seg, next_seg, scene_data
-        )
-        anchors.extend(visual_anchors)
-
-        return anchors
-
-    def _generate_character_continuity_anchors(self,
-                                               current_seg: Dict,
-                                               next_seg: Dict,
-                                               scene_data: Dict) -> List[ContinuityAnchor]:
-        """生成角色连续性锚点"""
-
-        anchors = []
-        current_time = current_seg["time_range"][1]
-
-        # 获取当前片段中涉及的角色
-        involved_characters = self._get_characters_in_segment(current_seg, scene_data)
-
-        for char_name in involved_characters:
-            # 获取角色当前状态
-            current_state = self._get_character_state_at_time(char_name, current_time)
-
-            if not current_state:
-                continue
-
-            # 检查状态是否有重要变化需要锚点
-            next_state = self._predict_next_character_state(char_name, current_time, next_seg)
-
-            if next_state:
-                # 生成外观锚点
-                if self._needs_appearance_anchor(current_state, next_state):
-                    anchor = ContinuityAnchor(
-                        anchor_id=f"char_app_{char_name}_{current_seg['segment_id']}_{next_seg['segment_id']}",
-                        anchor_type=AnchorType.CHARACTER_APPEARANCE,
-                        priority=AnchorPriority.CRITICAL,
-                        from_segment=current_seg["segment_id"],
-                        to_segment=next_seg["segment_id"],
-                        temporal_constraint=f"从{current_time}秒到{next_seg['time_range'][0]}秒",
-                        description=f"角色{char_name}的外观必须保持一致：{current_state.appearance}",
-                        sora_prompt=f"保持{char_name}的外观不变：{self._appearance_to_sora_prompt(current_state.appearance)}",
-                        mandatory=True,
-                        state_change={"from": current_state.appearance, "to": next_state.appearance}
-                    )
-                    anchors.append(anchor)
-
-                # 生成位置锚点
-                if self._needs_position_anchor(current_state, next_state):
-                    anchor = ContinuityAnchor(
-                        anchor_id=f"char_pos_{char_name}_{current_seg['segment_id']}_{next_seg['segment_id']}",
-                        anchor_type=AnchorType.CHARACTER_POSITION,
-                        priority=AnchorPriority.HIGH,
-                        from_segment=current_seg["segment_id"],
-                        to_segment=next_seg["segment_id"],
-                        temporal_constraint=f"在{next_seg['time_range'][0]}秒时",
-                        description=f"角色{char_name}在下一片段开始时位置应为：{current_state.location}",
-                        sora_prompt=f"{char_name}位于{current_state.location}",
-                        mandatory=True
-                    )
-                    anchors.append(anchor)
-
-                # 生成姿势锚点
-                if self._needs_posture_anchor(current_state, next_state):
-                    anchor = ContinuityAnchor(
-                        anchor_id=f"char_post_{char_name}_{current_seg['segment_id']}_{next_seg['segment_id']}",
-                        anchor_type=AnchorType.CHARACTER_POSTURE,
-                        priority=AnchorPriority.MEDIUM,
-                        from_segment=current_seg["segment_id"],
-                        to_segment=next_seg["segment_id"],
-                        temporal_constraint="片段过渡时",
-                        description=f"角色{char_name}的姿势连续性：{current_state.posture} → {next_state.posture}",
-                        sora_prompt=f"{char_name}保持{current_state.posture}姿势",
-                        mandatory=False
-                    )
-                    anchors.append(anchor)
-
-        return anchors
-
-    def _generate_prop_continuity_anchors(self,
-                                          current_seg: Dict,
-                                          next_seg: Dict,
-                                          scene_data: Dict) -> List[ContinuityAnchor]:
-        """生成道具连续性锚点"""
-
-        anchors = []
-        current_time = current_seg["time_range"][1]
-
-        # 获取当前片段中涉及的道具
-        involved_props = self._get_props_in_segment(current_seg, scene_data)
-
-        for prop_name in involved_props:
-            # 获取道具当前状态
-            current_state = self._get_prop_state_at_time(prop_name, current_time)
-
-            if not current_state:
-                continue
-
-            # 检查道具状态变化
-            next_state = self._predict_next_prop_state(prop_name, current_time, next_seg)
-
-            if next_state and current_state.current_state != next_state.current_state:
-                # 道具状态变化需要锚点
-                anchor = ContinuityAnchor(
-                    anchor_id=f"prop_{prop_name}_{current_seg['segment_id']}_{next_seg['segment_id']}",
-                    anchor_type=AnchorType.PROP_STATE,
-                    priority=AnchorPriority.HIGH,
-                    from_segment=current_seg["segment_id"],
-                    to_segment=next_seg["segment_id"],
-                    temporal_constraint="跨片段时",
-                    description=f"道具{prop_name}状态变化：{current_state.current_state} → {next_state.current_state}",
-                    sora_prompt=f"道具{prop_name}的状态为{next_state.current_state}",
-                    mandatory=True,
-                    state_change={
-                        "prop_name": prop_name,
-                        "from_state": current_state.current_state,
-                        "to_state": next_state.current_state,
-                        "position": next_state.position
-                    }
-                )
-                anchors.append(anchor)
-
-            # 道具位置锚点（即使状态不变）
-            if current_state.position != "unknown":
-                anchor = ContinuityAnchor(
-                    anchor_id=f"prop_pos_{prop_name}_{current_seg['segment_id']}_{next_seg['segment_id']}",
-                    anchor_type=AnchorType.PROP_POSITION,
-                    priority=AnchorPriority.MEDIUM,
-                    from_segment=current_seg["segment_id"],
-                    to_segment=next_seg["segment_id"],
-                    temporal_constraint="在下一片段开始时",
-                    description=f"道具{prop_name}应保持在{current_state.position}",
-                    sora_prompt=f"{prop_name}在{current_state.position}",
-                    mandatory=False
-                )
-                anchors.append(anchor)
-
-        return anchors
-
-    def _generate_environment_anchors(self,
-                                      current_seg: Dict,
-                                      next_seg: Dict,
-                                      scene_data: Dict) -> List[ContinuityAnchor]:
-        """生成环境一致性锚点"""
-
-        anchors = []
-
-        # 获取场景信息
-        current_scene = self._get_scene_for_segment(current_seg, scene_data)
-        next_scene = self._get_scene_for_segment(next_seg, scene_data)
-
-        if current_scene and next_scene and current_scene["scene_id"] == next_scene["scene_id"]:
-            # 同一场景内，需要环境一致性
-            anchor = ContinuityAnchor(
-                anchor_id=f"env_{current_scene['scene_id']}_{current_seg['segment_id']}_{next_seg['segment_id']}",
-                anchor_type=AnchorType.ENVIRONMENT,
-                priority=AnchorPriority.CRITICAL,
-                from_segment=current_seg["segment_id"],
-                to_segment=next_seg["segment_id"],
-                temporal_constraint="整个场景内",
-                description=f"场景环境保持一致：{current_scene['location']}, {current_scene['time_of_day']}, {current_scene.get('weather', '')}",
-                sora_prompt=f"保持场景一致性：{current_scene['location']}, {current_scene['time_of_day']}, {current_scene.get('weather', '')}",
-                mandatory=True,
-                visual_reference=current_scene.get("description", "")
-            )
-            anchors.append(anchor)
-
-        return anchors
-
-
-
-    def _generate_spatial_anchors(self,
-                                  current_seg: Dict,
-                                  next_seg: Dict,
-                                  scene_data: Dict) -> List[ContinuityAnchor]:
-        """生成空间关系锚点"""
-
-        anchors = []
-
-        # 检查角色间的相对位置
-        characters_in_current = self._get_characters_in_segment(current_seg, scene_data)
-
-        if len(characters_in_current) >= 2:
-            # 多个角色在同一场景，需要空间关系锚点
-            char_list = "、".join(characters_in_current)
-            anchor = ContinuityAnchor(
-                anchor_id=f"spatial_{current_seg['segment_id']}_{next_seg['segment_id']}",
-                anchor_type=AnchorType.SPATIAL_RELATION,
-                priority=AnchorPriority.MEDIUM,
-                from_segment=current_seg["segment_id"],
-                to_segment=next_seg["segment_id"],
-                temporal_constraint="角色同时出现时",
-                description=f"角色间的空间关系应保持一致：{char_list}",
-                sora_prompt=f"保持角色空间关系：{char_list}的相对位置",
-                mandatory=False
-            )
-            anchors.append(anchor)
-
-        return anchors
-
-    def _get_character_state_at_time(self, character_name: str, timestamp: float) -> Optional[CharacterStateVector]:
-        """获取指定时间点的角色状态"""
-
-        if character_name not in self.character_states:
-            return None
-
-        # 获取该角色的状态历史
-        state_history = self.character_states[character_name]
-
-        if not state_history:
-            return None
-
-        # 查找最接近指定时间点的状态
-        closest_state = None
-        min_time_diff = float('inf')
-
-        for state in state_history:
-            time_diff = abs(state.timestamp - timestamp)
-            if time_diff < min_time_diff:
-                min_time_diff = time_diff
-                closest_state = state
-
-        # 如果时间差太大，可能需要插值或预测
-        if min_time_diff > 2.0:  # 2秒阈值
-            return self._interpolate_character_state(character_name, timestamp)
-
-        return closest_state
-
-    def _predict_next_character_state(self,
-                                      character_name: str,
-                                      current_time: float,
-                                      next_segment: Dict) -> Optional[CharacterStateVector]:
-        """预测角色在下一片段开始时的状态"""
-
-        current_state = self._get_character_state_at_time(character_name, current_time)
-        if not current_state:
-            return None
-
-        # 分析下一片段中该角色的动作
-        next_actions = self._get_character_actions_in_segment(character_name, next_segment)
-
-        # 创建预测状态
-        predicted_state = CharacterStateVector(
-            character_name=character_name,
-            timestamp=next_segment["time_range"][0],  # 下一片段开始时间
-            appearance=current_state.appearance.copy(),
-            posture=current_state.posture,
-            location=current_state.location,
-            facial_expression=current_state.facial_expression,
-            gaze_direction=current_state.gaze_direction,
-            emotional_state=current_state.emotional_state,
-            emotional_intensity=current_state.emotional_intensity
-        )
-
-        # 根据动作预测状态变化
-        for action in next_actions:
-            self._apply_action_to_state(predicted_state, action)
-
-        return predicted_state
-
-    def _get_props_in_segment(self, segment: Dict, scene_data: Dict) -> List[str]:
-        """获取片段中涉及的道具列表"""
-
-        props = set()
-
-        # 1. 从片段覆盖的元素中查找道具
-        for element_id in segment.get("element_coverage", []):
-            # 检查是否是道具相关动作
-            if element_id.startswith("act_"):
-                # 在动作列表中查找
-                for action in scene_data.get("actions", []):
-                    if action["action_id"] == element_id:
-                        # 检查动作是否涉及道具
-                        prop_name = self._extract_prop_from_action(action)
-                        if prop_name:
-                            props.add(prop_name)
-
-        # 2. 从场景道具列表中获取
-        scene_id = self._get_scene_id_for_segment(segment, scene_data)
-        if scene_id:
-            for scene in scene_data.get("scenes", []):
-                if scene["scene_id"] == scene_id:
-                    for prop in scene.get("props", []):
-                        props.add(prop["name"])
-
-        return list(props)
-
-    def _get_prop_state_at_time(self, prop_name: str, timestamp: float) -> Optional[PropStateVector]:
-        """获取指定时间点的道具状态"""
-
-        if prop_name not in self.prop_states:
-            return None
-
-        prop_history = self.prop_states[prop_name]
-
-        if not prop_history:
-            return None
-
-        # 查找最接近的时间点
-        closest_state = None
-        min_time_diff = float('inf')
-
-        for state in prop_history:
-            time_diff = abs(state.timestamp - timestamp)
-            if time_diff < min_time_diff:
-                min_time_diff = time_diff
-                closest_state = state
-
-        return closest_state
-
-    def _predict_next_prop_state(self,
-                                 prop_name: str,
-                                 current_time: float,
-                                 next_segment: Dict) -> Optional[PropStateVector]:
-        """预测道具在下一片段开始时的状态"""
-
-        current_state = self._get_prop_state_at_time(prop_name, current_time)
-        if not current_state:
-            return None
-
-        # 查找下一片段中涉及该道具的动作
-        next_actions = self._get_prop_actions_in_segment(prop_name, next_segment)
-
-        # 创建预测状态
-        predicted_state = PropStateVector(
-            prop_name=prop_name,
-            timestamp=next_segment["time_range"][0],  # 下一片段开始时间
-            current_state=current_state.current_state,
-            position=current_state.position,
-            owner=current_state.owner,
-            visual_description=current_state.visual_description,
-            is_visible=current_state.is_visible,
-            is_interacted=current_state.is_interacted,
-            interaction_details=current_state.interaction_details.copy()
-        )
-
-        # 根据动作更新道具状态
-        for action in next_actions:
-            self._apply_action_to_prop_state(predicted_state, action)
-
-        return predicted_state
-
-    # ==================== 新增辅助方法 ====================
-
-    def _interpolate_character_state(self, character_name: str, timestamp: float) -> Optional[CharacterStateVector]:
-        """通过插值获取角色状态"""
-
-        if character_name not in self.character_states:
-            return None
-
-        states = self.character_states[character_name]
-        if len(states) < 2:
-            return states[-1] if states else None
-
-        # 找到前后两个状态点
-        before_state = None
-        after_state = None
-
-        for state in states:
-            if state.timestamp <= timestamp:
-                before_state = state
-            elif state.timestamp > timestamp:
-                after_state = state
-                break
-
-        if not before_state and not after_state:
-            return None
-
-        if not after_state:
-            return before_state  # 只有之前的状态
-
-        if not before_state:
-            return after_state  # 只有之后的状态
-
-        # 线性插值（简化版）
-        # 在实际应用中，可能需要更复杂的插值逻辑
-        time_ratio = (timestamp - before_state.timestamp) / (after_state.timestamp - before_state.timestamp)
-
-        interpolated_state = CharacterStateVector(
-            character_name=character_name,
-            timestamp=timestamp,
-            appearance=self._interpolate_dict(before_state.appearance, after_state.appearance, time_ratio),
-            posture=after_state.posture if time_ratio > 0.5 else before_state.posture,
-            location=after_state.location if time_ratio > 0.5 else before_state.location,
-            facial_expression=after_state.facial_expression if time_ratio > 0.5 else before_state.facial_expression,
-            gaze_direction=after_state.gaze_direction if time_ratio > 0.5 else before_state.gaze_direction,
-            emotional_state=after_state.emotional_state if time_ratio > 0.5 else before_state.emotional_state,
-            emotional_intensity=self._interpolate_float(
-                before_state.emotional_intensity,
-                after_state.emotional_intensity,
-                time_ratio
-            )
-        )
-
-        return interpolated_state
-
-    def _get_character_actions_in_segment(self, character_name: str, segment: Dict) -> List[Dict]:
-        """获取角色在片段中的动作列表"""
-        # 这个方法需要访问实际的剧本数据
-        # 这里返回模拟数据
-        actions = []
-
-        # 模拟：根据角色名返回可能的动作
-        if character_name == "林然":
-            actions = [
-                {"type": "gaze", "target": "手机", "description": "盯着手机"},
-                {"type": "physiological", "description": "喉头滚动"},
-                {"type": "interaction", "target": "手机", "description": "按下接听键"}
-            ]
-
-        return actions
-
-    def _get_prop_actions_in_segment(self, prop_name: str, segment: Dict) -> List[Dict]:
-        """获取道具在片段中的动作列表"""
-        actions = []
-
-        # 模拟：根据道具名返回可能的动作
-        if prop_name == "手机":
-            actions = [
-                {"type": "device_alert", "state": "震动亮屏"},
-                {"type": "interaction", "actor": "林然", "description": "被接听"}
-            ]
-        elif prop_name == "旧羊毛毯":
-            actions = [
-                {"type": "prop_fall", "state": "滑落"}
-            ]
-
-        return actions
-
-    def _extract_prop_from_action(self, action: Dict) -> Optional[str]:
-        """从动作描述中提取道具名"""
-        description = action.get("description", "")
-
-        # 关键词匹配
-        prop_keywords = {
-            "手机": ["手机", "电话", "听筒"],
-            "旧羊毛毯": ["毛毯", "毯子", "羊毛毯"],
-            "凉茶": ["茶", "茶杯", "水杯"],
-            "旧相册": ["相册", "照片"],
-            "电视": ["电视", "电视机"]
-        }
-
-        for prop_name, keywords in prop_keywords.items():
-            for keyword in keywords:
-                if keyword in description:
-                    return prop_name
-
-        return None
-
-    def _apply_action_to_state(self, state: CharacterStateVector, action: Dict):
-        """将动作效果应用到角色状态"""
-        action_type = action.get("type", "")
-        description = action.get("description", "")
-
-        if action_type == "posture":
-            if "蜷在" in description or "蜷坐" in description:
-                state.posture = "蜷坐"
-            elif "坐直" in description:
-                state.posture = "坐直"
-            elif "站着" in description:
-                state.posture = "站立"
-
-        elif action_type == "gaze":
-            target = action.get("target", "")
-            state.gaze_direction = f"看向{target}"
-
-        elif action_type == "facial":
-            if "瞳孔收缩" in description:
-                state.facial_expression = "震惊"
-            elif "泪水" in description:
-                state.facial_expression = "悲伤"
-            elif "微笑" in description:
-                state.facial_expression = "微笑"
-
-        elif action_type == "interaction":
-            target = action.get("target", "")
-            state.interacting_with.append(target)
-            state.interaction_type = action_type
-
-        elif action_type == "physiological":
-            if "呼吸停滞" in description:
-                state.emotional_state = "紧张"
-                state.emotional_intensity = 0.9
-            elif "喉头滚动" in description:
-                state.emotional_state = "紧张"
-                state.emotional_intensity = 0.7
-
-    def _apply_action_to_prop_state(self, state: PropStateVector, action: Dict):
-        """将动作效果应用到道具状态"""
-        action_type = action.get("type", "")
-        description = action.get("description", "")
-
-        if action_type == "device_alert":
-            state.current_state = "震动亮屏"
-            state.is_interacted = False
-
-        elif action_type == "prop_fall":
-            state.current_state = "滑落"
-            if "肩头" in description:
-                state.position = "地板上"
-
-        elif action_type == "interaction":
-            state.current_state = "被使用中"
-            state.is_interacted = True
-            state.interaction_details["actor"] = action.get("actor", "")
-
-    def _get_scene_id_for_segment(self, segment: Dict, scene_data: Dict) -> Optional[str]:
-        """获取片段所属的场景ID"""
-        # 简化的实现：假设所有元素都属于同一个场景
-        # 在实际中，可能需要更复杂的逻辑
-        if scene_data.get("scenes"):
-            return scene_data["scenes"][0]["scene_id"]
-        return None
-
-    def _interpolate_dict(self, dict1: Dict, dict2: Dict, ratio: float) -> Dict:
-        """字典插值"""
-        if ratio < 0.5:
-            return dict1.copy()
-        else:
-            return dict2.copy()
-
-    def _interpolate_float(self, val1: float, val2: float, ratio: float) -> float:
-        """浮点数插值"""
-        return val1 + (val2 - val1) * ratio
-
-    def _generate_visual_match_anchors(self,
-                                       current_seg: Dict,
-                                       next_seg: Dict,
-                                       scene_data: Dict) -> List[ContinuityAnchor]:
-        """生成视觉匹配锚点"""
-
-        anchors = []
-
-        # 检查是否有需要视觉匹配的关键帧
-        keyframes = self.keyframe_detector.detect_keyframes(current_seg, next_seg)
-
-        for keyframe in keyframes:
-            if keyframe.get("needs_match", False):
-                anchor = ContinuityAnchor(
-                    anchor_id=f"visual_match_{keyframe['id']}_{current_seg['segment_id']}_{next_seg['segment_id']}",
-                    anchor_type=AnchorType.VISUAL_MATCH,
-                    priority=AnchorPriority.HIGH,
-                    from_segment=current_seg["segment_id"],
-                    to_segment=next_seg["segment_id"],
-                    temporal_constraint=f"在{keyframe.get('time', '过渡点')}",
-                    description=f"视觉匹配要求：{keyframe.get('description', '')}",
-                    sora_prompt=f"视觉匹配：{keyframe.get('sora_prompt', '')}",
-                    visual_reference=keyframe.get("reference", ""),
-                    mandatory=keyframe.get("mandatory", True)
-                )
-                anchors.append(anchor)
-
-        return anchors
-
-    def _generate_global_anchors(self,
-                                 scene_data: Dict,
-                                 segments: List[Dict]) -> List[ContinuityAnchor]:
-        """生成全局一致性锚点"""
-
-        anchors = []
-
-        # 1. 角色全局外观锚点
-        for character in scene_data.get("characters", []):
-            char_name = character["name"]
-            appearance = self._extract_appearance(character)
-
-            if appearance:
-                anchor = ContinuityAnchor(
-                    anchor_id=f"global_app_{char_name}",
-                    anchor_type=AnchorType.CHARACTER_APPEARANCE,
-                    priority=AnchorPriority.CRITICAL,
-                    from_segment="all",
-                    to_segment="all",
-                    temporal_constraint="整个场景中",
-                    description=f"角色{char_name}的全局外观一致性：{appearance}",
-                    sora_prompt=f"{char_name}的外观始终为：{self._appearance_to_sora_prompt(appearance)}",
-                    mandatory=True
-                )
-                anchors.append(anchor)
-
-        # 2. 场景全局环境锚点
-        for scene in scene_data.get("scenes", []):
-            anchor = ContinuityAnchor(
-                anchor_id=f"global_env_{scene['scene_id']}",
-                anchor_type=AnchorType.ENVIRONMENT,
-                priority=AnchorPriority.CRITICAL,
-                from_segment="all",
-                to_segment="all",
-                temporal_constraint=f"场景{scene['scene_id']}内",
-                description=f"场景全局环境：{scene['location']}, {scene['time_of_day']}, {scene.get('weather', '')}",
-                sora_prompt=f"场景环境：{scene['location']}, {scene['time_of_day']}, {scene.get('weather', '')}",
-                mandatory=True,
-                visual_reference=scene.get("description", "")
-            )
-            anchors.append(anchor)
-
-        return anchors
-
-    def _extract_appearance(self, character: Dict) -> Dict[str, str]:
-        """从角色数据中提取外观信息"""
-        appearance = {}
-
-        if "appearance" in character and character["appearance"]:
-            # 解析外观描述文本
-            desc = character["appearance"]
-            # 简单提取关键信息
-            if "裹着" in desc:
-                appearance["clothing"] = "旧羊毛毯"
-            if "蜷坐在沙发上" in desc:
-                appearance["posture"] = "蜷坐"
-
-        return appearance
-
-    def _appearance_to_sora_prompt(self, appearance: Dict) -> str:
-        """将外观字典转换为Sora兼容的提示"""
-        parts = []
-        for key, value in appearance.items():
-            parts.append(f"{key}:{value}")
-        return ", ".join(parts)
-
-    def _needs_appearance_anchor(self,
-                                 current_state: CharacterStateVector,
-                                 next_state: CharacterStateVector) -> bool:
-        """检查是否需要外观锚点"""
-        # 简化逻辑：外观字典有变化就需要
-        return current_state.appearance != next_state.appearance
-
-    def _needs_position_anchor(self,
-                               current_state: CharacterStateVector,
-                               next_state: CharacterStateVector) -> bool:
-        """检查是否需要位置锚点"""
-        return (current_state.location != next_state.location and
-                current_state.location != "unknown" and
-                next_state.location != "unknown")
-
-    def _needs_posture_anchor(self,
-                              current_state: CharacterStateVector,
-                              next_state: CharacterStateVector) -> bool:
-        """检查是否需要姿势锚点"""
-        return (current_state.posture != next_state.posture and
-                current_state.posture != "unknown")
+    def _extract_key_elements_for_transition(
+            self,
+            current_segment: TimeSegment,
+            next_segment: TimeSegment,
+            all_elements: List[ScriptElement]
+    ) -> List[Dict[str, Any]]:
+        """提取用于过渡描述的关键元素"""
+        key_elements = []
+
+        # 获取两个片段的最后一个和第一个重要元素
+        segments_to_check = [current_segment, next_segment]
+
+        for segment in segments_to_check:
+            if segment.element_coverage:
+                element_id = segment.element_coverage[-1] if segment == current_segment else segment.element_coverage[0]
+                element = next((e for e in all_elements if e.element_id == element_id), None)
+
+                if element:
+                    if element.element_type == ElementType.DIALOGUE:
+                        dialogue = element.original_data
+                        key_elements.append({
+                            "type": "dialogue",
+                            "speaker": dialogue.speaker,
+                            "content": dialogue.content[:20],
+                            "position": "ending" if segment == current_segment else "beginning"
+                        })
+                    elif element.element_type == ElementType.ACTION:
+                        action = element.original_data
+                        key_elements.append({
+                            "type": "action",
+                            "actor": action.actor,
+                            "description": action.description,
+                            "position": "ending" if segment == current_segment else "beginning"
+                        })
+
+        return key_elements

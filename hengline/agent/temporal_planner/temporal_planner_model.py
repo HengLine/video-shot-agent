@@ -8,10 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, unique
-from typing import List, Dict, Any, Optional, Tuple
-
-from hengline.agent.temporal_planner.splitter.splitter_anchor import AnchorType, AnchorPriority
-
+from typing import List, Dict, Any, Optional, Tuple, Set
 
 @unique
 class ElementType(Enum):
@@ -80,6 +77,7 @@ class EstimationSource(Enum):
     FALLBACK = "fallback"
 
 
+####################################### 时长估算模型 #########################################
 @dataclass
 class DurationEstimation:
     """时长估算结果"""
@@ -210,7 +208,10 @@ class TimeSegment:
     duration: float = 5.0  # 固定5秒
 
     # 内容组成
-    visual_summary: str = None  # 视觉内容摘要（给分镜生成）
+    element_coverage: List[str] = field(default_factory=dict)  # 元素ID，用于跟踪片段的内容组成，便于后续分析和状态跟踪
+    visual_content: str = None  # 视觉内容摘要（给分镜生成）
+    visual_consistency_tags: Set[str] = field(default_factory=list)  # 视觉一致性标签为AnchorGenerator提供视觉匹配的依据，确保环境、时间、天气等的一致性
+    narrative_arc: str = None  # 叙事弧描述（给分镜生成），帮助理解片段的叙事目的，用于过渡分析和节奏控制
     contained_elements: List[ContainedElement] = None  # 包含的元素
     segment_type: str = "normal"  # normal, transition, climax, setup
     requires_special_attention: bool = False
@@ -244,7 +245,7 @@ class TimeSegment:
             "segment_id": self.segment_id,
             "time_range": self.time_range,
             "duration": self.duration,
-            "visual_summary": self.visual_summary,
+            "visual_content": self.visual_content,
             "contained_elements": self.contained_elements,
             "content_type": self.content_type.value if self.content_type else None,
             "emotional_tone": self.emotional_tone.value,
@@ -283,14 +284,26 @@ class TimeSegment:
                 return elem
         return None
 
+###################################### 5秒片段分隔模型 #########################################
+
+@dataclass
+class ScriptElement:
+    """统一的剧本元素"""
+    element_id: str
+    element_type: ElementType
+    original_data: Any  # Scene, Dialogue或Action实例
+    estimated_duration: DurationEstimation
+    order_priority: int = 0
+    dependencies: List[str] = field(default_factory=list)
+
 
 @dataclass
 class ContinuityAnchor:
     """连续性锚点"""
     anchor_id: str
-    anchor_type: AnchorType  # "visual_match" | "transition" | "keyframe" | "character_state"
+    anchor_type: str  # "visual_match" | "transition" | "keyframe" | "character_state"
     # time_point: float  # 时间点（秒）
-    priority: AnchorPriority  # 1-10，越高越重要
+    priority: float  # 1-10，越高越重要
 
     # 作用范围
     from_segment: str  # 来源片段ID
@@ -318,28 +331,60 @@ class ContinuityAnchor:
     visual_constraints: Dict[str, Any] = field(default_factory=dict)
     character_continuity: Dict[str, Any] = field(default_factory=dict)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            "anchor_id": self.anchor_id,
+            "anchor_type": self.anchor_type,
+            "from_segment": self.from_segment,
+            "to_segment": self.to_segment,
+            "temporal_constraint": self.temporal_constraint,
+            "description": self.description,
+            "sora_prompt": self.sora_prompt,
+            "visual_reference": self.visual_reference,
+            "verification_method": self.verification_method,
+            "mandatory": self.mandatory,
+            "state_change": self.state_change,
+            "confidence": round(self.confidence, 2),
+            "prohibited_elements": self.prohibited_elements,
+            "timestamp": self.timestamp,
+            "transition_type": self.transition_type,
+            "requirements": self.requirements,
+            "visual_constraints": self.visual_constraints,
+            "character_continuity": self.character_continuity
+        }
 
 @dataclass
 class PacingProfile:
     """节奏分析"""
-    intensity_curve: List[float]    # 强度曲线描述
-    emotional_arc: List[Dict]      # 情绪弧线描述
-    visual_complexity: List[float]  # 视觉复杂度描述
-    key_points: List[Dict]         # 关键节点描述
-    recommendations: List[str]    # 优化建议描述
-    analysis_notes: str     # 额外分析备注
-    statistics: dict[str, float]    # 统计数据
-
-    pace_type: str  # 节奏类型
-    peak_segments: List[int]  # 峰值片段索引
-    rest_points: List[int]  # 休息点片段索引
+    pace_type: str  # "rising_tension", "calm_reflective", "rapid_exchange"
+    intensity_curve: List[float]
+    peak_segments: List[int]
+    rest_points: List[int]
 
     # 统计指标
-    avg_dialogue_rate: float  # 平均对话速度
-    action_density: float  # 动作密度
-    scene_transition_frequency: float  # 场景切换频率
+    avg_dialogue_density: float  # 平均对话速度
+    action_intensity: float  # 动作密度
+    scene_stability: float  # 场景切换频率
+
+    # 建议
+    pacing_suggestions: List[str]
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            "pace_type": self.pace_type,
+            "intensity_curve": self.intensity_curve,
+            "peak_segments": self.peak_segments,
+            "rest_points": self.rest_points,
+            "avg_dialogue_density": round(self.avg_dialogue_density, 2),
+            "action_intensity": round(self.action_intensity, 2),
+            "scene_stability": round(self.scene_stability, 2),
+            "pacing_suggestions": self.pacing_suggestions
+        }
 
 
+####################################### 时序规划结果模型 #########################################
 @dataclass
 class TimelinePlan:
     """时序规划结果"""
@@ -347,15 +392,21 @@ class TimelinePlan:
     duration_estimations: Dict[str, DurationEstimation]  # 每个元素的时长估算
     continuity_anchors: List[ContinuityAnchor]  # 连续性锚点
     pacing_analysis: PacingProfile  # 节奏分析
-    # quality_metrics: Dict[str, float]  # 质量指标
     # 元数据
     total_duration: float
     segments_count: int
-    elements_count: int
+    element_order: List[str]  # 元素出现顺序
 
     estimations: Dict[str, Any] = field(default_factory=dict)  # 多模型估算结果
     script_summary: Dict[str, float] = field(default_factory=dict)  # 原始剧本摘要
     processing_stats: Dict[str, Any] = field(default_factory=dict)
+    validation_report: Dict[str, Any] = field(default_factory=dict)
+    # 角色状态时间线，供连续性守护智能体追踪角色状态连续性（位置、姿势、表情、情绪等）
+    character_state_timeline: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
+    # 道具状态时间线，供连续性守护智能体追踪道具状态连续性（位置、所有者、交互状态等）
+    prop_state_timeline: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
+    # 可选：环境状态时间线
+    environment_state_timeline: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
 
     # 为分镜生成准备的全局参数
     global_visual_style: str = ""
@@ -368,13 +419,13 @@ class TimelinePlan:
             "meta": {
                 "total_duration": round(self.total_duration, 2),
                 "segments_count": self.segments_count,
-                "elements_count": self.elements_count,
+                "element_order": self.element_order,
                 "generated_at": datetime.now().isoformat()
             },
             "segments": [seg.to_dict() for seg in self.timeline_segments],
             "estimations_summary": self._create_estimations_summary(),
-            "pacing_analysis": self.pacing_analysis,
-            "continuity_anchors": self.continuity_anchors
+            "pacing_analysis": self.pacing_analysis.to_dict(),
+            "continuity_anchors": [c.to_dict() for c in self.continuity_anchors]
         }
 
     def _create_estimations_summary(self) -> Dict:
