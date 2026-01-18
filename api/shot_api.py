@@ -5,14 +5,15 @@
 @Time: 2025/10/23 11:19
 """
 import random
-from typing import Optional, Dict, Any, List
 from datetime import datetime
+from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter
 from fastapi import HTTPException
 from pydantic import BaseModel
 
 from hengline.agent.workflow.workflow_models import VideoStyle
+from hengline.context_var import task_id_ctx
 from hengline.generate_agent import generate_storyboard
 from hengline.language_manage import Language
 from hengline.logger import info, error, log_with_context
@@ -97,6 +98,9 @@ def generate_storyboard_api(request: StoryboardRequest):
             }
         )
 
+        if request.task_id:
+            task_id_ctx.set(request.task_id)
+
         # 调用分镜生成功能
         result = generate_storyboard(
             script_text=request.script_text,
@@ -133,4 +137,3 @@ def generate_storyboard_api(request: StoryboardRequest):
         print_log_exception()
         error(f"分镜生成失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
-

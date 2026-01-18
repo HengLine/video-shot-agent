@@ -28,6 +28,6 @@ class ShotGeneratorFactory:
             return AIEnhancedShotGenerator(config, llm)
         elif generator_type == EstimationSource.HYBRID:
             # 混合模式：默认使用规则基，需要时自动切换AI
-            return AIEnhancedShotGenerator(config, llm, use_ai_for_all=False)
+            return AIEnhancedShotGenerator(config, llm)
         else:
             raise ValueError(f"未知的生成器类型: {generator_type}")

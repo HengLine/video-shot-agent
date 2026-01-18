@@ -109,6 +109,7 @@ class Dialogue(BaseModel):
     type: Literal["speech", "silence"] = Field("speech", description="类型：speech 或 silence")
     time_offset: float = Field(..., ge=0, description="相对于场景开始的时间偏移（秒）")
     duration: Optional[float] = Field(None, gt=0, description="持续时间（秒），可选")
+    timestamp: Optional[float] = Field(None, description="时间戳（秒）")
 
     def to_dict(self) -> dict:
         """转换为字典表示"""
@@ -159,6 +160,7 @@ class Action(BaseModel):
     action_id: str = Field(..., pattern=r"^act_\w+$", description="动作唯一ID")
     scene_ref: str = Field(..., description="所属场景ID，必须等于某个 scene.scene_id")
     actor: str = Field(..., min_length=1, description="执行者：必须是角色名、道具名或固定实体（如 '手机'）")
+    # actors: List[str] = Field(..., description="执行者列表：必须是角色名、道具名或固定实体（如 '手机'）")
     target: Optional[str] = Field(..., description="动作目标")
     type: ActionType = Field(..., description="动作类型，必须为预定义枚举值")
     intensity: ActionIntensityLevel = Field(ActionIntensityLevel.LOW, description="动作强度，如 '轻微'、'剧烈'")
@@ -166,6 +168,7 @@ class Action(BaseModel):
     description: str = Field(..., description="动作描述")
     time_offset: float = Field(..., ge=0, description="时间偏移（秒）")
     duration: float = Field(..., gt=0, description="持续时间（秒）")
+    timestamp: Optional[float] = Field(None, description="时间戳（秒）")
 
     def to_dict(self) -> dict:
         """转换为字典表示"""

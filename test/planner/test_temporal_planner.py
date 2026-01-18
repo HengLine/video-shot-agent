@@ -1,9 +1,6 @@
-import json
-
 from hengline.agent import TemporalPlannerAgent
 from hengline.agent.script_parser.script_parser_models import UnifiedScript
-from hengline.client.client_factory import get_default_llm
-from utils.obj_utils import dict_to_obj
+from utils.file_utils import load_from_obj, save_to_json
 
 
 def _call_llm(self, prompt: str) -> str:
@@ -266,21 +263,13 @@ def _mock_batch_action_response(self, prompt: str) -> str:
        }"""
 
 
-def load_from_json(json_path: str):
-    """从JSON文件加载数据"""
-    with open(json_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-
-    return dict_to_obj(data, UnifiedScript)
-
-
 def test_main():
     # 初始化智能体
     # planner = TemporalPlannerAgent(get_default_llm())
     planner = TemporalPlannerAgent(None)
 
     # 加载数据
-    script_data = load_from_json("script_parser_result.json")
+    script_data = load_from_obj("script_parser_result.json", UnifiedScript)
 
     # 创建时间线规划
     timeline_plan = planner.plan_process(
@@ -307,8 +296,6 @@ def test_main():
         print(f"\n规划存在问题: {timeline_plan.validation_report['critical_issues']}个关键问题")
 
     # 保存为JSON
-    with open("timeline_plan_output.json", "w", encoding="utf-8") as f:
-        json.dump(timeline_plan.to_dict(), f, ensure_ascii=False, indent=2)
+    save_to_json(timeline_plan, "timeline_plan_output")
 
     print("\n结果已保存到 timeline_plan_output.json")
-

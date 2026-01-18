@@ -6,13 +6,11 @@
 """
 from typing import List, Dict, Any
 
-from hengline.agent.temporal_planner.temporal_planner_model import EstimationSource
+from hengline.agent.script_parser.script_parser_models import UnifiedScript, Dialogue, Action, Scene
+from hengline.agent.temporal_planner.shot.base_shot_generator import BaseShotGenerator
+from hengline.agent.temporal_planner.shot.shot_model import Shot, ShotType, CameraMovement, ShotPurpose, SceneShotResult
 from hengline.context_var import task_id_ctx
 from hengline.logger import debug, info, error
-from hengline.agent.temporal_planner.shot.shot_model import Shot, ShotType, CameraMovement, ShotPurpose
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
-from hengline.agent.temporal_planner.shot.base_shot_generator import BaseShotGenerator
-from hengline.agent.temporal_planner.shot.shot_model import ShotGenerationResult
 from utils.counter_utils import ExpiringStringCounter
 from utils.log_utils import print_log_exception
 
@@ -35,34 +33,43 @@ class RuleShotGenerator(BaseShotGenerator):
             "general": self._generate_general_scene,
         }
 
-    def generate_shots(self, script: UnifiedScript) -> ShotGenerationResult:
-        """生成分镜头"""
-        debug(f"开始规则基分镜生成")
+    def generate_for_scene(self, scene: Scene, script: UnifiedScript) -> SceneShotResult:
+        """为场景生成分镜头"""
+        debug(f"开始规则基分镜生成: {scene.scene_id}")
 
         try:
+            # 获取场景元素
+            dialogues, actions = self._get_scene_elements(scene, script)
+            characters = self._get_characters_in_scene(scene, script)
+
             # 确定场景类型
-            scene_type = self._determine_scene_type(script)
+            scene_type = self._determine_scene_type(scene, dialogues, actions)
             debug(f"场景类型: {scene_type}")
 
             # 使用对应的模板生成分镜头
             if scene_type in self.scene_templates:
-                shots = self.scene_templates[scene_type](script)
+                shots = self.scene_templates[scene_type](scene, dialogues, actions, characters, script)
             else:
-                shots = self._generate_general_scene(script)
+                shots = self._generate_general_scene(scene, dialogues, actions, characters, script)
 
             # 为每个镜头估算时长并编号
+            timestamp_counter = 0.0
             for i, shot in enumerate(shots):
-                shot.shot_id = self._create_shot_id(script.scene_id, i + 1)
+                shot.shot_id = self._create_shot_id(scene.scene_id, i + 1)
+                shot.scene_id = scene.scene_id
                 shot.sequence_number = i + 1
+                shot.timestamp_in_scene = timestamp_counter
                 shot.duration_estimate = self.estimate_shot_duration(shot)
+                timestamp_counter += shot.duration_estimate
 
             # 创建结果
-            result = ShotGenerationResult(
-                scene_id=script.scene_id,
+            result = SceneShotResult(
+                scene_id=scene.scene_id,
+                scene_description=scene.description,
                 shots=shots,
-                generation_method=EstimationSource.LOCAL_RULE,
-                confidence=self._calculate_confidence(script, shots),
-                reasoning=f"基于规则生成，场景类型: {scene_type}"
+                generation_method="rule_based",
+                confidence=self._calculate_confidence(scene, dialogues, actions, shots),
+                reasoning=f"基于规则生成，场景类型: {scene_type}，对话: {len(dialogues)}个，动作: {len(actions)}个"
             )
 
             info(f"规则基分镜生成完成: {result.shot_count}个镜头，总时长: {result.total_duration}s")
@@ -71,254 +78,280 @@ class RuleShotGenerator(BaseShotGenerator):
         except Exception as e:
             print_log_exception()
             error(f"规则基分镜生成失败: {e}")
-            return self._create_fallback_result(script)
+            return self._create_fallback_result(scene)
 
-    def _generate_establishing_scene(self, script: UnifiedScript) -> List[Shot]:
+    def _generate_establishing_scene(self, scene: Scene, dialogues: List[Dialogue],
+                                     actions: List[Action], characters: List[str],
+                                     script: UnifiedScript) -> List[Shot]:
         """生成建立场景的分镜头"""
         shots = []
 
-        # 1. 建立镜头 - 展示环境
+        # 1. 建立镜头
+        key_visuals = scene.key_visuals or []
         shots.append(Shot(
             shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
             shot_type=ShotType.ESTABLISHING,
-            description=f"展示{script.location}，时间{script.time_of_day}，天气{script.weather}",
+            description=f"展示{scene.location}，{scene.time_of_day}，{scene.weather}",
             purpose=ShotPurpose.ESTABLISH_LOCATION,
-            key_visuals=script.key_visual_elements.copy(),
-            camera_movement=CameraMovement.PAN_LEFT if script.location != "室内" else CameraMovement.NONE,
-            emotional_intensity=1.0 if script.mood == "平静" else 1.3
+            key_visuals=key_visuals[:3],  # 最多3个关键视觉
+            camera_movement=CameraMovement.PAN_LEFT if "外" in scene.location else CameraMovement.NONE,
+            emotional_intensity=self._get_emotion_intensity(scene.mood),
+            pacing="slow"
         ))
 
-        # 2. 如果有角色，添加角色引入镜头
-        if script.characters_in_scene:
-            for char in script.characters_in_scene:
-                shots.append(Shot(
-                    shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
-                    shot_type=ShotType.MEDIUM,
-                    description=f"展示{char}在场景中的位置",
-                    purpose=ShotPurpose.SHOW_CHARACTER,
-                    characters=[char],
-                    emotional_intensity=self._get_emotion_intensity(script.mood)
-                ))
-
-        # 3. 氛围渲染镜头
-        if script.mood != "neutral":
+        # 2. 角色引入
+        for char in characters:
             shots.append(Shot(
                 shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
-                shot_type=ShotType.WIDE,
-                description=f"渲染{script.mood}氛围",
-                purpose=ShotPurpose.ATMOSPHERE,
-                camera_movement=CameraMovement.SLOW_PAN if hasattr(CameraMovement, 'SLOW_PAN') else CameraMovement.PAN_LEFT,
-                emotional_intensity=self._get_emotion_intensity(script.mood) + 0.2
+                shot_type=ShotType.MEDIUM,
+                description=f"展示{char}在场景中",
+                purpose=ShotPurpose.SHOW_CHARACTER,
+                characters=[char],
+                emotional_intensity=1.0
             ))
 
         return shots
 
-    def _generate_dialogue_scene(self, script: UnifiedScript) -> List[Shot]:
+    def _generate_dialogue_scene(self, scene: Scene, dialogues: List[Dialogue],
+                                 actions: List[Action], characters: List[str],
+                                 script: UnifiedScript) -> List[Shot]:
         """生成对话场景的分镜头"""
         shots = []
-        dialogue_count = len(script.dialogues)
-
-        if dialogue_count == 0:
-            return self._generate_general_scene(script)
 
         # 1. 建立镜头
-        shots.append(self._create_establishing_shot(script))
+        shots.append(self._create_scene_establishing_shot(scene))
 
-        # 2. 处理每个对话单元
-        for i, dialogue in enumerate(script.dialogues):
+        # 2. 处理每个对话
+        dialogue_shots = []
+        for dialogue in dialogues:
             # 说话者镜头
-            shots.append(Shot(
+            shot = Shot(
                 shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
                 shot_type=ShotType.CLOSE_UP,
-                description=f"{dialogue.speaker}说: {dialogue.text[:30]}...",
+                description=f"{dialogue.speaker}: {dialogue.text[:40]}...",
                 purpose=ShotPurpose.DIALOGUE,
                 characters=[dialogue.speaker],
-                dialogue_text=dialogue.text,
-                dialogue_speaker=dialogue.speaker,
+                dialogue_id=dialogue.dialogue_id,
                 emotional_intensity=dialogue.intensity,
                 pacing="slow" if dialogue.emotion in ["sad", "emotional"] else "normal"
-            ))
+            )
+            dialogue_shots.append(shot)
 
-            # 重要的对话添加反应镜头
+            # 如果是重要对话，添加听众反应镜头
             if dialogue.is_important or dialogue.intensity > 1.5:
-                # 找到听众（排除说话者）
-                listeners = [c for c in script.characters_in_scene if c != dialogue.speaker]
+                # 找到听众
+                listeners = [c for c in characters if c != dialogue.speaker]
                 if listeners:
-                    shots.append(Shot(
+                    reaction_shot = Shot(
                         shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
                         shot_type=ShotType.REACTION,
-                        description=f"展示听众对{dialogue.speaker}话语的反应",
+                        description=f"{'、'.join(listeners)}的反应",
                         purpose=ShotPurpose.REACTION,
                         characters=listeners,
                         emotional_intensity=dialogue.intensity * 0.8,
-                        pacing="slow"  # 反应镜头通常较慢
-                    ))
+                        pacing="slow"
+                    )
+                    dialogue_shots.append(reaction_shot)
 
-            # 对话间的过渡镜头（每隔2-3个对话）
-            if i > 0 and i % 2 == 0:
-                shots.append(self._create_transition_shot(script))
+        # 3. 处理动作（如果有）
+        action_shots = []
+        for action in actions:
+            if action.actors:
+                shot = Shot(
+                    shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
+                    shot_type=ShotType.MEDIUM,
+                    description=action.description[:50],
+                    purpose=ShotPurpose.ACTION,
+                    characters=action.actors.copy(),
+                    action_id=action.action_id,
+                    emotional_intensity=action.intensity.value,
+                    pacing="fast" if action.intensity.value > 1.5 else "normal"
+                )
+                action_shots.append(shot)
 
-        # 3. 对话结束后的总结镜头
-        shots.append(Shot(
-            shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
-            shot_type=ShotType.MEDIUM if len(script.characters_in_scene) <= 2 else ShotType.GROUP_SHOT,
-            description=f"对话结束，展示角色状态",
-            purpose=ShotPurpose.REACTION,
-            characters=script.characters_in_scene.copy(),
-            emotional_intensity=script.importance * 0.7
-        ))
+        # 4. 交织对话和动作镜头
+        shots.extend(self._interweave_dialogue_action(dialogue_shots, action_shots, scene))
+
+        # 5. 结束镜头
+        if characters:
+            shot_type = ShotType.TWO_SHOT if len(characters) == 2 else ShotType.GROUP_SHOT
+            shots.append(Shot(
+                shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
+                shot_type=shot_type,
+                description=f"对话结束，{scene.mood}氛围",
+                purpose=ShotPurpose.EMOTION,
+                characters=characters.copy(),
+                emotional_intensity=self._get_emotion_intensity(scene.mood),
+                pacing="slow"
+            ))
 
         return shots
 
-    def _generate_action_scene(self, script: UnifiedScript) -> List[Shot]:
+    def _generate_action_scene(self, scene: Scene, dialogues: List[Dialogue],
+                               actions: List[Action], characters: List[str],
+                               script: UnifiedScript) -> List[Shot]:
         """生成动作场景的分镜头"""
         shots = []
-        action_count = len(script.actions)
-
-        if action_count == 0:
-            return self._generate_general_scene(script)
 
         # 1. 快速建立镜头
         shots.append(Shot(
             shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
             shot_type=ShotType.WIDE,
-            description="动作场景建立",
+            description=f"动作场景: {scene.location}",
             purpose=ShotPurpose.ESTABLISH_LOCATION,
             camera_movement=CameraMovement.PAN_LEFT,
             pacing="fast"
         ))
 
-        # 2. 处理每个动作单元
-        for i, action in enumerate(script.actions):
-            # 根据动作类型选择镜头
-            if action.intensity.value > 2.0 or action.is_crucial:
-                # 关键动作：广角 + 特写组合
+        # 2. 处理关键动作
+        for action in actions:
+            if action.is_crucial:
+                # 关键动作：广角+特写组合
                 shots.append(Shot(
                     shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
                     shot_type=ShotType.ACTION_WIDE,
-                    description=f"广角: {action.description}",
+                    description=f"{action.actors[0] if action.actors else '场景'}: {action.description[:40]}...",
                     purpose=ShotPurpose.ACTION,
-                    characters=[action.actor],
-                    action_description=action.description,
-                    action_type=action.type,
+                    characters=action.actors.copy(),
+                    action_id=action.action_id,
+                    camera_movement=CameraMovement.TRACKING if action.action_type in ["run", "chase"] else CameraMovement.NONE,
                     emotional_intensity=action.intensity.value,
-                    pacing="fast",
-                    camera_movement=CameraMovement.TRACKING if action.action_type in ["run", "chase"] else CameraMovement.NONE
+                    pacing="fast"
                 ))
 
-                # 动作特写
                 shots.append(Shot(
                     shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
                     shot_type=ShotType.ACTION_CLOSE,
-                    description=f"特写: {action.description}",
-                    purpose=ShotPurpose.ACTION,
-                    characters=[action.actor],
+                    description=f"动作特写: {action.description[:40]}...",
+                    purpose=ShotPurpose.DETAIL,
+                    characters=action.actors.copy() if action.actors else [],
                     emotional_intensity=action.intensity.value * 1.2,
-                    pacing="fast"
+                    pacing="very_fast" if action.intensity.value > 2.0 else "fast"
                 ))
             else:
-                # 普通动作：中景
+                # 普通动作
                 shots.append(Shot(
                     shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
                     shot_type=ShotType.MEDIUM,
-                    description=action.description,
+                    description=action.description[:50],
                     purpose=ShotPurpose.ACTION,
                     characters=[action.actor],
-                    action_description=action.description,
+                    action_id=action.action_id,
                     emotional_intensity=action.intensity.value,
                     pacing="normal"
                 ))
 
-            # 复杂动作可能需要反应镜头
-            if action.is_crucial and i < len(script.actions) - 1:
-                # 找到其他角色的反应
-                other_chars = [c for c in script.characters_in_scene if c != action.actor]
-                if other_chars:
-                    shots.append(Shot(
-                        shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
-                        shot_type=ShotType.REACTION,
-                        description=f"其他角色对动作的反应",
-                        purpose=ShotPurpose.REACTION,
-                        characters=other_chars,
-                        emotional_intensity=action.intensity.value * 0.9,
-                        pacing="normal"
-                    ))
+        # 3. 处理对话（如果有）
+        for dialogue in dialogues:
+            shots.append(Shot(
+                shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
+                shot_type=ShotType.CLOSE_UP,
+                description=f"{dialogue.speaker}: {dialogue.content[:30]}...",
+                purpose=ShotPurpose.DIALOGUE,
+                characters=[dialogue.speaker],
+                dialogue_id=dialogue.dialogue_id,
+                emotional_intensity=dialogue.intensity,
+                pacing="normal"
+            ))
 
-        # 3. 动作结束镜头
+        # 4. 结束镜头
         shots.append(Shot(
             shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
             shot_type=ShotType.WIDE,
-            description="动作结束，展示结果",
+            description=f"动作结束，{scene.mood}氛围",
             purpose=ShotPurpose.REVEAL,
-            characters=[action.name for action in script.characters.copy()],
-            pacing="slow" if script.mood in ["tense", "dramatic"] else "normal",
-            emotional_intensity=script.importance
+            characters=characters.copy(),
+            emotional_intensity=self._get_emotion_intensity(scene.mood),
+            pacing="slow" if scene.mood in ["tense", "dramatic"] else "normal"
         ))
 
         return shots
 
-    def _generate_emotional_scene(self, script: UnifiedScript) -> List[Shot]:
+    def _generate_emotional_scene(self, scene: Scene, dialogues: List[Dialogue],
+                                  actions: List[Action], characters: List[str],
+                                  script: UnifiedScript) -> List[Shot]:
         """生成情感场景的分镜头"""
         shots = []
 
-        # 1. 氛围建立镜头
+        # 1. 氛围建立
         shots.append(Shot(
             shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
             shot_type=ShotType.ESTABLISHING,
-            description=f"建立{script.mood}情感氛围",
+            description=f"建立{scene.mood}氛围: {scene.location}",
             purpose=ShotPurpose.ATMOSPHERE,
-            camera_movement=CameraMovement.SLOW_DOLLY_IN if hasattr(CameraMovement, 'SLOW_DOLLY_IN') else CameraMovement.DOLLY_IN,
-            emotional_intensity=self._get_emotion_intensity(script.mood) + 0.3,
-            pacing="slow"
+            camera_movement=CameraMovement.DOLLY_IN,
+            emotional_intensity=self._get_emotion_intensity(scene.mood) + 0.3,
+            pacing="very_slow" if scene.mood in ["sad", "lonely", "romantic"] else "slow"
         ))
 
         # 2. 角色情感特写
-        for char in script.characters_in_scene:
+        for char in characters:
             shots.append(Shot(
                 shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
                 shot_type=ShotType.EXTREME_CLOSE_UP,
                 description=f"{char}的情感表达",
                 purpose=ShotPurpose.EMOTION,
                 characters=[char],
-                emotional_intensity=self._get_emotion_intensity(script.mood) + 0.5,
-                pacing="very_slow" if script.mood in ["sad", "romantic"] else "slow"
+                emotional_intensity=self._get_emotion_intensity(scene.mood) + 0.5,
+                pacing="very_slow"
             ))
 
-        # 3. 细节渲染镜头
-        for visual in script.key_visual_elements[:3]:  # 最多3个关键视觉
+        # 3. 对话处理（情感对话需要更长的镜头）
+        for dialogue in dialogues:
+            shots.append(Shot(
+                shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
+                shot_type=ShotType.CLOSE_UP,
+                description=f"{dialogue.speaker}: {dialogue.text[:30]}...",
+                purpose=ShotPurpose.DIALOGUE,
+                characters=[dialogue.speaker],
+                dialogue_id=dialogue.dialogue_id,
+                emotional_intensity=dialogue.intensity,
+                pacing="very_slow" if dialogue.emotion in ["sad", "emotional"] else "slow"
+            ))
+
+        # 4. 关键视觉细节
+        key_visuals = scene.key_visuals or []
+        for visual in key_visuals[:2]:  # 最多2个关键视觉
             shots.append(Shot(
                 shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
                 shot_type=ShotType.DETAIL,
                 description=f"情感细节: {visual}",
                 purpose=ShotPurpose.DETAIL,
                 key_visuals=[visual],
-                emotional_intensity=self._get_emotion_intensity(script.mood),
-                pacing="slow"
+                emotional_intensity=self._get_emotion_intensity(scene.mood),
+                pacing="very_slow"
             ))
 
-        # 4. 总结镜头
-        if len(script.characters_in_scene) > 1:
-            shots.append(Shot(
-                shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
-                shot_type=ShotType.TWO_SHOT if len(script.characters_in_scene) == 2 else ShotType.GROUP_SHOT,
-                description=f"情感场景总结",
-                purpose=ShotPurpose.EMOTION,
-                characters=script.characters_in_scene.copy(),
-                emotional_intensity=self._get_emotion_intensity(script.mood),
-                pacing="slow"
-            ))
+        # 5. 关系镜头（如果有多角色）
+        if len(characters) > 1:
+            # 检查角色关系
+            relationships = script.relationships
+            if relationships:
+                for rel in relationships:
+                    if rel.character_a in characters and rel.character_b in characters:
+                        shots.append(Shot(
+                            shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
+                            shot_type=ShotType.TWO_SHOT,
+                            description=f"{rel.character_a}和{rel.character_b}的关系互动",
+                            purpose=ShotPurpose.RELATIONSHIP,
+                            characters=[rel.character_a, rel.character_b],
+                            emotional_intensity=rel.intensity,
+                            pacing="slow"
+                        ))
 
         return shots
 
-    def _generate_general_scene(self, script: UnifiedScript) -> List[Shot]:
+    def _generate_general_scene(self, scene: Scene, dialogues: List[Dialogue],
+                                actions: List[Action], characters: List[str],
+                                script: UnifiedScript) -> List[Shot]:
         """生成通用场景的分镜头"""
         shots = []
 
-        # 基础结构：建立 -> 展示 -> 细节 -> 结束
-        shots.append(self._create_establishing_shot(script))
+        # 1. 建立镜头
+        shots.append(self._create_scene_establishing_shot(scene))
 
-        # 角色展示
-        for char in script.characters_in_scene:
+        # 2. 角色展示
+        for char in characters:
             shots.append(Shot(
                 shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
                 shot_type=ShotType.MEDIUM,
@@ -327,50 +360,109 @@ class RuleShotGenerator(BaseShotGenerator):
                 characters=[char]
             ))
 
-        # 关键视觉元素
-        for visual in script.key_visual_elements[:2]:
-            shots.append(Shot(
-                shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
-                shot_type=ShotType.DETAIL,
-                description=f"关键细节: {visual}",
-                purpose=ShotPurpose.DETAIL,
-                key_visuals=[visual]
-            ))
+        # 3. 交替处理对话和动作
+        all_elements = self._merge_and_sort_elements(dialogues, actions)
 
-        # 结束镜头
+        for element in all_elements:
+            if isinstance(element, Dialogue):
+                shots.append(Shot(
+                    shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
+                    shot_type=ShotType.CLOSE_UP,
+                    description=f"{element.speaker}: {element.text[:30]}...",
+                    purpose=ShotPurpose.DIALOGUE,
+                    characters=[element.speaker],
+                    dialogue_id=element.dialogue_id,
+                    emotional_intensity=element.intensity,
+                    pacing="normal"
+                ))
+            else:  # Action
+                if element.actors:
+                    shots.append(Shot(
+                        shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
+                        shot_type=ShotType.MEDIUM,
+                        description=element.description[:40],
+                        purpose=ShotPurpose.ACTION,
+                        characters=element.actors.copy(),
+                        action_id=element.action_id,
+                        emotional_intensity=element.intensity,
+                        pacing="normal"
+                    ))
+
+        # 4. 结束镜头
         shots.append(Shot(
             shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
             shot_type=ShotType.WIDE,
             description="场景结束",
             purpose=ShotPurpose.TRANSITION,
-            characters=script.characters_in_scene.copy() if script.characters_in_scene else []
+            characters=characters.copy() if characters else [],
+            is_transition=True
         ))
 
         return shots
 
-    def _create_establishing_shot(self, script: UnifiedScript) -> Shot:
-        """创建建立镜头"""
+    def _create_scene_establishing_shot(self, scene: Scene) -> Shot:
+        """创建场景建立镜头"""
+        key_visuals = scene.key_visuals or []
         return Shot(
             shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
             shot_type=ShotType.ESTABLISHING,
-            description=f"建立{script.location}场景",
+            description=f"建立{scene.location}场景",
             purpose=ShotPurpose.ESTABLISH_LOCATION,
-            key_visuals=script.key_visual_elements.copy()[:3],  # 最多3个关键视觉
-            camera_movement=CameraMovement.PAN_LEFT if "外" in script.location else CameraMovement.NONE,
-            emotional_intensity=1.0 if script.mood == "neutral" else 1.2
+            key_visuals=key_visuals[:3],
+            camera_movement=CameraMovement.PAN_LEFT if "外" in scene.location else CameraMovement.NONE,
+            emotional_intensity=self._get_emotion_intensity(scene.mood),
+            pacing="slow"
         )
 
-    def _create_transition_shot(self, script: UnifiedScript) -> Shot:
-        """创建过渡镜头"""
-        return Shot(
-            shot_id=f"shot_{self.counter.get_next(task_id_ctx.get())}",
-            shot_type=ShotType.WIDE,
-            description="场景过渡",
-            purpose=ShotPurpose.TRANSITION,
-            characters=script.characters_in_scene.copy(),
-            is_transition=True,
-            pacing="normal"
-        )
+    def _interweave_dialogue_action(self, dialogue_shots: List[Shot],
+                                    action_shots: List[Shot],
+                                    scene: Scene) -> List[Shot]:
+        """交织对话和动作镜头"""
+        shots = []
+
+        # 根据场景氛围决定交织策略
+        if scene.mood in ["tense", "action", "suspense"]:
+            # 紧张场景：动作优先，对话快速穿插
+            for i, action_shot in enumerate(action_shots):
+                shots.append(action_shot)
+                # 每隔一个动作插入一个对话
+                if i < len(dialogue_shots):
+                    shots.append(dialogue_shots[i])
+        else:
+            # 普通场景：对话优先，动作作为打断
+            for i, dialogue_shot in enumerate(dialogue_shots):
+                shots.append(dialogue_shot)
+                # 重要对话后插入动作
+                if i < len(action_shots) and dialogue_shot.emotional_intensity > 1.5:
+                    shots.append(action_shots[i])
+
+        # 确保所有镜头都被包含
+        used_dialogue = min(len(dialogue_shots), len(shots) // 2)
+        used_action = min(len(action_shots), len(shots) - used_dialogue)
+
+        # 添加剩余的镜头
+        if used_dialogue < len(dialogue_shots):
+            shots.extend(dialogue_shots[used_dialogue:])
+        if used_action < len(action_shots):
+            shots.extend(action_shots[used_action:])
+
+        return shots
+
+    def _merge_and_sort_elements(self, dialogues: List[Dialogue],
+                                 actions: List[Action]) -> List:
+        """合并并按时间戳排序对话和动作"""
+        all_elements = []
+
+        for dialogue in dialogues:
+            all_elements.append((dialogue.timestamp or 0, dialogue))
+
+        for action in actions:
+            all_elements.append((action.timestamp or 0, action))
+
+        # 按时间戳排序
+        all_elements.sort(key=lambda x: x[0])
+
+        return [element for _, element in all_elements]
 
     def _get_emotion_intensity(self, mood: str) -> float:
         """获取情绪强度"""
@@ -390,46 +482,30 @@ class RuleShotGenerator(BaseShotGenerator):
             "fearful": 1.8,
             "romantic": 1.4,
             "dramatic": 1.5,
+            "lonely": 1.6,
         }
         return intensity_map.get(mood, 1.2)
 
-    def _calculate_confidence(self, script: UnifiedScript, shots: List[Shot]) -> float:
+    def _calculate_confidence(self, scene: Scene, dialogues: List[Dialogue],
+                              actions: List[Action], shots: List[Shot]) -> float:
         """计算生成置信度"""
-        confidence = 0.7  # 基础置信度
+        confidence = 0.7
 
-        # 根据场景复杂度调整
-        total_elements = len(script.dialogues) + len(script.actions)
-        if total_elements <= 3:
-            confidence += 0.15  # 简单场景置信度高
-        elif total_elements <= 8:
-            confidence += 0.05  # 中等场景
-        else:
-            confidence -= 0.1  # 复杂场景置信度降低
-
-        # 根据镜头数量合理性调整
-        expected_shots = min(3 + total_elements * 0.8, 15)  # 预期镜头数
-        actual_shots = len(shots)
-        ratio = actual_shots / expected_shots if expected_shots > 0 else 1.0
-
-        if 0.7 <= ratio <= 1.3:
+        # 元素丰富度
+        total_elements = len(dialogues) + len(actions)
+        if total_elements == 0:
+            confidence += 0.2  # 纯建立场景容易处理
+        elif 1 <= total_elements <= 5:
             confidence += 0.1
-        else:
+        elif total_elements > 10:
             confidence -= 0.1
 
+        # 场景信息完整性
+        if scene.description and scene.location and scene.mood:
+            confidence += 0.1
+
+        # 角色明确性
+        if scene.character_refs or (dialogues and dialogues[0].speaker):
+            confidence += 0.05
+
         return round(min(0.95, max(0.3, confidence)), 2)
-
-    def _create_fallback_result(self, script: UnifiedScript) -> ShotGenerationResult:
-        """创建降级结果"""
-        shots = [self._create_establishing_shot(script)]
-        for i, shot in enumerate(shots):
-            shot.shot_id = self._create_shot_id(script.scene_id, i + 1)
-            shot.sequence_number = i + 1
-            shot.duration_estimate = 3.0  # 默认时长
-
-        return ShotGenerationResult(
-            scene_id=script.scene_id,
-            shots=shots,
-            generation_method=EstimationSource.FALLBACK,
-            confidence=0.3,
-            reasoning="规则生成失败，使用降级方案"
-        )

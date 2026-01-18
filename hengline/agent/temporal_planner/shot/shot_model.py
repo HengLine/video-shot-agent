@@ -7,9 +7,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict
-
-from hengline.agent.temporal_planner.temporal_planner_model import EstimationSource
+from typing import List, Dict, Optional
 
 
 class ShotType(Enum):
@@ -77,34 +75,32 @@ class Shot:
     """分镜头对象"""
     shot_id: str
     shot_type: ShotType
-    description: str  # 镜头描述
-    duration_estimate: float = 0.0  # 估算时长（秒）
-
-    # 镜头属性
+    description: str
+    duration_estimate: float = 0.0
     purpose: ShotPurpose = ShotPurpose.SHOW_CHARACTER
-    characters: List[str] = field(default_factory=list)  # 镜头中的角色
-    key_visuals: List[str] = field(default_factory=list)  # 关键视觉元素
-    camera_movement: CameraMovement = CameraMovement.NONE  # 摄像机运动
-    framing: str = "normal"  # 构图
-    focus: str = "deep"  # 焦点
-    angle: str = "eye_level"  # 角度：eye_level, high_angle, low_angle, dutch_angle
+    scene_id: str = ""
 
-    # 情感属性
-    emotional_intensity: float = 1.0  # 情感强度 1.0-3.0
-    pacing: str = "normal"  # 节奏：slow, normal, fast
+    # 内容
+    characters: List[str] = field(default_factory=list)
+    key_visuals: List[str] = field(default_factory=list)
+    dialogue_id: Optional[str] = None
+    action_id: Optional[str] = None
 
-    # 对话关联（如果适用）
-    dialogue_text: str = ""  # 关联的对话文本
-    dialogue_speaker: str = ""  # 说话者
+    # 技术参数
+    camera_movement: CameraMovement = CameraMovement.NONE
+    framing: str = "normal"
+    focus: str = "deep"
+    angle: str = "eye_level"
 
-    # 动作关联（如果适用）
-    action_description: str = ""  # 动作描述
-    action_type: str = ""  # 动作类型
+    # 情感与节奏
+    emotional_intensity: float = 1.0
+    pacing: str = "normal"
 
     # 元数据
-    sequence_number: int = 0  # 在序列中的序号
-    is_transition: bool = False  # 是否是转场镜头
-    notes: str = ""  # 备注
+    sequence_number: int = 0
+    is_transition: bool = False
+    notes: str = ""
+    timestamp_in_scene: float = 0.0  # 在场景中的时间位置
 
     def to_dict(self) -> Dict:
         """转换为字典"""
@@ -114,51 +110,54 @@ class Shot:
             "description": self.description,
             "duration_estimate": self.duration_estimate,
             "purpose": self.purpose.value,
+            "scene_id": self.scene_id,
             "characters": self.characters,
+            "dialogue_id": self.dialogue_id,
+            "action_id": self.action_id,
             "camera_movement": self.camera_movement.value,
             "emotional_intensity": self.emotional_intensity,
-            "dialogue_text": self.dialogue_text,
-            "dialogue_speaker": self.dialogue_speaker,
-            "action_description": self.action_description,
+            "pacing": self.pacing,
             "sequence_number": self.sequence_number,
+            "timestamp_in_scene": self.timestamp_in_scene,
             "notes": self.notes
         }
 
 
 @dataclass
-class ShotGenerationResult:
-    """分镜头生成结果"""
+class SceneShotResult:
+    """场景分镜结果"""
     scene_id: str
+    scene_description: str
     shots: List[Shot] = field(default_factory=list)
     total_duration: float = 0.0
     shot_count: int = 0
-    generation_method: EstimationSource = EstimationSource.FALLBACK  # rule_based, ai_enhanced, hybrid
-    confidence: float = 0.0  # 生成置信度
-    reasoning: str = ""  # 生成理由说明
 
-    # 统计信息
+    # 统计
     shot_type_distribution: Dict[str, int] = field(default_factory=dict)
     character_coverage: Dict[str, int] = field(default_factory=dict)
 
     # 元数据
+    generation_method: str = ""
+    confidence: float = 0.0
+    reasoning: str = ""
     generated_at: str = ""
 
     def __post_init__(self):
-        """初始化后处理"""
         if not self.generated_at:
             self.generated_at = datetime.now().isoformat()
 
         if self.shots:
             self.shot_count = len(self.shots)
-            self.total_duration = sum(shot.duration_estimate for shot in self.shots)
+            self.total_duration = sum(s.duration_estimate for s in self.shots)
 
-            # 统计镜头类型分布
+            # 排序镜头
+            self.shots.sort(key=lambda x: x.sequence_number)
+
+            # 统计
             for shot in self.shots:
                 shot_type = shot.shot_type.value
                 self.shot_type_distribution[shot_type] = self.shot_type_distribution.get(shot_type, 0) + 1
 
-            # 统计角色覆盖
-            for shot in self.shots:
                 for char in shot.characters:
                     self.character_coverage[char] = self.character_coverage.get(char, 0) + 1
 
@@ -166,13 +165,60 @@ class ShotGenerationResult:
         """转换为字典"""
         return {
             "scene_id": self.scene_id,
+            "scene_description": self.scene_description,
             "shot_count": self.shot_count,
             "total_duration": self.total_duration,
-            "generation_method": self.generation_method.value,
+            "generation_method": self.generation_method,
             "confidence": self.confidence,
             "reasoning": self.reasoning,
             "shot_type_distribution": self.shot_type_distribution,
             "character_coverage": self.character_coverage,
             "shots": [shot.to_dict() for shot in self.shots],
+            "generated_at": self.generated_at
+        }
+
+
+@dataclass
+class ScriptShotResult:
+    """整个剧本的分镜结果"""
+    script_id: Optional[str] = None
+    scene_results: Dict[str, SceneShotResult] = field(default_factory=dict)
+    total_shots: int = 0
+    total_duration: float = 0.0
+
+    # 全局统计
+    global_shot_distribution: Dict[str, int] = field(default_factory=dict)
+    global_character_screen_time: Dict[str, float] = field(default_factory=dict)
+
+    # 元数据
+    generated_at: str = ""
+
+    def __post_init__(self):
+        if not self.generated_at:
+            self.generated_at = datetime.now().isoformat()
+
+        # 计算全局统计
+        for scene_result in self.scene_results.values():
+            self.total_shots += scene_result.shot_count
+            self.total_duration += scene_result.total_duration
+
+            # 合并镜头类型分布
+            for shot_type, count in scene_result.shot_type_distribution.items():
+                self.global_shot_distribution[shot_type] = self.global_shot_distribution.get(shot_type, 0) + count
+
+            # 计算角色总出场时间
+            for shot in scene_result.shots:
+                for char in shot.characters:
+                    self.global_character_screen_time[char] = self.global_character_screen_time.get(char, 0.0) + shot.duration_estimate
+
+    def to_dict(self) -> Dict:
+        """转换为字典"""
+        return {
+            "script_id": self.script_id,
+            "total_shots": self.total_shots,
+            "total_duration": self.total_duration,
+            "global_shot_distribution": self.global_shot_distribution,
+            "global_character_screen_time": self.global_character_screen_time,
+            "scene_results": {k: v.to_dict() for k, v in self.scene_results.items()},
             "generated_at": self.generated_at
         }

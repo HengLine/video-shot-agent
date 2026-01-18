@@ -5,12 +5,13 @@
 @Time: 2026/1/17 22:03
 """
 from abc import abstractmethod
-from typing import List, Dict, Any
+from datetime import datetime
+from typing import List, Dict, Any, Tuple
 
 from hengline.agent.base_agent import BaseAgent
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
-from hengline.agent.temporal_planner.shot.shot_model import ShotType, CameraMovement, Shot, ShotGenerationResult
-from hengline.logger import error
+from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene, Dialogue, Action
+from hengline.agent.temporal_planner.shot.shot_model import ShotType, CameraMovement, Shot, ShotPurpose, SceneShotResult, ScriptShotResult
+from hengline.logger import error, info, debug
 
 
 class BaseShotGenerator(BaseAgent):
@@ -39,6 +40,9 @@ class BaseShotGenerator(BaseAgent):
             ShotType.INSERT: 1.5,
             ShotType.ACTION_WIDE: 3.0,
             ShotType.ACTION_CLOSE: 2.2,
+            ShotType.DOLLY: 3.2,
+            ShotType.PAN: 3.0,
+            ShotType.TILT: 2.8,
         }
 
         # 摄像机运动调整系数
@@ -69,6 +73,9 @@ class BaseShotGenerator(BaseAgent):
             "tense": 1.3,
             "fearful": 1.4,
             "romantic": 1.2,
+            "lonely": 1.3,
+            "melancholy": 1.4,
+            "suspense": 1.3,
         }
 
         # 节奏调整系数
@@ -76,14 +83,38 @@ class BaseShotGenerator(BaseAgent):
             "slow": 1.3,
             "normal": 1.0,
             "fast": 0.8,
+            "very_slow": 1.5,
+            "very_fast": 0.7,
         }
 
     @abstractmethod
-    def generate_shots(self, script: UnifiedScript) -> ShotGenerationResult:
-        """生成分镜头 - 抽象方法"""
+    def generate_for_scene(self, scene: Scene,
+                           script: UnifiedScript) -> SceneShotResult:
+        """为单个场景生成分镜头 - 抽象方法"""
         pass
 
-    def estimate_shot_duration(self, shot: Shot) -> float:
+    def generate_for_script(self, script: UnifiedScript) -> ScriptShotResult:
+        """为整个剧本生成分镜头"""
+        debug(f"开始为剧本生成分镜头，共{len(script.scenes)}个场景")
+
+        scene_results = {}
+
+        for scene in script.scenes:
+            try:
+                result = self.generate_for_scene(scene, script)
+                scene_results[scene.scene_id] = result
+                info(f"场景 {scene.scene_id} 分镜生成完成: {result.shot_count}镜头")
+            except Exception as e:
+                error(f"场景 {scene.scene_id} 分镜生成失败: {e}")
+                # 创建降级结果
+                scene_results[scene.scene_id] = self._create_fallback_result(scene)
+
+        return ScriptShotResult(
+            script_id=f"script_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            scene_results=scene_results
+        )
+
+    def estimate_shot_duration(self, shot: Shot, context: Dict = None) -> float:
         """估算单个镜头时长"""
         try:
             # 基础时长
@@ -105,19 +136,6 @@ class BaseShotGenerator(BaseAgent):
             pacing_factor = self.pacing_factors.get(shot.pacing, 1.0)
             base_duration *= pacing_factor
 
-            # 对话内容调整（如果有对话）
-            if shot.dialogue_text:
-                word_count = len(shot.dialogue_text.split())
-                dialogue_time = word_count * 0.3  # 每词0.3秒（包含情感停顿）
-                base_duration = max(base_duration, dialogue_time)
-
-            # 动作内容调整（如果有动作）
-            if shot.action_description:
-                # 简单动作估算
-                action_words = len(shot.action_description.split())
-                action_time = 1.0 + (action_words * 0.2)
-                base_duration = max(base_duration, action_time)
-
             # 确保最小时长
             return round(max(0.5, base_duration), 2)
 
@@ -125,31 +143,74 @@ class BaseShotGenerator(BaseAgent):
             error(f"估算镜头时长失败: {e}")
             return 2.0  # 默认时长
 
-    def _determine_scene_type(self, script: UnifiedScript) -> str:
+    def _get_scene_elements(self, scene: Scene, script: UnifiedScript) -> Tuple[List[Dialogue], List[Action]]:
+        """获取场景相关的对话和动作"""
+        scene_dialogues = [d for d in script.dialogues if d.scene_ref == scene.scene_id]
+        scene_actions = [a for a in script.actions if a.scene_ref == scene.scene_id]
+
+        # 按时间戳排序（如果有时戳）
+        scene_dialogues.sort(key=lambda x: x.timestamp or 0)
+        scene_actions.sort(key=lambda x: x.timestamp or 0)
+
+        return scene_dialogues, scene_actions
+
+    def _get_characters_in_scene(self, scene: Scene, script: UnifiedScript) -> List[str]:
+        """获取场景中的角色"""
+        if scene.character_refs:
+            return scene.character_refs.copy()
+
+        # 从对话和动作中推断角色
+        characters = set()
+        scene_dialogues, scene_actions = self._get_scene_elements(scene, script)
+
+        for dialogue in scene_dialogues:
+            characters.add(dialogue.speaker)
+
+        for action in scene_actions:
+            characters.update(action.actors)
+
+        return list(characters)
+
+    def _determine_scene_type(self, scene: Scene, dialogues: List[Dialogue],
+                              actions: List[Action]) -> str:
         """确定场景类型"""
-        # 基于脚本内容判断场景类型
-        if not script.dialogues and not script.actions:
+        if not dialogues and not actions:
             return "establishing"
-        elif len(script.dialogues) > len(script.actions) * 2:
+
+        dialogue_ratio = len(dialogues) / max(1, len(dialogues) + len(actions))
+
+        if dialogue_ratio > 0.7:
             return "dialogue"
-        elif len(script.actions) > len(script.dialogues) * 2:
+        elif dialogue_ratio < 0.3:
             return "action"
-        elif script.mood in ["tense", "suspense", "action"]:
+        elif scene.mood in ["tense", "suspense", "action"]:
             return "action"
-        elif script.mood in ["emotional", "romantic", "dramatic"]:
+        elif scene.mood in ["emotional", "romantic", "dramatic", "sad", "lonely"]:
             return "emotional"
         else:
             return "general"
 
-    def _get_characters_for_shot(self, script: UnifiedScript,
-                                 focus_on: str = None) -> List[str]:
-        """获取镜头中的角色"""
-        if focus_on:
-            return [focus_on]
-
-        # 默认使用所有场景角色
-        return script.characters_in_scene.copy()
-
     def _create_shot_id(self, scene_id: str, seq_num: int) -> str:
         """创建镜头ID"""
         return f"{scene_id}_shot_{seq_num:03d}"
+
+    def _create_fallback_result(self, scene: Scene) -> SceneShotResult:
+        """创建降级结果"""
+        shot = Shot(
+            shot_id=self._create_shot_id(scene.scene_id, 1),
+            shot_type=ShotType.ESTABLISHING,
+            description=f"建立镜头: {scene.description[:50]}...",
+            duration_estimate=3.0,
+            purpose=ShotPurpose.ESTABLISH_LOCATION,
+            scene_id=scene.scene_id,
+            sequence_number=1
+        )
+
+        return SceneShotResult(
+            scene_id=scene.scene_id,
+            scene_description=scene.description,
+            shots=[shot],
+            generation_method="fallback",
+            confidence=0.3,
+            reasoning="分镜生成失败，使用降级方案"
+        )

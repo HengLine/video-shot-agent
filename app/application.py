@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # 导入模型API路由器
 from api.shot_api import app as shot_api
 from api.index_api import app as index_api
+from hengline.context_var import RequestContextMiddleware
 from .proxy import router as proxy_router
 
 from config.config import get_data_paths
@@ -27,8 +28,8 @@ async def app_startup():
     data_paths = get_data_paths()
     os.makedirs(data_paths["data_output"], exist_ok=True)
     os.makedirs(data_paths["data_input"], exist_ok=True)
-    os.makedirs(data_paths["model_cache"], exist_ok=True)
-    os.makedirs(data_paths["embedding_cache"], exist_ok=True)
+    # os.makedirs(data_paths["model_cache"], exist_ok=True)
+    # os.makedirs(data_paths["embedding_cache"], exist_ok=True)
 
     pass
 
@@ -69,6 +70,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# 添加请求上下文中间件
+app.add_middleware(RequestContextMiddleware)
 
 
 @app.middleware("http")
