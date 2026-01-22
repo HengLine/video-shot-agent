@@ -8,7 +8,7 @@
 from typing import Dict, List, Any, Optional, TypedDict
 
 from hengline.agent.continuity_guardian.model.continuity_guardian_report import AnchoredTimeline
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.shot_generator.model.shot_models import SoraShot
 from hengline.agent.temporal_planner.temporal_planner_model import TimeSegment, TimelinePlan
 from hengline.agent.workflow.workflow_models import VideoStyle

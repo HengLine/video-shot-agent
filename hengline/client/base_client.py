@@ -5,7 +5,6 @@
 @Time: 2026/1/10 23:12
 """
 from abc import ABC, abstractmethod
-from typing import List
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseLanguageModel

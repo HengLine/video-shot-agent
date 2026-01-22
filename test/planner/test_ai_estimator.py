@@ -4,7 +4,7 @@
 @Author: HengLine
 @Time: 2026/1/14 21:13
 """
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.estimator.ai_action_estimator import AIActionDurationEstimator
 from hengline.agent.temporal_planner.estimator.ai_dialogue_estimator import AIDialogueDurationEstimator
 from hengline.agent.temporal_planner.estimator.ai_scene_estimator import AISceneDurationEstimator

@@ -8,7 +8,7 @@ from abc import ABC
 from datetime import datetime
 from typing import Dict, List, Any, Tuple
 
-from hengline.agent.script_parser.script_parser_models import Scene
+from hengline.agent.script_parser2.script_parser_models import Scene
 from hengline.agent.temporal_planner.estimator.rule_base_estimator import BaseRuleDurationEstimator
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType, EstimationSource
 from hengline.logger import debug, error

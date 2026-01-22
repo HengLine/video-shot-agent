@@ -8,8 +8,8 @@ import json
 from dataclasses import dataclass
 from typing import Dict, List
 
-from hengline.agent.script_parser.script_parser_models import Scene, Dialogue, Action
-from hengline.agent.temporal_planner.temporal_planner_model import ElementType
+from hengline.agent.script_parser2.script_parser_models import Scene, Dialogue, Action
+from hengline.agent.temporal_planner.temporal_planner_models import ElementType
 from hengline.prompts.prompts_manager import prompt_manager
 
 

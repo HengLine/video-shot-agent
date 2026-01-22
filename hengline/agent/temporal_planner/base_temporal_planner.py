@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, Any
 
 from hengline.agent.base_agent import BaseAgent
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType, EstimationSource
 from hengline.logger import info, warning, error
 from utils.log_utils import print_log_exception

@@ -8,8 +8,9 @@
 from abc import abstractmethod
 from typing import Dict, Any, List
 
+from hengline import info
 from hengline.agent.base_agent import BaseAgent
-from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene, Character, Dialogue, Action, Meta, Relationship
+from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene, Character, Dialogue, Action
 from hengline.agent.workflow.workflow_models import ScriptType
 from hengline.tools.script_assessor_tool import ComplexityAssessor
 
@@ -35,29 +36,20 @@ class ScriptParser(BaseAgent):
 
         # 创建各个元素列表
         scenes = [Scene(**scene) for scene in parsed_data.get("scenes", [])]
-        characters = [Character(**char) for char in parsed_data.get("characters", [])]
-        dialogues = [Dialogue(**dialogue) for dialogue in parsed_data.get("dialogues", [])]
-        actions = [Action(**action) for action in parsed_data.get("actions", [])]
-        relationships = [Relationship(**relationship) for relationship in parsed_data.get("relationships", [])]
-        # props = [Prop(**prop) for prop in parsed_data.get("props", [])]
-
-        # calculate_confidence = self.calculate_confidence(scenes, characters, dialogues, actions)
-        # info(f"AI 解析完成！评分: {calculate_confidence.get('overall'):.2f}/1.0")
+        all_characters = [char for scene in scenes for char in scene.characters]
+        calculate_confidence = self.calculate_confidence(scenes)
+        info(f"AI 解析完成！评分: {calculate_confidence.get('overall'):.2f}/1.0")
 
         return UnifiedScript(
-            _meta=parsed_data["_meta"] if "_meta" in parsed_data else Meta(),
             scenes=scenes,
-            characters=characters,
-            dialogues=dialogues,
-            actions=actions,
-            relationships=relationships,
-            original_text=original_text,
-            warnings=[],
-            completeness_score=0,
-            parsing_confidence={}
+            format_type=format_type,
+            total_duration=parsed_data.get("total_duration", 0),
+            total_scenes=len(scenes),
+            total_characters=len(all_characters),
+            completeness_score=calculate_confidence.get('overall')
         )
 
-    def calculate_confidence(self, scenes: List[Scene], characters: List[Character], dialogues: List[Dialogue], actions: List[Action]) -> Dict:
+    def calculate_confidence(self, scenes: List[Scene]) -> Dict:
         """
         计算解析置信度
 
@@ -85,30 +77,33 @@ class ScriptParser(BaseAgent):
         scene_confidence = min(1.0, scene_count / 10.0)  # 最多10个场景得满分
 
         # 2. 角色识别置信度
-        character_count = len(characters)
+        all_characters = [char for scene in scenes for char in scene.characters]
+        character_count = len(all_characters)
         # 检查角色信息完整性
         char_info_score = sum(
-            1 for char in characters
+            1 for char in all_characters
             if char.gender and char.gender != "未知"
         ) / max(character_count, 1)
 
         character_confidence = min(1.0, character_count / 15.0) * 0.7 + char_info_score * 0.3
 
         # 3. 对话提取置信度
-        dialogue_count = len(dialogues)
+        all_dialogues = [char for scene in scenes for char in scene.dialogues]
+        dialogue_count = len(all_dialogues)
         # 检查对话信息完整性
         dialogue_info_score = sum(
-            1 for dialogue in dialogues
+            1 for dialogue in all_dialogues
             if dialogue.speaker and dialogue.speaker != "未知"
         ) / max(dialogue_count, 1)
 
         dialogue_confidence = min(1.0, dialogue_count / 20.0) * 0.6 + dialogue_info_score * 0.4
 
         # 4. 动作提取置信度
-        action_count = len(actions)
+        all_actions = [char for scene in scenes for char in scene.actions]
+        action_count = len(all_actions)
         # 检查动作信息完整性
         action_info_score = sum(
-            1 for action in actions
+            1 for action in all_actions
             if action.actor and action.actor != "未知"
         ) / max(action_count, 1)
 

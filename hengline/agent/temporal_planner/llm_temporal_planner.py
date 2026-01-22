@@ -8,7 +8,7 @@
 import time
 from typing import Dict
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.base_temporal_planner import BaseTemporalPlanner
 from hengline.agent.temporal_planner.estimator.estimator_factory import estimator_factory
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation

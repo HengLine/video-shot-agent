@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Tuple
 
 from hengline.agent.base_agent import BaseAgent
-from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene, Dialogue, Action
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript, Scene, Dialogue, Action
 from hengline.agent.temporal_planner.shot.shot_model import ShotType, CameraMovement, Shot, ShotPurpose, SceneShotResult, ScriptShotResult
 from hengline.logger import error, info, debug
 

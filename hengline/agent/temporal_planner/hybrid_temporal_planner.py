@@ -7,7 +7,7 @@
 from abc import ABC
 from typing import Dict, Any, List
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.base_temporal_planner import BaseTemporalPlanner
 from hengline.agent.temporal_planner.llm_temporal_planner import LLMTemporalPlanner
 from hengline.agent.temporal_planner.local_temporal_planner import LocalRuleTemporalPlanner

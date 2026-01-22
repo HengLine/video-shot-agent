@@ -9,7 +9,7 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Tuple, Dict, Any, List
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript, Scene
 from hengline.agent.temporal_planner.estimator.base_estimator import BaseDurationEstimator
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengline.config.keyword_config import get_keyword_config

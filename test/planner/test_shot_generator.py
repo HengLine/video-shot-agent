@@ -5,7 +5,7 @@
 @Time: 2026/1/17 23:22
 """
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.shot.shot_generator_manager import ShotGenerationManager
 from utils.file_utils import save_to_json, load_from_obj
 

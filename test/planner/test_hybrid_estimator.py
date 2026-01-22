@@ -6,7 +6,7 @@
 """
 import json
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.estimator.estimator_factory import estimator_factory
 from hengline.agent.temporal_planner.hybrid_temporal_planner import HybridTemporalPlanner
 from hengline.client.client_factory import get_default_llm

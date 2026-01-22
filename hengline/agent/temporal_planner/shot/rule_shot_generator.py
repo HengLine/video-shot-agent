@@ -6,7 +6,7 @@
 """
 from typing import List, Dict, Any
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript, Dialogue, Action, Scene
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript, Dialogue, Action, Scene
 from hengline.agent.temporal_planner.shot.base_shot_generator import BaseShotGenerator
 from hengline.agent.temporal_planner.shot.shot_model import Shot, ShotType, CameraMovement, ShotPurpose, SceneShotResult
 from hengline.context_var import task_id_ctx

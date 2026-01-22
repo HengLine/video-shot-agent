@@ -7,7 +7,7 @@
 import json
 from typing import Dict, Any, List
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript, Dialogue, Action, Scene
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript, Dialogue, Action, Scene
 from hengline.agent.temporal_planner.shot.rule_shot_generator import RuleShotGenerator
 from hengline.agent.temporal_planner.shot.shot_model import Shot, ShotType, ShotPurpose, SceneShotResult
 from hengline.logger import debug, info, warning, error

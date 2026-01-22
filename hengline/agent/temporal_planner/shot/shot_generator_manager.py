@@ -7,7 +7,7 @@
 from datetime import datetime
 from typing import Dict
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript, Scene
 from hengline.agent.temporal_planner.shot.shot_generator_factory import ShotGeneratorFactory
 from hengline.agent.temporal_planner.shot.shot_model import SceneShotResult, ScriptShotResult
 from hengline.agent.temporal_planner.temporal_planner_model import EstimationSource

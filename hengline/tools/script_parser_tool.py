@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Any, Tuple
 
 from llama_index.core.schema import Document
 
-from hengline.agent.script_parser.script_parser_models import Character, Scene, Action
+from hengline.agent.script_parser2.script_parser_models import Character, Scene, Action
 from hengline.logger import debug, info, error
 from utils.log_utils import print_log_exception
 

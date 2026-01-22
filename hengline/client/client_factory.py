@@ -12,10 +12,10 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from config.config import get_ai_config, get_embedding_config
 from hengline.client.base_client import BaseClient
 from hengline.client.client_config import ClientType, AIConfig, get_client_type
-from hengline.client.deepseek_client import DeepSeekClient
-from hengline.client.ollama_client import OllamaClient
-from hengline.client.openai_client import OpenAIClient
-from hengline.client.qwen_client import QwenClient
+from hengline.client.llm.deepseek_client import DeepSeekClient
+from hengline.client.llm.ollama_client import OllamaClient
+from hengline.client.llm.openai_client import OpenAIClient
+from hengline.client.llm.qwen_client import QwenClient
 from hengline.logger import error, warning, info
 from utils.log_utils import print_log_exception
 

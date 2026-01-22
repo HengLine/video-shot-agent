@@ -5,7 +5,7 @@
 @Time: 2026/1/13 16:12
 """
 
-from hengline.agent.script_parser.script_parser_models import Action
+from hengline.agent.script_parser2.script_parser_models import Action
 from hengline.agent.temporal_planner.estimator.rule_action_estimator import RuleActionDurationEstimator
 from hengline.agent.temporal_planner.estimator.rule_base_estimator import EstimationContext
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 @FileName: temporal_planner_agent.py
-@Description: 时序规划智能体，负责将剧本按5秒粒度切分，估算动作时长，使用LangChain实现状态记忆
+@Description: 时长规划智能体，最长拆分为5秒的片段
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 from typing import Dict, List, Any
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript, Dialogue, Scene, Action
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript, Dialogue, Scene, Action
 from hengline.agent.temporal_planner.hybrid_temporal_planner import HybridTemporalPlanner
 from hengline.agent.temporal_planner.splitter.segment_splitter import SegmentSplitter
 from hengline.agent.temporal_planner.splitter.splitter_analyzer import RhythmAnalyzer

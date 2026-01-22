@@ -6,7 +6,7 @@
 """
 from typing import Dict, Any
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.estimator.ai_action_estimator import AIActionDurationEstimator
 from hengline.agent.temporal_planner.estimator.ai_base_estimator import BaseAIDurationEstimator
 from hengline.agent.temporal_planner.estimator.ai_dialogue_estimator import AIDialogueDurationEstimator, AISilenceDurationEstimator

@@ -8,7 +8,7 @@ import re
 from typing import List, Dict
 
 from hengline.logger import debug, error
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 
 
 class BasicScriptValidator:

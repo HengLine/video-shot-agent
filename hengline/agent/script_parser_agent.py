@@ -10,9 +10,9 @@ from typing import Dict, Tuple, List
 
 from hengline.agent.workflow.workflow_models import ScriptType, AgentType, ParserType
 from hengline.logger import debug, info
-from .script_parser.llm_script_parser import LLMScriptParser
-from .script_parser.local_script_parser import LocalScriptParser
-from .script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser.llm_script_parser import LLMScriptParser
+from hengline.agent.script_parser.local_script_parser import LocalScriptParser
+from .script_parser2.script_parser_models import UnifiedScript
 from ..client.client_config import AIConfig
 from ..tools.script_validation_tool import BasicScriptValidator
 

@@ -6,7 +6,7 @@
 """
 import json
 
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.local_temporal_planner import LocalRuleTemporalPlanner
 from utils.obj_utils import dict_to_obj
 

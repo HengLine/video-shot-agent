@@ -7,7 +7,7 @@
 import json
 from typing import Dict, Any
 
-from hengline.agent.script_parser.script_parser_models import Dialogue
+from hengline.agent.script_parser2.script_parser_models import Dialogue
 from hengline.agent.temporal_planner.estimator.ai_base_estimator import BaseAIDurationEstimator
 from hengline.agent.temporal_planner.estimator.base_estimator import EstimationErrorLevel
 from hengline.agent.temporal_planner.temporal_planner_model import ElementType, DurationEstimation, EstimationSource
