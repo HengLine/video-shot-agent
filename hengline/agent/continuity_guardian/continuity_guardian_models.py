@@ -1,124 +1,163 @@
 """
 @FileName: continuity_guardian_models.py
-@Description: 连续性模型
+@Description: 连续性管理模型
 @Author: HengLine
 @Time: 2026/1/18 14:26
 """
-from datetime import datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
 
 from pydantic import BaseModel, Field
 
-from hengline.agent.base_models import BaseMetadata, RiskLevel, DifficultyLevel
 
+class CharacterState(BaseModel):
+    """角色状态快照"""
 
-class ContinuityIssue(BaseModel):
-    """连续性问题"""
-    check_id: str = Field(..., description="检查ID")
-    type: str = Field(..., description="问题类型")
-    shots_involved: List[str] = Field(..., min_length=1, description="涉及镜头ID")
-    description: str = Field(..., description="问题描述")
-    status: str = Field(default="detected", description="状态：detected/resolved/ignored")
-    severity: RiskLevel = Field(..., description="严重程度")
-    suggestion: str = Field(..., description="解决建议")
-    auto_fixable: bool = Field(default=False, description="是否可自动修复")
-    fix_action: Optional[str] = Field(None, description="修复动作")
-    priority: int = Field(default=5, ge=1, le=10, description="优先级（1-10）")
+    character_name: str = Field(..., description="角色名")
 
-
-class OptimizationSuggestion(BaseModel):
-    """优化建议"""
-    suggestion_id: str = Field(..., description="建议ID")
-    type: str = Field(..., description="建议类型：拆分/情感/节奏等")
-    target_shot: str = Field(..., description="目标镜头ID")
-    current_state: Dict[str, Any] = Field(..., description="当前状态")
-    issue: str = Field(..., description="存在的问题")
-    recommendation: str = Field(..., description="推荐方案")
-    expected_improvement: Dict[str, Any] = Field(..., description="预期改善")
-    implementation_difficulty: DifficultyLevel = Field(default=DifficultyLevel.MEDIUM, description="实现难度")
-
-
-class ShotAdjustment(BaseModel):
-    """镜头调整"""
-    shot_id: str = Field(..., description="镜头ID")
-    adjustment_type: str = Field(..., description="调整类型：duration/split/pose等")
-    adjustment: str = Field(..., description="调整内容")
-    original_value: Optional[Any] = Field(None, description="原始值")
-    new_value: Optional[Any] = Field(None, description="新值")
-    reason: str = Field(..., description="调整原因")
-    impact_assessment: Optional[Dict[str, Any]] = Field(None, description="影响评估")
-
-
-class ContinuityPreCheckModel(BaseMetadata):
-    """
-    连续性预审模型 - 第三阶段输出
-    对镜头拆分进行宏观连续性检查
-    """
-    checked_model: str = Field(..., description="被检查的模型ID")
-
-    # 总体评估
-    overall_assessment: Dict[str, Any] = Field(
-        ...,
-        description="总体评估，包含评分、风险等级、建议等"
-    )
-
-    # 详细检查结果
-    temporal_checks: List[ContinuityIssue] = Field(
-        default_factory=list,
-        description="时间连续性检查"
-    )
-    spatial_checks: List[ContinuityIssue] = Field(
-        default_factory=list,
-        description="空间连续性检查"
-    )
-    character_checks: List[ContinuityIssue] = Field(
-        default_factory=list,
-        description="角色连续性检查"
-    )
-    visual_checks: List[ContinuityIssue] = Field(
-        default_factory=list,
-        description="视觉连续性检查"
-    )
-
-    # 优化建议
-    optimization_suggestions: List[OptimizationSuggestion] = Field(
-        default_factory=list,
-        description="优化建议列表"
-    )
-
-    # 审批与调整
-    approved_with_changes: bool = Field(default=False, description="是否批准（需调整）")
-    approved_as_is: bool = Field(default=False, description="是否原样批准")
-    requires_manual_review: bool = Field(default=False, description="是否需要人工审核")
-
-    # 需要执行的调整
-    required_adjustments: List[ShotAdjustment] = Field(
-        default_factory=list,
-        description="需要执行的调整"
-    )
-
-    # 风险评估（新增）
-    risk_assessment: Dict[str, Any] = Field(
+    # 外观状态
+    appearance: Dict[str, Any] = Field(
         default_factory=dict,
-        description="风险评估详情"
+        description="外观状态：服装、发型、妆容等"
     )
 
-    # 元数据
-    check_timestamp: datetime = Field(default_factory=datetime.now, description="检查时间")
-    checker_version: str = Field(default="1.0", description="检查器版本")
+    # 位置状态
+    position: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "location": "unknown",
+            "coordinates": None,
+            "orientation": "front"
+        },
+        description="位置和朝向"
+    )
 
-    class Config:
-        schema_extra = {
-            "example": {
-                "id": "PRECHECK_001",
-                "project_id": "PROJ_001",
-                "checked_model": "BREAKDOWN_001",
-                "overall_assessment": {
-                    "continuity_score": 0.85,
-                    "risk_level": "medium",
-                    "recommendation": "需要调整拆分点"
-                },
-                "approved_with_changes": True,
-                "required_adjustments": []
-            }
-        }
+    # 道具状态
+    props: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="持有道具状态"
+    )
+
+    # 情绪状态
+    emotion: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "type": "neutral",
+            "intensity": 0.5
+        },
+        description="情绪状态"
+    )
+
+    # 动作状态
+    action_state: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="当前动作状态"
+    )
+
+    # 视觉状态
+    visual_state: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "in_frame": True,
+            "focus_level": "primary"
+        },
+        description="视觉状态"
+    )
+
+
+class SceneState(BaseModel):
+    """场景状态快照"""
+
+    scene_id: str = Field(..., description="场景ID")
+
+    # 环境状态
+    environment: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "time_of_day": "day",
+            "weather": "clear",
+            "lighting": "normal"
+        },
+        description="环境状态"
+    )
+
+    # 道具状态
+    scene_props: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="场景道具状态"
+    )
+
+    # 背景状态
+    background: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "details": "",
+            "activity_level": "low"
+        },
+        description="背景状态"
+    )
+
+
+class StateSnapshot(BaseModel):
+    """全局状态快照"""
+
+    timestamp: float = Field(..., description="时间戳（秒）")
+    snapshot_id: str = Field(..., description="快照ID")
+
+    # 角色状态
+    character_states: Dict[str, CharacterState] = Field(
+        default_factory=dict,
+        description="所有角色状态"
+    )
+
+    # 场景状态
+    scene_state: SceneState = Field(
+        default_factory=SceneState,
+        description="场景状态"
+    )
+
+    # 全局状态
+    global_state: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "current_scene": "unknown",
+            "time_elapsed": 0.0,
+            "narrative_phase": "beginning"
+        },
+        description="全局状态"
+    )
+
+    # 引用信息
+    references: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "fragment_id": None,
+            "shot_id": None,
+            "element_ids": []
+        },
+        description="状态来源引用"
+    )
+
+
+class StateTimeline(BaseModel):
+    """状态时间线 - 连续性管理核心"""
+
+    # 时间线数据
+    snapshots: List[StateSnapshot] = Field(
+        default_factory=list,
+        description="状态快照列表，按时间顺序排列"
+    )
+
+    # 状态演化记录
+    state_evolution: Dict[str, List[Dict[str, Any]]] = Field(
+        default_factory=dict,
+        description="关键状态的演化历史"
+    )
+
+    # 锚点定义
+    continuity_anchors: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="连续性锚点定义，用于约束生成"
+    )
+
+    # 容差设置
+    tolerance_settings: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "position_tolerance": "medium",
+            "appearance_tolerance": "low",
+            "temporal_tolerance": "high"
+        },
+        description="连续性容差设置"
+    )

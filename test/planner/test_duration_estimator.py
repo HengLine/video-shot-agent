@@ -11,8 +11,8 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 from hengline.agent.script_parser2.script_parser_models import Scene, Dialogue, Action
-from hengline.agent.temporal_planner.base_temporal_planner import BaseTemporalPlanner
-from hengline.agent.temporal_planner.estimator.base_estimator import EstimationError, EstimationErrorLevel
+from hengline.agent.shot_generator.base_temporal_planner import BaseTemporalPlanner
+from hengline.agent.shot_generator.estimator.base_estimator import EstimationError, EstimationErrorLevel
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengline.prompts.temporal_planner_prompt import DurationPromptTemplates
 

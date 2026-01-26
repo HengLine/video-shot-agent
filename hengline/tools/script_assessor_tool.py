@@ -331,7 +331,7 @@ class ComplexityAssessor:
 
     def _classify_line_format(self, line: str) -> str:
         """分类行格式类型"""
-        if re.match(r'^\[.*\]', line):
+        if re.match(r'^\[.*]', line):
             return "time_marker"
         elif re.match(r'^(INT\.|EXT\.)', line):
             return "scene_header"
@@ -560,7 +560,7 @@ class ComplexityAssessor:
             if not line:
                 continue
 
-            if re.match(r'^\[.*\]', line):
+            if re.match(r'^\[.*]', line):
                 line_types.add("time_marker")
             elif re.match(r'^(INT\.|EXT\.)', line):
                 line_types.add("scene_header")

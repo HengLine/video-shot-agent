@@ -19,86 +19,56 @@ script_parser:
       - 仅输出纯 JSON
       - 不要任何解释、注释、Markdown 或额外文本
       - 确保可被 json.loads() 直接解析
-      - 顶层结构必须包含且仅包含以下字段：scenes, characters, dialogues, actions, props。无内容时用空数组 []
+      - 顶层结构必须包含且仅包含以下字段：scenes, characters。无内容时用空数组 []
     
     请提取以下信息：
-     
-      1. scenes (场景):
-         - scene_id: 场景唯一ID，格式：scene_1，用于关联动作、对话等
-         - order: 场景顺序，如1
-         - location: 具体地点
-         - time_of_day: 时间（早晨、中午、夜晚等）
-         - time_exact: 精确时间，如 '23:00'
-         - weather: 天气，如 '大雨滂沱'
-         - description: 详细环境描述
-         - summary: 场景摘要
-         - character_refs: 本场景涉及的所有角色名列表
-         - mood: 氛围/情绪，如 '孤独紧张'
-         - key_visuals: 关键视觉元素
-         - start_time: 场景开始时间（秒）
-         - end_time: 场景结束时间（秒）
-         - duration: 持续时间（秒）
-         - props: 场景内道具对象列表，包含以下信息：
-             - name: 道具名称，如 '旧羊毛毯'、'手机'
-             - description: 对道具的简短描述
-             - position: 空间位置，如 '茶几上'、'桌上'
-             - owner: 持有者（如果有）
-             - state: 当前状态，如 '凝出水雾'、'摊开'、'亮着'等
-  
-      2. characters (角色):
-         - name: 角色唯一标识名，使用剧本中首次出现的完整名称（如“林然”，不可写“她”或“Lin Ran”）。必须与 dialogues/actions 中的引用一致
-         - age: 年龄，不知道就为 null
-         - gender: 性别
-         - appearance: 外貌特征（服装、发型等），仅当剧本描述外貌或匹配知识库时填写
-         - personality: 性格特点
-         - role: 角色类型（主角、配角等）
-         - state: 当前状态，如 {'emotional': '震惊', 'physical': '颤抖'}
-  
-      3. dialogues (对话):
-         - dialogue_id: 对话唯一ID，格式：dial_1
-         - scene_ref: 所属场景ID，必须等于某个 scene.scene_id
-         - speaker: 说话者名字，必须在 characters[].name 中的某个值；若没有则为 null，禁止使用代词（“他”“她”等）
-         - content: 对话内容，沉默时为空字符串
-         - target: 对话对象，必须在 characters.name 中；若没有则为 null
-         - emotion: 情绪语调，如：紧张、哽咽
-         - intensity: 说话强度等级（1-3），浮点数，含义如下：
-            a) 1.0 表示极低强度
-            b) 1.7 表示中等强度
-            c) 2.2 表示高强度
-            d) 3.0 表示极端强度
-         - voice_quality: 声音特质，如 '沙哑'、'低沉'
-         - parenthetical: 剧本中的旁注，如 '声音微颤'
-         - type: 类型：'speech' 或 'silence'
-         - time_offset: 相对于场景开始的时间偏移（秒）
-         - duration: 对话持续的预计时间（秒），注意说话的语气和对象，愤怒时语气较快
-  
-      4. actions (动作):
-         - action_id: 动作唯一ID，格式：act_1
-         - scene_ref: 所属场景ID，必须等于某个 scene.scene_id
-         - actor: 执行者，角色名、道具名或固定实体，禁止使用代词，必须是以下之一：
-            a) characters[].name 中的名字  
-            b) scenes[].props[].name 中的道具名  
-            c) 固定实体：如"手机"、"电视"、"环境"、"窗户"
-         - description: 动作描述
-         - type: 动作类型，必须是其中枚举值之一（'posture'、'gesture'、'facial'、'gaze'、'physiological'、'interaction'、'device_alert'、'prop_fill'、'prop_fall'、'vocal'、'audio'）
-         - intensity: 动作强度等级（1-3），浮点数，含义如下：
-            a) 1.0 表示极低强度：静止、细微变化
-            b) 1.7 表示中等强度：有目的性动作
-            c) 2.2 表示高强度：激烈动作
-            d) 3.0 表示极端强度：生死攸关
-         - is_crucial: 是否关键动作，布尔值（False 或 True）
-         - target: 动作目标（如果有）
-         - time_offset: 时间偏移（秒）
-         - duration: 动作的持续预计时长（秒），注意动作对象，老人行动就慢，小孩动作快
-
+      {{
+        "title": "总结的剧本标题",
+        "characters": [
+          {{
+            "name": "角色唯一标识名，使用剧本中首次出现的完整名称",
+			"gender": "性别",
+			"role": "角色类型（主角、配角等）",
+            "description": "角色描述",
+            "key_traits": [
+              "特征1",
+              "特征2"
+            ]
+          }}
+        ],
+        "scenes": [
+          {{
+            "id": "场景唯一ID，格式：scene_001",
+            "location": "场景地点",
+            "description": "场景描述",
+            "time_of_day": "场景时间（早晨、中午、夜晚等）",
+            "elements": [
+              {{
+                "id": "对话、动作、场景描述等的唯一ID，格式：elem_001",
+                "type": "dialogue/action/scene",
+                "sequence": "在剧本中的唯一顺序，格式：1",
+                "duration": "对话、动作、场景描述等的持续时间（秒），注意说话/动作的语气和对象：愤怒时语气较快、老人行动就慢。格式：3.5",
+                "confidence": "解析置信度，0-1之间",
+                "content": "元素内容，沉默时为空字符串",
+                "character": "角色唯一名，必须与 characters[].name 的值保持一致",
+                "target_character": "目标唯一角色，必须与 characters[].name 的值保持一致，若没有则为 null",
+                "description": "详细描述",
+                "intensity": 动作或语气等的强度等级，0-1之间。0表示极低的强度：静止、细微变化，1表示极端强度：生死攸关,
+                "emotion": "伴随的情绪，如：紧张、哽咽、自然等"
+              }}
+            ]
+          }}
+        ]
+      }}
+      
     时间与数值：
-      - time_offset 和 duration 必须为数字（单位：秒）
+      - duration 必须为两位浮点的数字（单位：秒）
       - 时间估算规则：
         • 初始场景/姿态：0–5 秒
         • “看了三秒” → duration=3
         • 每句对话 ≈ 2–3 秒（含反应、语气和对象）
         • 沉默/停顿需显式建模，duration ≥ 1
-      - 时间不得倒序，动作可轻微重叠但需合理
+      - 时间不得倒序，必须与原剧本严格保持一致，动作可轻微重叠但需合理
     
     输出必须是严格的JSON格式，包含以上所有字段。如果某些信息无法从文本中提取，请设为空字符串或空数组。
 

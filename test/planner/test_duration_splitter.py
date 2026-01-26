@@ -10,7 +10,7 @@ from typing import Dict
 from hengline.agent.script_parser2.script_parser_models import UnifiedScript
 from hengline.agent.temporal_planner.splitter.five_second_splitter import FiveSecondSplitter
 from hengline.agent.temporal_planner.splitter.splitter_config import SplitterConfig
-from hengline.agent.temporal_planner.splitter.splitter_validator import SplitterExporter, SegmentValidator, SegmentVisualizer
+from hengline.agent.video_assembler.splitter.splitter_validator import SplitterExporter, SegmentValidator, SegmentVisualizer
 from hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from utils.obj_utils import dict_to_dataclass
 

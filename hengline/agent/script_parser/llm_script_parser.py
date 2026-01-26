@@ -7,8 +7,9 @@
 import json
 from typing import Any, Dict
 
-from hengline.agent.script_parser.base_script_parser import ScriptParser
-from hengline.agent.script_parser.script_parser_models import UnifiedScript
+from hengline.agent.base_agent import BaseAgent
+from hengline.agent.script_parser.base_script_parser import BaseScriptParser
+from hengline.agent.script_parser.script_parser_models import ParsedScript
 from hengline.agent.workflow.workflow_models import ScriptType
 from hengline.client.client_config import AIConfig
 from hengline.logger import info, warning, error
@@ -16,7 +17,7 @@ from hengline.prompts.prompts_manager import prompt_manager
 from hengline.tools.json_parser_tool import parse_json_response
 
 
-class LLMScriptParser(ScriptParser):
+class LLMScriptParser(BaseScriptParser, BaseAgent):
 
     def __init__(self, llm, config: AIConfig):
         """
@@ -37,7 +38,7 @@ class LLMScriptParser(ScriptParser):
             "default": self._get_default_prompt()
         }
 
-    def process(self, script_text: Any, script_format: ScriptType) -> UnifiedScript | None:
+    def parser(self, script_text: Any, script_format: ScriptType) -> ParsedScript | None:
 
         """
         优化版剧本解析函数
@@ -45,6 +46,7 @@ class LLMScriptParser(ScriptParser):
 
         Args:
             script_text: 原始剧本文本
+            script_format: 原始剧本类型
 
         Returns:
             结构化的剧本动作序列
@@ -61,15 +63,23 @@ class LLMScriptParser(ScriptParser):
         info(f"AI系统提示词（摘要）: {system_prompt[:150]}...")
         info(f"AI用户提示词（摘要）: {user_prompt[:150]}...")
 
-        # 调用AI（这里使用模拟响应，实际应调用API）
-        ai_response = self._call_llm_chat_with_retry(self.llm, system_prompt, user_prompt)
+        # 调用LLM
+        parsed_data = self._call_llm_chat_with_retry(self.llm, system_prompt, user_prompt)
 
-        try:
-            response = self._parse_ai_response(ai_response)
-            # 转换为UnifiedScript对象
-            return self._create_unified_script(script_text, script_format, response)
-        except (json.JSONDecodeError, KeyError) as e:
-            error(f" AI返回格式错误: {e}")
+        # 转换为模型对象
+        parsed_script = self._build_parsed_script(parsed_data)
+
+        # 后处理
+        parsed_script = self.post_process(parsed_script)
+
+        # 验证结果
+        if self.validate_parsed_result(parsed_script):
+            info("剧本解析成功")
+        else:
+            warning("剧本解析结果可能存在问题")
+
+        return parsed_script
+
 
     def _get_default_prompt(self) -> str:
         """获取默认系统提示词"""
@@ -125,15 +135,11 @@ class LLMScriptParser(ScriptParser):
             parsed_result = parse_json_response(ai_response)
 
             # 验证基本结构
-            required_sections = ["scenes", "characters", "dialogues", "actions"]
+            required_sections = ["scenes", "characters"]
             for section in required_sections:
                 if section not in parsed_result:
                     warning(f" AI响应缺少{section}部分")
                     parsed_result[section] = []
-
-            # 确保props部分存在
-            # if "props" not in parsed_result:
-            #     parsed_result["props"] = []
 
             return parsed_result
 
@@ -142,7 +148,5 @@ class LLMScriptParser(ScriptParser):
             # 如果无法提取JSON，返回空结构
             return {
                 "scenes": [],
-                "characters": [],
-                "dialogues": [],
-                "actions": []
+                "characters": []
             }

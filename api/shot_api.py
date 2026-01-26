@@ -4,79 +4,26 @@
 @Author: HengLine
 @Time: 2025/10/23 11:19
 """
-import random
+import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from fastapi import HTTPException
-from pydantic import BaseModel
 
-from hengline.agent.workflow.workflow_models import VideoStyle
 from hengline.context_var import task_id_ctx
-from hengline.generate_agent import generate_storyboard
-from hengline.language_manage import Language
-from hengline.logger import info, error, log_with_context
+from hengline.logger import error, log_with_context
+from hengline.task.task_manager import TaskManager
+from hengline.task.task_models import ProcessRequest, ProcessResult, ProcessingStatus, BatchProcessResult, BatchProcessRequest
+from hengline.task.task_processor import AsyncTaskProcessor
 from utils.log_utils import print_log_exception
 
 app = APIRouter()
+task_manager = TaskManager()
+task_processor = AsyncTaskProcessor(task_manager)
 
 
-# 定义请求模型
-class StoryboardRequest(BaseModel):
-    """
-    分镜生成请求模型
-    """
-    script_text: str
-    # 剧本语言，可选值："zh"（中文）、"en"（英文）
-    language: str = Language.ZH.value
-    # 分镜风格，可选值："realistic"（逼真）、"anime"（动漫）、"cinematic"（电影）、"cartoon"（卡通）
-    style: VideoStyle = VideoStyle.REALISTIC
-    # 每个分镜的持续时间（秒），默认5秒
-    duration_per_shot: int = 5
-    # 前一个分镜的连续性状态，用于保持连续性
-    prev_continuity_state: Optional[Dict[str, Any]] = None
-    # 唯一请求ID，默认生成UUID
-    # task_id: str = str(uuid.uuid4())
-    task_id: str = "hengline-" + str(datetime.now().strftime("%Y%m%d-%H%M%S")) + str(random.randint(100, 999))
-
-
-# 定义响应模型
-class ShotModel(BaseModel):
-    """
-    分镜模型
-    """
-    shot_id: str
-    start_time: float
-    end_time: float
-    duration: float
-    description: str
-    ai_prompt: str
-    characters: List[str]
-    initial_state: Optional[List[Dict[str, Any]]] = None
-    final_state: Optional[List[Dict[str, Any]]] = None
-    dialogue: str
-    camera: Dict[str, Any] = {}
-    camera_angle: str
-    continuity_anchors: List[str]
-
-
-class StoryboardResponse(BaseModel):
-    """
-    分镜生成响应模型
-    """
-    total_shots: int
-    storyboard_title: str
-    shots: List[ShotModel]
-    final_continuity_state: Optional[Dict[str, Any]] = None
-    total_duration: float
-    status: str
-    warnings: List[str]
-    metadata: Optional[Dict[str, Any]] = None
-
-
-@app.post("/generate_storyboard", response_model=StoryboardResponse)
-def generate_storyboard_api(request: StoryboardRequest):
+@app.post("/generate_storyboard", response_model=ProcessResult)
+def generate_storyboard_api(request: ProcessRequest, background_tasks: BackgroundTasks):
     """
     通过A2A协议调用分镜生成功能
 
@@ -101,33 +48,25 @@ def generate_storyboard_api(request: StoryboardRequest):
         if request.task_id:
             task_id_ctx.set(request.task_id)
 
-        # 调用分镜生成功能
-        result = generate_storyboard(
-            script_text=request.script_text,
-            style=request.style,
-            duration_per_shot=request.duration_per_shot,
-            prev_continuity_state=request.prev_continuity_state,
-            task_id=request.task_id
+        # 创建任务
+        task_id = task_manager.create_task(
+            script=request.script,
+            config=request.config,
+            request_id=request.request_id
         )
 
-        # 确保结果包含必要字段
-        if "shots" not in result:
-            raise ValueError("分镜生成结果缺少shots字段")
-
-        # 转换为响应格式
-        response = StoryboardResponse(
-            total_shots=result.get("total_shots", len(result["shots"])),
-            storyboard_title=result.get("storyboard_title", "未命名剧本"),
-            shots=result["shots"],
-            final_continuity_state=result.get("final_continuity_state"),
-            total_duration=result.get("total_duration", sum(shot.get("duration", 5) for shot in result["shots"])),
-            status=result.get("status", "success"),
-            warnings=result.get("warnings", []),
-            metadata=result.get("metadata")
+        # 在后台异步处理
+        background_tasks.add_task(
+            task_processor.process_script_task,
+            task_id
         )
 
-        info(f"分镜生成成功，共生成 {response.total_shots} 个分镜")
-        return response
+        # 立即返回任务ID
+        return ProcessResult(
+            task_id=task_id,
+            status="pending",
+            created_at=datetime.now()
+        )
 
     except ValueError as e:
         print_log_exception()
@@ -137,3 +76,150 @@ def generate_storyboard_api(request: StoryboardRequest):
         print_log_exception()
         error(f"分镜生成失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
+
+
+@app.post("/api/v1/process/batch", response_model=BatchProcessResult)
+async def batch_process_scripts(
+        request: BatchProcessRequest,
+        background_tasks: BackgroundTasks
+):
+    """
+    批量处理多个剧本
+
+    - **scripts**: 剧本列表（最多10个）
+    - **config**: 统一配置（可选）
+    - **batch_id**: 批量ID（可选）
+    """
+    try:
+        batch_id = request.batch_id or str(uuid.uuid4())
+
+        # 在后台异步处理批量任务
+        background_tasks.add_task(
+            task_processor.process_batch,
+            batch_id,
+            request.scripts,
+            request.config
+        )
+
+        return BatchProcessResult(
+            batch_id=batch_id,
+            total_tasks=len(request.scripts),
+            completed_tasks=0,
+            failed_tasks=0,
+            pending_tasks=len(request.scripts),
+            created_at=datetime.now()
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"批量处理创建失败: {str(e)}"
+        )
+
+
+@app.get("/api/v1/status/{task_id}", response_model=ProcessingStatus)
+async def get_task_status(task_id: str):
+    """
+    获取任务状态
+
+    - **task_id**: 任务ID
+    """
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=f"任务不存在: {task_id}"
+        )
+
+    # 计算预估剩余时间（基于进度）
+    estimated_time = None
+    if task["status"] == "processing" and task["progress"] > 0:
+        # 简单线性估计
+        elapsed = (datetime.now() - task["created_at"]).total_seconds()
+        estimated_time = int((elapsed / task["progress"]) * (100 - task["progress"]))
+
+    return ProcessingStatus(
+        task_id=task_id,
+        status=task["status"],
+        stage=task["stage"],
+        progress=task["progress"],
+        estimated_time_remaining=estimated_time,
+        created_at=task["created_at"],
+        updated_at=task["updated_at"],
+        error_message=task.get("error")
+    )
+
+
+@app.get("/api/v1/result/{task_id}", response_model=ProcessResult)
+async def get_task_result(task_id: str):
+    """
+    获取任务结果
+
+    - **task_id**: 任务ID
+    """
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=f"任务不存在: {task_id}"
+        )
+
+    if task["status"] == "pending":
+        raise HTTPException(
+            status_code=202,  # Accepted
+            detail="任务仍在处理中"
+        )
+
+    if task["status"] == "processing":
+        raise HTTPException(
+            status_code=202,
+            detail="任务正在处理中"
+        )
+
+    # 计算处理时间
+    processing_time = None
+    if task.get("completed_at"):
+        processing_time = int(
+            (task["completed_at"] - task["created_at"]).total_seconds() * 1000
+        )
+
+    return ProcessResult(
+        task_id=task_id,
+        status="success" if task["status"] == "completed" else "failed",
+        data=task.get("result"),
+        error_message=task.get("error"),
+        warnings=task.get("result", {}).get("warnings", []) if task.get("result") else None,
+        processing_time_ms=processing_time,
+        created_at=task["created_at"],
+        completed_at=task.get("completed_at")
+    )
+
+
+@app.delete("/api/v1/task/{task_id}")
+async def cancel_task(task_id: str):
+    """
+    取消任务（标记为取消状态）
+
+    - **task_id**: 任务ID
+    """
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=f"任务不存在: {task_id}"
+        )
+
+    if task["status"] in ["completed", "failed"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"任务已结束，无法取消: {task['status']}"
+        )
+
+    # 标记为取消（实际实现可能需要中断正在执行的任务）
+    task_manager.fail_task(task_id, "任务被用户取消")
+
+    return {
+        "task_id": task_id,
+        "status": "cancelled",
+        "message": "任务已标记为取消"
+    }

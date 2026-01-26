@@ -5,17 +5,17 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-from abc import abstractmethod
-from typing import Dict, Any, List
+from abc import abstractmethod, ABC
+from datetime import datetime
+from typing import Dict, Any
 
-from hengline import info
-from hengline.agent.base_agent import BaseAgent
-from hengline.agent.script_parser.script_parser_models import UnifiedScript, Scene, Character, Dialogue, Action
-from hengline.agent.workflow.workflow_models import ScriptType
+from hengline.agent.script_parser.script_parser_models import ParsedScript, SceneInfo, CharacterInfo, BaseElement
+from hengline.agent.workflow.workflow_models import ScriptType, ElementType
+from hengline.logger import info, warning
 from hengline.tools.script_assessor_tool import ComplexityAssessor
 
 
-class ScriptParser(BaseAgent):
+class BaseScriptParser(ABC):
     """优化版剧本解析智能体"""
 
     def __post_init__(self):
@@ -25,108 +25,123 @@ class ScriptParser(BaseAgent):
         self.complexity_assessor = ComplexityAssessor()
 
     @abstractmethod
-    def process(self, script_text: Any, script_format: ScriptType | UnifiedScript) -> UnifiedScript:
+    def parser(self, script_text: Any, script_format: ScriptType) -> ParsedScript:
         """处理输入数据（子类实现）"""
         raise NotImplementedError("子类必须实现process方法")
 
-    def _create_unified_script(self, original_text: str,
-                               format_type: ScriptType,
-                               parsed_data: Dict[str, Any]) -> UnifiedScript:
-        """从解析数据创建UnifiedScript对象"""
+    def post_process(self, parsed_script: ParsedScript) -> ParsedScript:
+        """后处理：填充统计数据等"""
+        # 计算统计数据
+        total_elements = 0
+        total_duration = 0.0
+        dialogue_count = 0
+        action_count = 0
 
-        # 创建各个元素列表
-        scenes = [Scene(**scene) for scene in parsed_data.get("scenes", [])]
-        all_characters = [char for scene in scenes for char in scene.characters]
-        calculate_confidence = self.calculate_confidence(scenes)
-        info(f"AI 解析完成！评分: {calculate_confidence.get('overall'):.2f}/1.0")
+        for scene in parsed_script.scenes:
+            total_elements += len(scene.elements)
+            for element in scene.elements:
+                total_duration += element.estimated_duration
+                if element.type == ElementType.DIALOGUE:
+                    dialogue_count += 1
+                elif element.type == ElementType.ACTION:
+                    action_count += 1
 
-        return UnifiedScript(
+        # 更新统计数据
+        parsed_script.stats.update({
+            "total_elements": total_elements,
+            "total_duration": round(total_duration, 2),
+            "dialogue_count": dialogue_count,
+            "action_count": action_count
+        })
+
+        # 更新元数据
+        if not parsed_script.metadata.get("parser_type"):
+            parsed_script.metadata["parser_type"] = self.__class__.__name__
+
+        info(f"解析完成: {total_elements}个元素, {len(parsed_script.scenes)}个场景")
+        return parsed_script
+
+    def validate_parsed_result(self, parsed_script: ParsedScript) -> bool:
+        """验证解析结果的基本有效性"""
+        if not parsed_script.scenes:
+            warning("解析结果为空：没有找到任何场景")
+            return False
+
+        # 检查元素顺序连续性
+        all_elements = []
+        for scene in parsed_script.scenes:
+            all_elements.extend(scene.elements)
+
+        if all_elements:
+            sequences = [elem.sequence for elem in all_elements]
+            if sorted(sequences) != list(range(1, len(sequences) + 1)):
+                warning(f"元素顺序不连续: {sequences}")
+
+        return True
+
+    def _generate_element_id(self, scene_idx: int, elem_idx: int) -> str:
+        """生成元素ID"""
+        return f"elem_{scene_idx + 1:03d}_{elem_idx + 1:03d}"
+
+    def _generate_scene_id(self, scene_idx: int) -> str:
+        """生成场景ID"""
+        return f"scene_{scene_idx + 1:03d}"
+
+    def _build_parsed_script(self, data: Dict[str, Any]) -> ParsedScript:
+        """构建解析结果对象"""
+        # 构建场景列表
+        scenes = []
+        for scene_idx, scene_data in enumerate(data.get("scenes", [])):
+            elements = []
+            for elem_idx, elem_data in enumerate(scene_data.get("elements", [])):
+                # 确保元素类型是ElementType枚举
+                elem_type = ElementType(elem_data.get("type", "action"))
+
+                element = BaseElement(
+                    id=elem_data.get("id", self._generate_element_id(scene_idx, elem_idx)),
+                    type=elem_type,
+                    sequence=elem_data.get("sequence", elem_idx + 1),
+                    duration=elem_data.get("duration", 3.0),
+                    confidence=elem_data.get("confidence", 0.8),
+                    content=elem_data.get("content", ""),
+                    character=elem_data.get("character"),
+                    target_character=elem_data.get("target_character"),
+                    description=elem_data.get("description", ""),
+                    intensity=elem_data.get("intensity", 0.5),
+                    emotion=elem_data.get("emotion", "自然")
+                )
+                elements.append(element)
+
+            scene = SceneInfo(
+                id=scene_data.get("id", self._generate_scene_id(scene_idx)),
+                location=scene_data.get("location", "未知地点"),
+                description=scene_data.get("description"),
+                time_of_day=scene_data.get("time_of_day"),
+                elements=elements
+            )
+            scenes.append(scene)
+
+        # 构建角色列表
+        characters = [
+            CharacterInfo(
+                name=char_data["name"],
+                gender=char_data["gender"],
+                role=char_data["role"],
+                description=char_data.get("description"),
+                key_traits=char_data.get("key_traits", [])
+            )
+            for char_data in data.get("characters", [])
+        ]
+
+        # 返回完整解析结果
+        return ParsedScript(
+            title=data.get("title"),
+            characters=characters,
             scenes=scenes,
-            format_type=format_type,
-            total_duration=parsed_data.get("total_duration", 0),
-            total_scenes=len(scenes),
-            total_characters=len(all_characters),
-            completeness_score=calculate_confidence.get('overall')
-        )
-
-    def calculate_confidence(self, scenes: List[Scene]) -> Dict:
-        """
-        计算解析置信度
-
-        """
-        if not scenes:
-            return {
-                "overall": 0.3,
-                "scene_detection": 0.1,
-                "character_recognition": 0.3,
-                "dialogue_extraction": 0.3,
-                "action_extraction": 0.3,
-                "note": "未检测到场景"
+            metadata={
+                "parsed_at": datetime.now().isoformat(),
+                "version": "mvp_1.0",
+                "source_type": "llm_parsed",
+                "parser_type": self.__class__.__name__
             }
-
-        # 权重配置
-        weights = {
-            "scene_detection": 0.3,
-            "character_recognition": 0.3,
-            "dialogue_extraction": 0.2,
-            "action_extraction": 0.2
-        }
-
-        # 1. 场景检测置信度
-        scene_count = len(scenes)
-        scene_confidence = min(1.0, scene_count / 10.0)  # 最多10个场景得满分
-
-        # 2. 角色识别置信度
-        all_characters = [char for scene in scenes for char in scene.characters]
-        character_count = len(all_characters)
-        # 检查角色信息完整性
-        char_info_score = sum(
-            1 for char in all_characters
-            if char.gender and char.gender != "未知"
-        ) / max(character_count, 1)
-
-        character_confidence = min(1.0, character_count / 15.0) * 0.7 + char_info_score * 0.3
-
-        # 3. 对话提取置信度
-        all_dialogues = [char for scene in scenes for char in scene.dialogues]
-        dialogue_count = len(all_dialogues)
-        # 检查对话信息完整性
-        dialogue_info_score = sum(
-            1 for dialogue in all_dialogues
-            if dialogue.speaker and dialogue.speaker != "未知"
-        ) / max(dialogue_count, 1)
-
-        dialogue_confidence = min(1.0, dialogue_count / 20.0) * 0.6 + dialogue_info_score * 0.4
-
-        # 4. 动作提取置信度
-        all_actions = [char for scene in scenes for char in scene.actions]
-        action_count = len(all_actions)
-        # 检查动作信息完整性
-        action_info_score = sum(
-            1 for action in all_actions
-            if action.actor and action.actor != "未知"
-        ) / max(action_count, 1)
-
-        action_confidence = min(1.0, action_count / 30.0) * 0.5 + action_info_score * 0.5
-
-        # 5. 综合置信度
-        overall_confidence = (
-                scene_confidence * weights["scene_detection"] +
-                character_confidence * weights["character_recognition"] +
-                dialogue_confidence * weights["dialogue_extraction"] +
-                action_confidence * weights["action_extraction"]
         )
-
-        return {
-            "overall": round(overall_confidence, 2),
-            "scene_detection": round(scene_confidence, 2),
-            "character_recognition": round(character_confidence, 2),
-            "dialogue_extraction": round(dialogue_confidence, 2),
-            "action_extraction": round(action_confidence, 2),
-            "metrics": {
-                "scene_count": scene_count,
-                "character_count": character_count,
-                "dialogue_count": dialogue_count,
-                "action_count": action_count
-            }
-        }

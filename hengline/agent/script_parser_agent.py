@@ -8,11 +8,11 @@
 import re
 from typing import Dict, Tuple, List
 
-from hengline.agent.workflow.workflow_models import ScriptType, AgentType, ParserType
-from hengline.logger import debug, info
 from hengline.agent.script_parser.llm_script_parser import LLMScriptParser
-from hengline.agent.script_parser.local_script_parser import LocalScriptParser
-from .script_parser2.script_parser_models import UnifiedScript
+from hengline.agent.workflow.workflow_models import ScriptType, AgentType, ParserType, ElementType
+from hengline.logger import debug, info, warning
+from .script_parser.RuleScriptParser import RuleScriptParser
+from .script_parser.script_parser_models import ParsedScript
 from ..client.client_config import AIConfig
 from ..tools.script_validation_tool import BasicScriptValidator
 
@@ -34,10 +34,10 @@ class ScriptParserAgent:
 
         self.script_parser = {
             ParserType.LLM_PARSER: LLMScriptParser(llm, self.config),
-            ParserType.RULE_PARSER: LocalScriptParser(),
+            ParserType.RULE_PARSER: RuleScriptParser(),
         }
 
-    def parser_process(self, script_text: str) -> UnifiedScript | None:
+    def parser_process(self, script_text: str) -> ParsedScript | None:
         """
         优化版剧本解析函数
         将整段中文剧本转换为结构化动作序列
@@ -56,32 +56,31 @@ class ScriptParserAgent:
 
         # 步骤2：AI深度解析
         debug(" 调用AI进行深度解析...")
-        ai_result = self.script_parser.get(ParserType.LLM_PARSER).process(script_text, format_type)
+        parsed_script = self.script_parser.get(ParserType.LLM_PARSER).parser(script_text, format_type)
 
         # 步骤3：规则校验和补全
         if self.use_local_rules:
             info("使用本地规则校验和补全...")
-            ai_result = self.script_parser.get(ParserType.RULE_PARSER).process(script_text, ai_result)
+            # parsed_script = self.script_parser.get(ParserType.RULE_PARSER).parser(script_text,format_type)
 
         # 步骤4：质量评估
         debug("评估解析质量...")
-        completeness_score, warnings = self._evaluate_completeness(ai_result, script_text)
-        ai_result.completeness_score = completeness_score
-        ai_result.warnings = warnings
+        completeness_score, warnings = self._evaluate_completeness(parsed_script, script_text)
+        warning(f"评估解析质量：{warnings}")
 
         # 步骤5：设置解析置信度
-        ai_result.parsing_confidence = self._calculate_confidence(ai_result)
+        parsing_confidence = self._calculate_confidence(parsed_script)
 
+        parsed_script.stats.update({
+            "completeness_score": round(completeness_score, 2),
+            "parsing_confidence": parsing_confidence
+        })
         info(f"解析完成！最终完整性评分: {completeness_score:.2f}/1.0")
-        debug(f"   场景: {len(ai_result.scenes)}个")
-        debug(f"   角色: {len(ai_result.characters)}个")
-        debug(f"   对话: {len(ai_result.dialogues)}个")
-        debug(f"   动作: {len(ai_result.actions)}个")
+        debug(f"   场景: {len(parsed_script.scenes)}个")
+        debug(f"   角色: {len(parsed_script.characters)}个")
+        debug(f"   节点: {len(parsed_script.stats.get('total_elements'))}个")
 
-        # 4. 基础验证
-        # is_valid, issues = self.validator.validate(ai_result)
-
-        return ai_result
+        return parsed_script
 
     def _detect_format(self, text: str) -> ScriptType:
         """识别剧本格式"""
@@ -111,7 +110,7 @@ class ScriptParserAgent:
         # 默认：混合格式
         return ScriptType.MIXED_FORMAT
 
-    def _evaluate_completeness(self, script: UnifiedScript,
+    def _evaluate_completeness(self, script: ParsedScript,
                                original_text: str) -> Tuple[float, List[str]]:
         """评估解析完整性"""
         warnings = []
@@ -134,7 +133,8 @@ class ScriptParserAgent:
             score_factors.append(char_score * 0.2)
 
         # 3. 对话完整性
-        dialogue_density = len(script.dialogues) / (len(original_text) / 100)  # 每100字符的对话数
+        dialogues = script.get_Elements_by_type(ElementType.DIALOGUE)
+        dialogue_density = len(dialogues) / (len(original_text) / 100)  # 每100字符的对话数
         if dialogue_density < 0.1 and '"' in original_text or '说' in original_text:
             warnings.append("对话提取可能不完整")
             dialogue_score = 0.5
@@ -143,20 +143,21 @@ class ScriptParserAgent:
         score_factors.append(dialogue_score * 0.2)
 
         # 4. 动作完整性
+        actions = script.get_Elements_by_type(ElementType.ACTION)
         action_verbs = ['走', '跑', '坐', '站', '拿', '看', '笑', '哭', '转身', '点头', ]
         verb_count = sum(1 for verb in action_verbs if verb in original_text)
-        if verb_count > 0 and len(script.actions) < verb_count * 0.5:
+        if verb_count > 0 and len(actions) < verb_count * 0.5:
             warnings.append("动作提取可能不完整")
             action_score = 0.6
         else:
-            action_score = min(1.0, len(script.actions) / max(verb_count, 1))
+            action_score = min(1.0, len(actions) / max(verb_count, 1))
         score_factors.append(action_score * 0.2)
 
         # 5. 总体覆盖率
         # 计算提取的信息占文本的比例（简化的估计）
         extracted_content = sum(len(str(item)) for item in
                                 script.scenes + script.characters +
-                                script.dialogues + script.actions)
+                                dialogues + actions)
         coverage = min(1.0, extracted_content / len(original_text) * 3)  # 乘以3因为解析会扩展信息
         score_factors.append(coverage * 0.2)
 
@@ -169,7 +170,7 @@ class ScriptParserAgent:
 
         return round(completeness_score, 2), warnings
 
-    def _calculate_confidence(self, script: UnifiedScript) -> Dict[str, float]:
+    def _calculate_confidence(self, script: ParsedScript) -> Dict[str, float]:
         """计算各部分的解析置信度"""
         confidence = {}
 
@@ -177,17 +178,16 @@ class ScriptParserAgent:
         if script.scenes:
             confidence["scenes"] = min(1.0, len(script.scenes) * 0.3)
 
-            # if script.scenes.props:
-            #     confidence["props"] = min(1.0, len(script.props) * 0.5)
-
         if script.characters:
             confidence["characters"] = min(1.0, len(script.characters) * 0.4)
 
-        if script.dialogues:
-            confidence["dialogues"] = min(1.0, len(script.dialogues) * 0.2)
+        dialogues = script.get_Elements_by_type(ElementType.DIALOGUE)
+        if dialogues:
+            confidence["dialogues"] = min(1.0, len(dialogues) * 0.2)
 
-        if script.actions:
-            confidence["actions"] = min(1.0, len(script.actions) * 0.3)
+        actions = script.get_Elements_by_type(ElementType.ACTION)
+        if actions:
+            confidence["actions"] = min(1.0, len(actions) * 0.3)
 
         # 总体置信度
         if confidence:

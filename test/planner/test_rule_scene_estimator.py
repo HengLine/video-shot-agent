@@ -5,8 +5,8 @@
 @Time: 2026/1/13 16:12
 """
 from hengline.agent.script_parser2.script_parser_models import Scene
-from hengline.agent.temporal_planner.estimator.rule_base_estimator import EstimationContext
-from hengline.agent.temporal_planner.estimator.rule_scene_estimator import RuleSceneDurationEstimator
+from hengline.agent.shot_generator.estimator.rule_base_estimator import EstimationContext
+from hengline.agent.shot_generator.estimator.rule_scene_estimator import RuleSceneDurationEstimator
 from hengline.config.keyword_config import get_keyword_config
 from hengline.config.temporal_planner_config import get_planner_config
 from utils.obj_utils import dict_to_obj

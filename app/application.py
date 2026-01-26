@@ -6,19 +6,23 @@
 @Time: 2025/10/6
 """
 import os
+import time
 from contextlib import asynccontextmanager
+from datetime import datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
+from api.index_api import app as index_api
 #
 # 导入模型API路由器
 from api.shot_api import app as shot_api
-from api.index_api import app as index_api
+from config.config import get_data_paths
 from hengline.context_var import RequestContextMiddleware
+from hengline.logger import error
 from .proxy import router as proxy_router
 
-from config.config import get_data_paths
 
 async def app_startup():
     """
@@ -74,12 +78,49 @@ app.add_middleware(
 app.add_middleware(RequestContextMiddleware)
 
 
+# ========== 中间件和配置 ==========
 @app.middleware("http")
 async def add_cache_control_header(request, call_next):
+    start_time = time.time()
     response = await call_next(request)
+    process_time = time.time() - start_time
+    """添加处理时间头"""
+    response.headers["X-Process-Time"] = str(process_time)
     response.headers["Cache-Control"] = "max-age=0"
     return response
 
+
+# ========== 错误处理器 ==========
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    """HTTP异常处理器"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.detail,
+            "path": request.url.path,
+            "timestamp": datetime.now().isoformat()
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request, exc):
+    """通用异常处理器"""
+    error(f"未处理的异常: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "内部服务器错误",
+            "message": str(exc),
+            "path": request.url.path,
+            "timestamp": datetime.now().isoformat()
+        }
+    )
+
+
+# =====================router======================
 
 app.include_router(index_api, prefix="/api")
 app.include_router(shot_api, prefix="/api")

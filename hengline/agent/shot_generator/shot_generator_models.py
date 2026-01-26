@@ -9,8 +9,6 @@ from typing import List, Dict, Optional, Any
 
 from pydantic import BaseModel, Field
 
-from hengline.agent.base_models import EmotionType, MotionType, ShotType, CameraAngle, CameraMovement, DepthOfField, ColorInfo, BaseMetadata
-
 
 class CameraMovement(BaseModel):
     """镜头运动描述"""

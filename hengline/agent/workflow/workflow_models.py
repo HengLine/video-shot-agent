@@ -16,7 +16,6 @@ class AgentType(Enum):
     REVIEWER = "reviewer"  # 智能体5：质量审查
 
 
-@unique
 class ScriptType(Enum):
     """剧本格式类型"""
     NATURAL_LANGUAGE = "natural_language"  # 自然语言描述
@@ -27,13 +26,21 @@ class ScriptType(Enum):
     MIXED_FORMAT = "mixed_format"  # 混合格式
 
 
+class ElementType(str, Enum):
+    SCENE = "scene" # 场景描述
+    DIALOGUE = "dialogue"  # 对话节点
+    ACTION = "action"  # 动作节点
+    TRANSITION = "transition"
+    SILENCE = "silence"
+    UNKNOWN = "unknown"
+
+
 @unique
 class ParserType(Enum):
     LLM_PARSER = "llm_parser"  # LLM 解析器
     RULE_PARSER = "rule_parser"  # 本地规则解析器
 
 
-@unique
 class VideoStyle(Enum):
     # 逼真
     REALISTIC = 'realistic'

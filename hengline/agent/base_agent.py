@@ -18,8 +18,11 @@ class BaseAgent(ABC):
         """ 转换LLM响应 """
         pass
 
-    def _call_llm_chat_with_retry(self, llm, system_prompt: str, user_prompt, max_retries: int = 3) -> Any | None:
-        """调用LLM，支持重试"""
+    def _call_llm_chat_with_retry(self, llm, system_prompt: str, user_prompt, max_retries: int = 3) -> Dict[str, Any] | None:
+        """
+            调用LLM，支持重试
+            返回 dict
+        """
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -27,7 +30,9 @@ class BaseAgent(ABC):
 
         for attempt in range(max_retries):
             try:
-                return llm_chat_complete(llm, messages)
+                ai_response = llm_chat_complete(llm, messages)
+
+                return self._parse_ai_response(ai_response)
             except Exception as e:
                 if attempt == max_retries - 1:
                     raise Exception(f"LLM调用失败: {e}")

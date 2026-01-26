@@ -5,11 +5,11 @@
 @Time: 2026/1/14 21:13
 """
 from hengline.agent.script_parser2.script_parser_models import UnifiedScript
-from hengline.agent.temporal_planner.estimator.ai_action_estimator import AIActionDurationEstimator
-from hengline.agent.temporal_planner.estimator.ai_dialogue_estimator import AIDialogueDurationEstimator
-from hengline.agent.temporal_planner.estimator.ai_scene_estimator import AISceneDurationEstimator
-from hengline.agent.temporal_planner.estimator.estimator_factory import estimator_factory
-from hengline.agent.temporal_planner.llm_temporal_planner import LLMTemporalPlanner
+from hengline.agent.shot_generator.estimator.ai_action_estimator import AIActionDurationEstimator
+from hengline.agent.shot_generator.estimator.ai_dialogue_estimator import AIDialogueDurationEstimator
+from hengline.agent.shot_generator.estimator.ai_scene_estimator import AISceneDurationEstimator
+from hengline.agent.shot_generator.estimator.estimator_factory import estimator_factory
+from hengline.agent.shot_generator.llm_temporal_planner import LLMTemporalPlanner
 from hengline.agent.temporal_planner.temporal_planner_model import ElementType
 from hengline.prompts.temporal_planner_prompt import PromptConfig
 from utils.obj_utils import dict_to_dataclass
