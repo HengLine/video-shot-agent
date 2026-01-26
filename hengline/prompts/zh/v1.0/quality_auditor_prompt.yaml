@@ -1,0 +1,38 @@
+version: "1.2"
+
+quality_auditor:
+  name: "quality_auditor_prompt"
+  description: "作为电影导演和AI提示词专家审查分镜内容"
+  template: |
+    请审查以下AI视频生成指令的质量：
+
+    项目信息：
+    标题: {title}
+    片段数: {fragment_count}
+    总时长: {total_duration}秒
+
+    片段列表:
+    {fragments_list}
+
+    请检查以下方面：
+    1. 提示词是否清晰具体？
+    2. 时长是否合理（每个片段0.5-5秒）？
+    3. 风格是否一致？
+    4. 是否有明显的问题或矛盾？
+
+    请返回JSON格式的审查结果：
+    {{
+      "status": "passed"/"needs_review"/"failed",
+      "issues": [
+        {{
+          "type": "提示词问题"/"时长问题"/"风格问题"/"其他",
+          "description": "问题描述",
+          "severity": "info"/"warning"/"error",
+          "fragment_id": "涉及片段ID",
+          "suggestion": "改进建议"
+        }}
+      ],
+      "summary": "审查总结"
+    }}
+
+    直接返回JSON，不要其他文字。

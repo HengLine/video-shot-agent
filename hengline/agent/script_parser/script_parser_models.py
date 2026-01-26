@@ -11,7 +11,7 @@ from typing import List, Optional, Dict, Any, Literal
 
 from pydantic import BaseModel, Field
 
-from hengline.agent.workflow.workflow_models import ElementType
+from hengline.agent.base_models import ElementType
 
 
 class CharacterInfo(BaseModel):
@@ -73,7 +73,7 @@ class BaseElement(BaseModel):
         description="针对的目标角色（如有）"
     )
 
-    description: str = Field(..., description="其他的描述文本")
+    description: str = Field(default=None, description="其他的描述文本")
 
     intensity: float = Field(
         default=0.5,

@@ -3,7 +3,7 @@
 测试动作时长估算器对时间标注的处理
 """
 
-from hengline.agent.shot_generator.estimator.rule_action_estimator import RuleActionDurationEstimator
+from hengline.agent.shot_generator_bak.estimator.rule_action_estimator import RuleActionDurationEstimator
 
 
 def test_time_annotations():

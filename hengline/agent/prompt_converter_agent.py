@@ -6,9 +6,17 @@
 """
 from typing import Optional, Dict, Any
 
+from hengline.agent.base_models import AgentMode
+from hengline.agent.prompt_converter.prompt_converter_factory import PromptConverterFactory
+from hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
+from hengline.agent.video_splitter.video_splitter_models import FragmentSequence
+from hengline.logger import debug, error
+from utils.log_utils import print_log_exception
+
 
 class PromptConverterAgent:
     """提示指令转换器"""
+
     def __init__(self, llm, config: Optional[Dict[str, Any]] = None):
         """
         初始化分镜生成智能体
@@ -18,3 +26,16 @@ class PromptConverterAgent:
         """
         self.llm = llm
         self.config = config or {}
+        self.converter = PromptConverterFactory.create_converter(AgentMode.LLM, llm_client=llm)
+
+    def prompt_process(self, fragment_sequence: FragmentSequence) -> AIVideoInstructions | None:
+        """ 视频片段 """
+        debug("开始视频转换提示词")
+        try:
+
+            return self.converter.convert(fragment_sequence)
+
+        except Exception as e:
+            print_log_exception()
+            error(f"视频转换提示词异常: {e}")
+            return None

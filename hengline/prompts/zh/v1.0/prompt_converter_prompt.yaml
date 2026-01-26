@@ -1,0 +1,29 @@
+version: "1.0"
+
+prompt_converter:
+  name: "prompt_converter_prompt"
+  description: "将视频片段转换为 AI 可识别的内容（提示词模板内容）"
+  template: |
+    将以下视频片段描述转换为AI视频生成提示词。
+
+    片段信息：
+    ID: {fragment_id}
+    描述: {description}
+    时长: {duration}秒
+    主要角色: {character}
+    地点: {location}
+
+    请生成一个高质量的AI视频生成提示词，要求：
+    1. 包含视觉描述，适合{model}模型
+    2. 使用cinematic风格
+    3. 长度不超过150个英文单词
+    4. 专注于画面内容，不要描述音频
+
+    请返回JSON格式：
+    {{
+      "prompt": "生成的提示词",
+      "negative_prompt": "负面提示词（避免的内容）",
+      "style_hint": "风格提示"
+    }}
+
+    直接返回JSON，不要其他文字。

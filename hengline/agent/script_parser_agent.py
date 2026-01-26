@@ -9,12 +9,11 @@ import re
 from typing import Dict, Tuple, List
 
 from hengline.agent.script_parser.llm_script_parser import LLMScriptParser
-from hengline.agent.workflow.workflow_models import ScriptType, AgentType, ParserType, ElementType
 from hengline.logger import debug, info, warning
+from .base_models import AgentType, AgentMode, ScriptType, ElementType
 from .script_parser.RuleScriptParser import RuleScriptParser
 from .script_parser.script_parser_models import ParsedScript
 from ..client.client_config import AIConfig
-from ..tools.script_validation_tool import BasicScriptValidator
 
 
 class ScriptParserAgent:
@@ -28,13 +27,12 @@ class ScriptParserAgent:
             llm: 语言模型实例（推荐GPT-4o）
         """
         self.agent_type = AgentType.PARSER
-        self.validator = BasicScriptValidator()
         self.use_local_rules = False  # 是否启用本地规则校验和补全
         self.config = AIConfig()
 
         self.script_parser = {
-            ParserType.LLM_PARSER: LLMScriptParser(llm, self.config),
-            ParserType.RULE_PARSER: RuleScriptParser(),
+            AgentMode.LLM: LLMScriptParser(llm, self.config),
+            AgentMode.RULE: RuleScriptParser(),
         }
 
     def parser_process(self, script_text: str) -> ParsedScript | None:
@@ -56,7 +54,7 @@ class ScriptParserAgent:
 
         # 步骤2：AI深度解析
         debug(" 调用AI进行深度解析...")
-        parsed_script = self.script_parser.get(ParserType.LLM_PARSER).parser(script_text, format_type)
+        parsed_script = self.script_parser.get(AgentMode.LLM).parser(script_text, format_type)
 
         # 步骤3：规则校验和补全
         if self.use_local_rules:

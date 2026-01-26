@@ -7,7 +7,11 @@
 """
 from typing import Dict, List, Optional, TypedDict, Any
 
+from hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
+from hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport
 from hengline.agent.script_parser.script_parser_models import ParsedScript
+from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence
+from hengline.agent.video_splitter.video_splitter_models import FragmentSequence
 
 
 class InputState(TypedDict):
@@ -27,26 +31,26 @@ class ScriptParsingState(TypedDict):
 
 class ShotGeneratorState(TypedDict):
     """分镜生成相关状态"""
-    shots: List[Dict]  # 镜头序列
+    shot_sequence: ShotSequence  # 镜头序列
     current_shot_index: int  # 当前处理的镜头索引
     shot_errors: Dict[str, List]  # 按镜头存储的错误
 
 
 class VideoSegmenterState(TypedDict):
     """视频拆分相关状态"""
-    fragments: List[Dict]  # AI视频片段序列
+    fragment_sequence: FragmentSequence  # AI视频片段序列
     fragment_quality_scores: Dict[str, float]  # 片段质量评分
 
 
 class PromptConverterState(TypedDict):
     """指令转换相关状态"""
-    ai_instructions: List[Dict]  # AI生成指令
+    instructions: AIVideoInstructions  # AI生成指令
     prompt_templates_used: List[str]  # 使用的Prompt模板
 
 
 class QualityAuditorState(TypedDict):
     """质量审查相关状态"""
-    audit_report: Optional[Dict]  # 质量审查报告
+    audit_report: Optional[QualityAuditReport]  # 质量审查报告
     audit_failures: List[str]  # 审查失败项
     audit_warnings: List[str]  # 审查警告项
 
@@ -77,4 +81,5 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState,
     continuity_anchors: Dict  # 连续性锚点映射
 
     # 人工决策
+    needs_human_review: bool
     human_feedback: Dict[str, Any]

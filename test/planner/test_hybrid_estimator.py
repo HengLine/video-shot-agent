@@ -7,8 +7,8 @@
 import json
 
 from hengline.agent.script_parser2.script_parser_models import UnifiedScript
-from hengline.agent.shot_generator.estimator.estimator_factory import estimator_factory
-from hengline.agent.shot_generator.hybrid_temporal_planner import HybridTemporalPlanner
+from hengline.agent.shot_generator_bak.estimator.estimator_factory import estimator_factory
+from hengline.agent.shot_generator_bak.hybrid_temporal_planner import HybridTemporalPlanner
 from hengline.client.client_factory import get_default_llm
 from utils.obj_utils import dict_to_dataclass
 

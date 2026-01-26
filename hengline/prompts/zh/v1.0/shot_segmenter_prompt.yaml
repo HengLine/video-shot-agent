@@ -1,0 +1,33 @@
+version: "1.0"
+
+shot_segmenter:
+  name: "shot_segmenter_prompt"
+  description: "将结构化剧本拆分为多个镜头序列节点"
+  template: |
+    请将以下剧本场景拆分为镜头序列。
+    
+    场景信息：
+    地点：{location}
+    时间：{time_of_day}
+    描述：{description}
+    
+    场景元素（按顺序）：
+    {elements_list}
+    
+    请按照以下规则拆分：
+    1. 对话元素通常用特写镜头（close_up）
+    2. 动作元素通常用中景镜头（medium_shot）
+    3. 场景描述用全景镜头（wide_shot）
+    4. 连续相关元素可以合并到一个镜头
+    5. 生动描述: 画面描述要具体、生动，包含场景细节、角色状态和情感变化
+    6. 连续性保证: 严格遵循连续性约束，确保角色外观、位置和状态的一致性
+    
+    请返回JSON格式的镜头列表，每个镜头包含：
+    - id: 镜头ID (shot_001, shot_002...)
+    - description: 简洁描述
+    - duration: 镜头的预估时长（秒）， 
+    - shot_type: close_up/medium_shot/wide_shot
+    - main_character: 主要角色名
+    - element_ids: 引用的元素ID列表
+    
+    直接返回JSON数组，不要其他文字。

@@ -6,7 +6,7 @@
 """
 
 from hengline.agent.script_parser2.script_parser_models import UnifiedScript
-from hengline.agent.shot_generator.shot.shot_generator_manager import ShotGenerationManager
+from hengline.agent.shot_generator_bak.shot.shot_generator_manager import ShotGenerationManager
 from utils.file_utils import save_to_json, load_from_obj
 
 

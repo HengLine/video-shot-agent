@@ -8,12 +8,11 @@ import json
 from typing import Any, Dict
 
 from hengline.agent.base_agent import BaseAgent
+from hengline.agent.base_models import ScriptType
 from hengline.agent.script_parser.base_script_parser import BaseScriptParser
 from hengline.agent.script_parser.script_parser_models import ParsedScript
-from hengline.agent.workflow.workflow_models import ScriptType
 from hengline.client.client_config import AIConfig
 from hengline.logger import info, warning, error
-from hengline.prompts.prompts_manager import prompt_manager
 from hengline.tools.json_parser_tool import parse_json_response
 
 
@@ -64,7 +63,7 @@ class LLMScriptParser(BaseScriptParser, BaseAgent):
         info(f"AI用户提示词（摘要）: {user_prompt[:150]}...")
 
         # 调用LLM
-        parsed_data = self._call_llm_chat_with_retry(self.llm, system_prompt, user_prompt)
+        parsed_data = self._call_llm_parse_with_retry(self.llm, system_prompt, user_prompt)
 
         # 转换为模型对象
         parsed_script = self._build_parsed_script(parsed_data)
@@ -83,27 +82,27 @@ class LLMScriptParser(BaseScriptParser, BaseAgent):
 
     def _get_default_prompt(self) -> str:
         """获取默认系统提示词"""
-        return prompt_manager.get_name_prompt("script_parser")
+        return self._get_prompt_template("script_parser")
 
     def _get_natural_language_prompt(self) -> str:
         """自然语言描述的系统提示词"""
-        return self._get_default_prompt() + prompt_manager.get_name_prompt("natural_language_script")
+        return self._get_default_prompt() + self._get_prompt_template("natural_language_script")
 
     def _get_standard_script_prompt(self) -> str:
         """标准剧本格式的系统提示词"""
-        return self._get_default_prompt() + prompt_manager.get_name_prompt("screenplay_format_script")
+        return self._get_default_prompt() + self._get_prompt_template("screenplay_format_script")
 
     def _get_ai_storyboard_prompt(self) -> str:
         """AI分镜脚本的系统提示词"""
-        return self._get_default_prompt() + prompt_manager.get_name_prompt("ai_storyboard_script")
+        return self._get_default_prompt() + self._get_prompt_template("ai_storyboard_script")
 
     def _get_structured_scene_prompt(self) -> str:
         """结构化场景描述的系统提示词"""
-        return self._get_default_prompt() + prompt_manager.get_name_prompt("structured_scene_script")
+        return self._get_default_prompt() + self._get_prompt_template("structured_scene_script")
 
     def _get_dialogue_only_prompt(self) -> str:
         """纯对话剧本的系统提示词"""
-        return self._get_default_prompt() + prompt_manager.get_name_prompt("dialogue_only_script")
+        return self._get_default_prompt() + self._get_prompt_template("dialogue_only_script")
 
     def _build_user_prompt(self, text: str, format_type: ScriptType) -> str:
         """构建用户提示词"""
@@ -129,7 +128,7 @@ class LLMScriptParser(BaseScriptParser, BaseAgent):
                 3. 角色名称保持一致
                 4. 场景按时间顺序排列"""
 
-    def _parse_ai_response(self, ai_response: str) -> Dict[str, Any]:
+    def _parse_llm_response(self, ai_response: str) -> Dict[str, Any]:
         """解析AI返回的JSON响应"""
         try:
             parsed_result = parse_json_response(ai_response)

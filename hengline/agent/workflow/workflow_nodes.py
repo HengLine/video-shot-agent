@@ -15,21 +15,21 @@ from utils.obj_utils import obj_to_dict
 class WorkflowNodes:
     """工作流节点集合，封装所有工作流执行功能"""
 
-    def __init__(self, script_parser, shot_generator, video_segmenter, prompt_converter, quality_auditor, llm=None):
+    def __init__(self, script_parser, shot_segmenter, video_splitter, prompt_converter, quality_auditor, llm=None):
         """
         初始化工作流节点集合
         
         Args:
             script_parser: 剧本解析器实例
-            prompt_converter: 时序规划器实例
-            video_segmenter: 连续性守卫实例
-            shot_generator: 分镜生成器实例
+            shot_segmenter: 分镜生成器实例
+            video_splitter: 视频分割
+            prompt_converter: 提示词转换
             quality_auditor: 质量审查实例
             llm: 语言模型实例（可选）
         """
         self.script_parser = script_parser
-        self.shot_generator = shot_generator
-        self.video_segmenter = video_segmenter
+        self.shot_segmenter = shot_segmenter
+        self.video_splitter = video_splitter
         self.prompt_converter = prompt_converter
         self.quality_auditor = quality_auditor
 
@@ -74,13 +74,29 @@ class WorkflowNodes:
         输入：parsed_script
         输出：shots (带时间戳的镜头序列)
         """
-        # TODO: 实现镜头拆分逻辑
-        # 1. 基于情感和语义单元划分镜头
-        # 2. 分配合理时长
-        # 3. 生成镜头描述和类型
 
         state["current_stage"] = "shot_splitting"
-        state["shots"] = []
+
+        try:
+            shot_sequence = self.shot_segmenter.shot_process(state["parsed_script"])
+
+            debug(f"分镜解析完成，镜头数: {len(shot_sequence.shots)}")
+
+            # 保存剧本解析结果
+            task_id = state.get("task_id")
+            try:
+                self.storage.save_result(task_id, obj_to_dict(shot_sequence), "shot_segmenter_result.json")
+                info(f"剧本分镜结果已保存到: data/output/{task_id}/shot_segmenter_result.json")
+            except Exception as save_error:
+                error(f"保存分镜解析结果失败: {str(save_error)}")
+
+            state["shot_sequence"] = shot_sequence
+
+        except Exception as e:
+            print_log_exception()
+            error(f"分镜解析节点异常: {str(e)}")
+            state["error"] = str(e)
+
         return state
 
     def fragment_for_ai_node(self, state: WorkflowState) -> WorkflowState:
@@ -90,14 +106,32 @@ class WorkflowNodes:
         输入：shots
         输出：fragments (符合5秒限制的片段序列)
         """
-        # TODO: 实现AI分段逻辑
         # 1. 检查镜头时长，>5秒的进行切分
         # 2. <2秒的考虑合并
         # 3. 在动作边界自然切分
         # 4. 生成片段级连续性锚点
 
         state["current_stage"] = "ai_fragmentation"
-        state["fragments"] = []
+        try:
+            fragment_sequence = self.video_splitter.video_process(state["shot_sequence"])
+
+            debug(f"视频分段完成，视频片段数: {len(fragment_sequence.fragments)}")
+
+            # 保存剧本解析结果
+            task_id = state.get("task_id")
+            try:
+                self.storage.save_result(task_id, obj_to_dict(fragment_sequence), "video_splitter_result.json")
+                info(f"视频分段结果已保存到: data/output/{task_id}/video_splitter_result.json")
+            except Exception as save_error:
+                error(f"视频分段结果失败: {str(save_error)}")
+
+            state["fragment_sequence"] = fragment_sequence
+
+        except Exception as e:
+            print_log_exception()
+            error(f"视频分段异常: {str(e)}")
+            state["error"] = str(e)
+
         return state
 
     def generate_prompts_node(self, state: WorkflowState) -> WorkflowState:
@@ -107,14 +141,32 @@ class WorkflowNodes:
         输入：fragments
         输出：ai_instructions (包含Prompt和技术参数)
         """
-        # TODO: 实现Prompt生成逻辑
         # 1. 选择AI视频模型模板
         # 2. 使用LLM优化视觉描述
         # 3. 嵌入连续性约束
         # 4. 生成技术参数
 
         state["current_stage"] = "prompt_generation"
-        state["ai_instructions"] = []
+        try:
+            instructions = self.prompt_converter.prompt_process(state["fragment_sequence"])
+
+            debug(f"片段指令转换完成，指令片段数: {len(instructions.fragments)}")
+
+            # 保存剧本解析结果
+            task_id = state.get("task_id")
+            try:
+                self.storage.save_result(task_id, obj_to_dict(instructions), "prompt_converter_result.json")
+                info(f"片段指令转换结果已保存到: data/output/{task_id}/prompt_converter_result.json")
+            except Exception as save_error:
+                error(f"片段指令转换结果失败: {str(save_error)}")
+
+            state["instructions"] = instructions
+
+        except Exception as e:
+            print_log_exception()
+            error(f"片段指令转换异常: {str(e)}")
+            state["error"] = str(e)
+
         return state
 
     def quality_audit_node(self, state: WorkflowState) -> WorkflowState:
@@ -124,19 +176,33 @@ class WorkflowNodes:
         输入：ai_instructions
         输出：audit_report (审查报告和建议)
         """
-        # TODO: 实现质量审查逻辑
         # 1. 硬规则检查：时长≤5.2秒
         # 2. 连续性基础检查
         # 3. 使用LLM评估视觉连贯性
         # 4. 生成修正建议
 
         state["current_stage"] = "quality_audit"
-        state["audit_report"] = {
-            "overall_status": "pending",
-            "checks_passed": [],
-            "issues_found": [],
-            "suggestions": []
-        }
+
+        try:
+            audit_report = self.quality_auditor.qa_process(state["instructions"])
+
+            debug(f"质量审查完成，违规记录数: {len(audit_report.violations)}")
+
+            # 保存剧本解析结果
+            task_id = state.get("task_id")
+            try:
+                self.storage.save_result(task_id, obj_to_dict(audit_report), "quality_auditor_result.json")
+                info(f"质量审查结果已保存到: data/output/{task_id}/quality_auditor_result.json")
+            except Exception as save_error:
+                error(f"质量审查结果失败: {str(save_error)}")
+
+            state["audit_report"] = audit_report
+
+        except Exception as e:
+            print_log_exception()
+            error(f"质量审查异常: {str(e)}")
+            state["error"] = str(e)
+
         return state
 
     def continuity_check_node(self, state: WorkflowState) -> WorkflowState:
@@ -179,15 +245,16 @@ class WorkflowNodes:
         输出：final_output (完整处理结果)
         """
         state["current_stage"] = "output_generation"
+        fragments = state.get("instructions", {}).fragments
 
         state["final_output"] = {
             "status": "completed",
             "metadata": {
                 "processed_at": "2024-01-20T12:00:00Z",
-                "total_fragments": len(state.get("ai_instructions", [])),
-                "total_duration": sum(f.get("duration", 0) for f in state.get("ai_instructions", []))
+                "total_fragments": len(fragments),
+                "total_duration": sum(f.get("duration", 0) for f in fragments)
             },
-            "fragments": state.get("ai_instructions", []),
+            "fragments": fragments,
             "audit_report": state.get("audit_report", {}),
             "continuity_report": {
                 "issues": state.get("continuity_issues", []),

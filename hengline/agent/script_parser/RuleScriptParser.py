@@ -6,9 +6,9 @@
 """
 from typing import Any
 
+from hengline.agent.base_models import ScriptType
 from hengline.agent.script_parser.base_script_parser import BaseScriptParser
 from hengline.agent.script_parser.script_parser_models import ParsedScript
-from hengline.agent.workflow.workflow_models import ScriptType
 
 
 class RuleScriptParser(BaseScriptParser):

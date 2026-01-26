@@ -9,8 +9,8 @@ from abc import abstractmethod, ABC
 from datetime import datetime
 from typing import Dict, Any
 
+from hengline.agent.base_models import ScriptType, ElementType
 from hengline.agent.script_parser.script_parser_models import ParsedScript, SceneInfo, CharacterInfo, BaseElement
-from hengline.agent.workflow.workflow_models import ScriptType, ElementType
 from hengline.logger import info, warning
 from hengline.tools.script_assessor_tool import ComplexityAssessor
 

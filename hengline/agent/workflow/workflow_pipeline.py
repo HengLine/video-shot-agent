@@ -11,14 +11,14 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
 
 from hengline.agent.script_parser_agent import ScriptParserAgent
-from hengline.agent.shot_generator_agent import ShotGeneratorAgent
 from hengline.logger import debug
 from .workflow_decision import DecisionFunctions
 from .workflow_nodes import WorkflowNodes
 from .workflow_states import WorkflowState
 from ..prompt_converter_agent import PromptConverterAgent
 from ..quality_auditor_agent import QualityAuditorAgent
-from ..video_segmenter_agent import VideoSegmenterAgent
+from ..shot_segmenter_agent import ShotSegmenterAgent
+from ..video_splitter_agent import VideoSplitterAgent
 
 
 class MultiAgentPipeline:
@@ -42,16 +42,16 @@ class MultiAgentPipeline:
         debug("初始化智能体组件")
 
         self.script_parser = ScriptParserAgent(llm=self.llm)
-        self.shot_generator = ShotGeneratorAgent(llm=self.llm)
-        self.video_segmenter = VideoSegmenterAgent(llm=self.llm)
+        self.shot_segmenter = ShotSegmenterAgent(llm=self.llm)
+        self.video_splitter = VideoSplitterAgent(llm=self.llm)
         self.prompt_converter = PromptConverterAgent(llm=self.llm)
         self.quality_auditor = QualityAuditorAgent(llm=self.llm)
 
         # 初始化工作流节点集合
         self.workflow_nodes = WorkflowNodes(
             script_parser=self.script_parser,
-            shot_generator=self.shot_generator,
-            video_segmenter=self.video_segmenter,
+            shot_segmenter=self.shot_segmenter,
+            video_splitter=self.video_splitter,
             prompt_converter=self.prompt_converter,
             quality_auditor=self.quality_auditor,
             llm=self.llm
@@ -244,11 +244,11 @@ class MultiAgentPipeline:
         stages = []
         if state.get("parsed_script"):
             stages.append("script_parsing")
-        if state.get("shots"):
+        if state.get("shot_sequence"):
             stages.append("shot_splitting")
-        if state.get("fragments"):
+        if state.get("fragment_sequence"):
             stages.append("ai_fragmentation")
-        if state.get("ai_instructions"):
+        if state.get("instructions"):
             stages.append("prompt_generation")
         if state.get("audit_report"):
             stages.append("quality_audit")

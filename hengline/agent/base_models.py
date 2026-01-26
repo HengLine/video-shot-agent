@@ -13,29 +13,51 @@ from pydantic import BaseModel, Field
 
 
 # ==================== 基础枚举和类型定义 ====================
-class DifficultyLevel(str, Enum):
-    """生成难度等级"""
-    LOW = "low"  # 低难度
-    MEDIUM = "medium"  # 中难度
-    HIGH = "high"  # 高难度
-    EXTREME = "extreme"  # 极高难度
+
+@unique
+class AgentType(Enum):
+    PARSER = "parser"  # 智能体1：剧本解析
+    PLANNER = "planner"  # 智能体2：时序规划
+    CONTINUITY = "continuity"  # 智能体3：连贯性
+    VISUAL = "visual"  # 智能体4：视觉生成
+    REVIEWER = "reviewer"  # 智能体5：质量审查
 
 
-class RiskLevel(str, Enum):
-    """风险等级"""
-    LOW = "low"  # 低风险
-    MEDIUM = "medium"  # 中风险
-    HIGH = "high"  # 高风险
-    CRITICAL = "critical"  # 极高风险
+class ScriptType(Enum):
+    """剧本格式类型"""
+    NATURAL_LANGUAGE = "natural_language"  # 自然语言描述
+    AI_STORYBOARD = "ai_storyboard"  # AI分镜脚本
+    STRUCTURED_SCENE = "structured_scene"  # 结构化场景描述
+    STANDARD_SCRIPT = "standard_script"  # 标准剧本格式
+    DIALOGUE_ONLY = "dialogue_only"  # 纯对话
+    MIXED_FORMAT = "mixed_format"  # 混合格式
 
 
-class MotionType(str, Enum):
-    """运动类型"""
-    STATIC = "static"  # 静态
-    SIMPLE = "simple"  # 简单运动
-    COMPOUND = "compound"  # 复合运动
-    COMPLEX = "complex"  # 复杂运动
-    CONTINUOUS = "continuous"  # 连续运动
+class ElementType(str, Enum):
+    SCENE = "scene"  # 场景描述
+    DIALOGUE = "dialogue"  # 对话节点
+    ACTION = "action"  # 动作节点
+    TRANSITION = "transition"
+    SILENCE = "silence"
+    UNKNOWN = "unknown"
+
+
+@unique
+class AgentMode(Enum):
+    """agent 实现的模式"""
+    LLM = "llm"  # 基于 LLM 实现
+    RULE = "rule"  # 基于本地规则
+
+
+class VideoStyle(Enum):
+    # 逼真
+    REALISTIC = 'realistic'
+    # 动漫
+    ANIME = 'anime'
+    # 电影
+    CINEMATIC = 'cinematic'
+    # 卡通
+    CARTOON = 'cartoon'
 
 
 class AIPlatform(str, Enum):

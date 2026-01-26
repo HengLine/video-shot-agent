@@ -1,0 +1,21 @@
+version: "1.0"
+
+video_splitter:
+  name: "video_splitter_prompt"
+  description: "将超过指定时间片段的镜头切割为多个符合时间区间的序列片段"
+  template: |
+    镜头信息：
+    镜头ID: {shot_id}
+    描述: {description}
+    时长: {duration}秒
+    镜头类型: {shot_type}
+    主要角色: {main_character}
+
+    请判断这个镜头是否需要分割为更短的片段（每个片段≤5秒）。
+    如果需要分割，建议如何分割（分成几段，每段时长多少）。
+    直接返回JSON格式，包含：
+    - "needs_split": true/false
+    - "segments": [{"duration": 秒数, "description": "片段描述"}, ...]
+    - "reason": "分割理由"
+
+    不要其他文字。
