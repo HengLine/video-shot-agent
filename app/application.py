@@ -122,5 +122,5 @@ async def general_exception_handler(request, exc):
 
 # =====================router======================
 
-app.include_router(index_api, prefix="/api")
-app.include_router(shot_api, prefix="/api")
+app.include_router(index_api, prefix="/api/v1")
+app.include_router(shot_api, prefix="/api/v1")

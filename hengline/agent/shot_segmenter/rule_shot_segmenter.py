@@ -77,7 +77,7 @@ class RuleShotSegmenter(BaseShotSegmenter):
             description = self._generate_shot_description(group, scene)
 
             # 计算时长
-            duration = sum(elem.estimated_duration for elem in group)
+            duration = sum(elem.duration for elem in group)
 
             # 确定主要角色
             main_character = self._determine_main_character(group)
@@ -148,7 +148,7 @@ class RuleShotSegmenter(BaseShotSegmenter):
         # 规则3：对话后紧跟简短动作 -> 合并（如果动作是对话的延续）
         if (elem1.type == ElementType.DIALOGUE and
                 elem2.type == ElementType.ACTION and
-                elem2.estimated_duration < 3.0):
+                elem2.duration < 3.0):
             return True
 
         # 默认不合并

@@ -27,8 +27,8 @@ script_parser:
         "characters": [
           {{
             "name": "角色唯一标识名，使用剧本中首次出现的完整名称",
-			"gender": "性别",
-			"role": "角色类型（主角、配角等）",
+            "gender": "性别",
+            "role": "角色类型（主角、配角等）",
             "description": "角色描述",
             "key_traits": [
               "特征1",

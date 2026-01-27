@@ -11,6 +11,7 @@ import yaml
 from langchain_core.prompts import ChatPromptTemplate
 
 from hengline.logger import error
+from utils.log_utils import print_log_exception
 
 
 class PromptManager:
@@ -64,7 +65,9 @@ class PromptManager:
                         # 处理旧格式
                         elif isinstance(data, dict) and "name" in data:
                             self._prompt_cache[data["name"]] = data
-                except Exception:
+                except Exception as e:
+                    error(f"加载提示词文件 {yaml_file} 时出错: {str(e)}")
+                    print_log_exception()
                     continue
 
             # 标记所有提示词已加载
@@ -127,7 +130,6 @@ class PromptManager:
 
         # 如果找不到指定名称的提示词，抛出异常
         raise KeyError(f"提示词模板 '{name}' 不存在")
-
 
     def get_name_prompt(self, name) -> str:
         """获取剧本解析提示词模板"""

@@ -65,7 +65,7 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
         """使用LLM拆分单个场景"""
         # 准备元素列表文本
         elements_list = "\n".join([
-            f"{i + 1}. [{elem.type}] {elem.character or '场景'}: {elem.content[:50]}... (时长: {elem.estimated_duration}秒)"
+            f"{i + 1}. [{elem.type}] {elem.character or '场景'}: {elem.content[:50]}... (时长: {elem.duration}秒)"
             for i, elem in enumerate(scene.elements)
         ])
 

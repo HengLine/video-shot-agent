@@ -6,7 +6,6 @@
 """
 
 from datetime import datetime
-from functools import lru_cache
 from typing import List, Optional, Dict, Any, Literal
 
 from pydantic import BaseModel, Field
@@ -156,7 +155,6 @@ class ParsedScript(BaseModel):
         """转换为字典表示"""
         return self.model_dump()
 
-    @lru_cache
     def get_Elements_by_type(self, element_type: ElementType) -> List[BaseElement]:
         return [
             elem
@@ -164,3 +162,6 @@ class ParsedScript(BaseModel):
             for elem in scene.elements
             if elem.type == element_type
         ]
+
+    def is_valid(self):
+        return len(self.scenes) > 0

@@ -21,9 +21,9 @@ class TaskManager:
         self.workflow_cache: Dict[str, MultiAgentPipeline] = {}
         self.logger = logging.getLogger(__name__)
 
-    def create_task(self, script: str, config: Dict = None, request_id: str = None) -> str:
+    def create_task(self, script: str, config: Dict = None, task_id: str = None) -> str:
         """创建新任务"""
-        task_id = request_id or str(uuid.uuid4())
+        task_id = task_id or str(uuid.uuid4())
 
         self.tasks[task_id] = {
             "task_id": task_id,

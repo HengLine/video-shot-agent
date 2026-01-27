@@ -21,7 +21,7 @@ class APIClient:
     async def process_script(self, script: str, config: Dict = None, callback_url: str = None):
         """处理剧本"""
         response = await self.client.post(
-            "/api/v1/process",
+            "/api/v1/generate",
             json={
                 "script": script,
                 "config": config,

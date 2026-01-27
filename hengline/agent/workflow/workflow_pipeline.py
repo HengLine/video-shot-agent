@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 @FileName: multi_agent_pipeline.py
 @Description: 多智能体协作流程，负责协调各个智能体完成端到端的分镜生成
@@ -191,29 +190,18 @@ class MultiAgentPipeline:
 
         # ========== 公开接口 ==========
 
-    async def run_process(self, raw_script: str, config: Dict = None, duration_per_shot: float = 5) -> Dict:
+    async def run_process(self, raw_script: str, config: Dict = None) -> Dict:
         """执行完整的工作流"""
-        initial_state: WorkflowState = {
-            "raw_script": raw_script,
-            "duration_per_shot": duration_per_shot,
-            "task_id": self.task_id,
-            "user_config": config or {},
-            "parsed_script": None,
-            "shots": [],
-            "fragments": [],
-            "ai_instructions": [],
-            "audit_report": None,
-            "final_output": None,
-            "current_stage": "initialized",
-            "retry_count": 0,
-            "max_retries": config.get("max_retries", 3),
-            "error_messages": [],
-            "continuity_state": {},
-            "continuity_issues": [],
-            "quality_scores": {},
-            "needs_human_review": False,
-            "human_feedback": None
-        }
+        initial_state = WorkflowState(
+            raw_script=raw_script,
+            user_config=config or {},
+            duration_per_shot=config.get("duration_per_shot", 5.0),
+            task_id=self.task_id,
+            needs_human_review=False,
+            human_feedback={},
+            max_retries=config.get("max_retries", 3),
+            current_stage="initialized",
+        )
 
         try:
             # 执行工作流

@@ -62,7 +62,6 @@ class ScriptParserAgent:
             # parsed_script = self.script_parser.get(ParserType.RULE_PARSER).parser(script_text,format_type)
 
         # 步骤4：质量评估
-        debug("评估解析质量...")
         completeness_score, warnings = self._evaluate_completeness(parsed_script, script_text)
         warning(f"评估解析质量：{warnings}")
 
@@ -76,7 +75,7 @@ class ScriptParserAgent:
         info(f"解析完成！最终完整性评分: {completeness_score:.2f}/1.0")
         debug(f"   场景: {len(parsed_script.scenes)}个")
         debug(f"   角色: {len(parsed_script.characters)}个")
-        debug(f"   节点: {len(parsed_script.stats.get('total_elements'))}个")
+        debug(f"   节点: {parsed_script.stats.get('total_elements', 0)}个")
 
         return parsed_script
 

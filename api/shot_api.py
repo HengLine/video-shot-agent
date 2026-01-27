@@ -22,7 +22,7 @@ task_manager = TaskManager()
 task_processor = AsyncTaskProcessor(task_manager)
 
 
-@app.post("/generate_storyboard", response_model=ProcessResult)
+@app.post("/generate", response_model=ProcessResult)
 def generate_storyboard_api(request: ProcessRequest, background_tasks: BackgroundTasks):
     """
     通过A2A协议调用分镜生成功能
@@ -39,9 +39,8 @@ def generate_storyboard_api(request: ProcessRequest, background_tasks: Backgroun
             "INFO",
             "接收到分镜生成请求",
             {
-                "style": request.style,
-                "duration": request.duration_per_shot,
-                "has_prev_state": request.prev_continuity_state is not None
+                "task_id": request.task_id,
+                "duration": request.config.get("duration_per_shot", 0)
             }
         )
 
@@ -52,7 +51,7 @@ def generate_storyboard_api(request: ProcessRequest, background_tasks: Backgroun
         task_id = task_manager.create_task(
             script=request.script,
             config=request.config,
-            request_id=request.request_id
+            task_id=request.task_id
         )
 
         # 在后台异步处理

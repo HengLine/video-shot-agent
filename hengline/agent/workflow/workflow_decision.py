@@ -4,6 +4,7 @@
 @Author: HengLine
 @Time: 2026/1/26 16:12
 """
+from hengline.logger import error, warning
 from hengline.agent.workflow.workflow_states import WorkflowState
 
 
@@ -12,50 +13,58 @@ class DecisionFunctions:
 
     def decide_after_parsing(self, state: WorkflowState) -> str:
         """剧本解析后的决策"""
-        if not state.get("parsed_script"):
+        parsed_script = state.get("parsed_script")
+        if not parsed_script:
+            error("剧本解析，数据为空")
             return "critical_failure"
 
         # 检查解析质量
-        elements = state["parsed_script"].get("elements", [])
-        if len(elements) == 0:
+        if not parsed_script.is_valid:
+            error("剧本解析，数据有问题")
             return "critical_failure"
 
         return "success"
 
     def decide_after_splitting(self, state: WorkflowState) -> str:
         """镜头拆分后的决策"""
-        shots = state.get("shots", [])
-        if not shots:
+        shot_sequence = state.get("shot_sequence")
+        if not shot_sequence or len(shot_sequence.shots) < 1:
+            error("镜头拆分，数据为空")
             return "critical_failure"
 
         # 检查是否有过长镜头需要重试
-        long_shots = [s for s in shots if s.get("duration", 0) > 15]
+        long_shots = [s for s in shot_sequence.shots if s.duration > 15]
         if long_shots and state["retry_count"] < state["max_retries"]:
             state["retry_count"] += 1
+            warning("镜头拆分，有过长镜头需要重试")
             return "retry"
 
         return "success"
 
     def decide_after_fragmenting(self, state: WorkflowState) -> str:
         """AI分段后的决策"""
-        fragments = state.get("fragments", [])
-        if not fragments:
+        fragment_sequence = state.get("fragment_sequence")
+        if not fragment_sequence or len(fragment_sequence.fragments) < 1:
+            error("AI分段后，数据为空")
             return "critical_failure"
 
         # 检查时长合规性
-        invalid_fragments = [f for f in fragments if f.get("duration", 0) > 5.2]
+        invalid_fragments = [f for f in fragment_sequence.fragments if f.duration > 5.2]
         if invalid_fragments:
             if len(invalid_fragments) <= 1:  # 只有1个片段有问题
+                warning("AI分段后，片段有问题")
                 return "needs_adjustment"
             else:
+                error("AI分段后，不符合")
                 return "critical_failure"
 
         return "success"
 
     def decide_after_prompts(self, state: WorkflowState) -> str:
         """Prompt生成后的决策"""
-        instructions = state.get("ai_instructions", [])
-        if not instructions:
+        instructions = state.get("instructions")
+        if not instructions or len(instructions.fragments) < 1:
+            error("Prompt生成，不符合")
             return "critical_failure"
 
         return "continue"  # 总是进入质量审查

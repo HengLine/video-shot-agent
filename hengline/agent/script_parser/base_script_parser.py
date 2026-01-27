@@ -40,7 +40,7 @@ class BaseScriptParser(ABC):
         for scene in parsed_script.scenes:
             total_elements += len(scene.elements)
             for element in scene.elements:
-                total_duration += element.estimated_duration
+                total_duration += element.duration
                 if element.type == ElementType.DIALOGUE:
                     dialogue_count += 1
                 elif element.type == ElementType.ACTION:

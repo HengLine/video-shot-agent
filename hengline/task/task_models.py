@@ -17,25 +17,24 @@ class ProcessRequest(BaseModel):
     """处理请求数据模型"""
     script: str = Field(..., min_length=1, description="原始剧本文本")
     config: Optional[Dict[str, Any]] = Field(
-        default=None,
+        default={
+            # 每个分镜的持续时间（秒），默认5秒
+            "duration_per_shot": 5.0,
+            # 前一个分镜的连续性状态，用于保持连续性
+            "prev_continuity_state": None,
+        },
         description="处理配置，如模型选择、风格偏好等"
     )
     callback_url: Optional[str] = Field(
         default=None,
         description="回调URL，处理完成后通知（可选）"
     )
-    request_id: Optional[str] = Field(
-        default=None,
+    task_id: Optional[str] = Field(
+        default="hengline-" + str(datetime.now().strftime("%Y%m%d-%H%M%S")) + str(random.randint(100, 999)),
         description="外部请求ID（可选）"
     )
-    task_id: str = "hengline-" + str(datetime.now().strftime("%Y%m%d-%H%M%S")) + str(random.randint(100, 999))
-
     # 剧本语言，可选值："zh"（中文）、"en"（英文）
     language: str = Language.ZH.value
-    # 每个分镜的持续时间（秒），默认5秒
-    duration_per_shot: int = 5
-    # 前一个分镜的连续性状态，用于保持连续性
-    prev_continuity_state: Optional[Dict[str, Any]] = None
 
 
 class ProcessingStatus(BaseModel):
