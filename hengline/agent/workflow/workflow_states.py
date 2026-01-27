@@ -15,6 +15,7 @@ from hengline.agent.quality_auditor.quality_auditor_models import QualityAuditRe
 from hengline.agent.script_parser.script_parser_models import ParsedScript
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence
+from hengline.agent.workflow.workflow_models import AgentStage
 
 
 class InputState(BaseModel):
@@ -53,8 +54,8 @@ class PromptConverterState(BaseModel):
 class QualityAuditorState(BaseModel):
     """质量审查相关状态"""
     audit_report: Optional[QualityAuditReport]  = None # 质量审查报告
-    audit_failures: List[str] = None  # 审查失败项
-    audit_warnings: List[str] = None  # 审查警告项
+    audit_failures: List[str] = []  # 审查失败项
+    audit_warnings: List[str] = []  # 审查警告项
 
 
 class OutputState(BaseModel):
@@ -71,16 +72,16 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState,
     通过继承多个特定功能的状态类来组合，实现高内聚低耦合
     """
     # === 工作流控制 ===
-    current_stage: str = None  # 当前处理阶段
+    current_stage: AgentStage = AgentStage.START  # 当前处理阶段
     retry_count: int = 0  # 重试计数
     max_retries: int = 3  # 最大重试次数
     should_abort: bool = False  # 是否中止流程
-    error_messages: List[str] = None  # 累计错误信息
+    error_messages: List[str] = []  # 累计错误信息
 
     # === 连续性管理 ===
-    continuity_state: Dict = None  # 当前连续性状态
-    continuity_issues: List[Dict] = None  # 连续性问题列表
-    continuity_anchors: Dict = None  # 连续性锚点映射
+    continuity_state: Dict = {}  # 当前连续性状态
+    continuity_issues: List[Dict] = []  # 连续性问题列表
+    continuity_anchors: Dict = {}  # 连续性锚点映射
 
     # 人工决策
     needs_human_review: bool = False

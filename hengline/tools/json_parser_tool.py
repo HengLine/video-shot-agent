@@ -49,7 +49,6 @@ class JsonResponseParser:
 
         # 尝试直接解析JSON
         try:
-            debug("尝试直接解析JSON响应")
             result = json.loads(response_text)
             return result
         except json.JSONDecodeError:

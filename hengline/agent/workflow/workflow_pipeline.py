@@ -12,6 +12,7 @@ from langgraph.graph import StateGraph, END
 from hengline.agent.script_parser_agent import ScriptParserAgent
 from hengline.logger import debug
 from .workflow_decision import DecisionFunctions
+from .workflow_models import AgentStage
 from .workflow_nodes import WorkflowNodes
 from .workflow_states import WorkflowState
 from ..prompt_converter_agent import PromptConverterAgent
@@ -200,7 +201,7 @@ class MultiAgentPipeline:
             needs_human_review=False,
             human_feedback={},
             max_retries=config.get("max_retries", 3),
-            current_stage="initialized",
+            current_stage=AgentStage.INIT,
         )
 
         try:
@@ -211,11 +212,11 @@ class MultiAgentPipeline:
             )
 
             return {
-                "success": final_state.get("final_output") is not None,
-                "data": final_state.get("final_output"),
-                "errors": final_state.get("error_messages", []),
+                "success": final_state.final_output is not None,
+                "data": final_state.final_output,
+                "errors": final_state.error_messages,
                 "processing_stats": {
-                    "retry_count": final_state.get("retry_count", 0),
+                    "retry_count": final_state.retry_count,
                     "stages_completed": self._get_completed_stages(final_state)
                 }
             }
@@ -227,19 +228,19 @@ class MultiAgentPipeline:
                 "data": None
             }
 
-    def _get_completed_stages(self, state: WorkflowState) -> List[str]:
+    def _get_completed_stages(self, state: WorkflowState) -> List[AgentStage]:
         """获取已完成的阶段列表"""
         stages = []
-        if state.get("parsed_script"):
-            stages.append("script_parsing")
-        if state.get("shot_sequence"):
-            stages.append("shot_splitting")
-        if state.get("fragment_sequence"):
-            stages.append("ai_fragmentation")
-        if state.get("instructions"):
-            stages.append("prompt_generation")
-        if state.get("audit_report"):
-            stages.append("quality_audit")
-        if state.get("continuity_issues") is not None:
-            stages.append("continuity_check")
+        if state.parsed_script:
+            stages.append(AgentStage.PARSER)
+        if state.shot_sequence:
+            stages.append(AgentStage.SEGMENTER)
+        if state.fragment_sequence:
+            stages.append(AgentStage.SPLITTER)
+        if state.instructions:
+            stages.append(AgentStage.CONVERTER)
+        if state.audit_report:
+            stages.append(AgentStage.AUDITOR)
+        if state.continuity_issues is not None:
+            stages.append(AgentStage.CONTINUITY)
         return stages

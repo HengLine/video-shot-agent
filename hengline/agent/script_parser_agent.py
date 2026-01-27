@@ -10,7 +10,7 @@ from typing import Dict, Tuple, List
 
 from hengline.agent.script_parser.llm_script_parser import LLMScriptParser
 from hengline.logger import debug, info, warning
-from .base_models import AgentType, AgentMode, ScriptType, ElementType
+from .base_models import AgentMode, ScriptType, ElementType
 from .script_parser.RuleScriptParser import RuleScriptParser
 from .script_parser.script_parser_models import ParsedScript
 from ..client.client_config import AIConfig
@@ -26,7 +26,6 @@ class ScriptParserAgent:
         Args:
             llm: 语言模型实例（推荐GPT-4o）
         """
-        self.agent_type = AgentType.PARSER
         self.use_local_rules = False  # 是否启用本地规则校验和补全
         self.config = AIConfig()
 

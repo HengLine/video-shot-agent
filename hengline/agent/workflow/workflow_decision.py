@@ -13,7 +13,7 @@ class DecisionFunctions:
 
     def decide_after_parsing(self, state: WorkflowState) -> str:
         """剧本解析后的决策"""
-        parsed_script = state.get("parsed_script")
+        parsed_script = state.parsed_script
         if not parsed_script:
             error("剧本解析，数据为空")
             return "critical_failure"
@@ -27,15 +27,15 @@ class DecisionFunctions:
 
     def decide_after_splitting(self, state: WorkflowState) -> str:
         """镜头拆分后的决策"""
-        shot_sequence = state.get("shot_sequence")
+        shot_sequence = state.shot_sequence
         if not shot_sequence or len(shot_sequence.shots) < 1:
             error("镜头拆分，数据为空")
             return "critical_failure"
 
         # 检查是否有过长镜头需要重试
         long_shots = [s for s in shot_sequence.shots if s.duration > 15]
-        if long_shots and state["retry_count"] < state["max_retries"]:
-            state["retry_count"] += 1
+        if long_shots and state.retry_count < state.max_retries:
+            state.retry_count += 1
             warning("镜头拆分，有过长镜头需要重试")
             return "retry"
 
@@ -43,7 +43,7 @@ class DecisionFunctions:
 
     def decide_after_fragmenting(self, state: WorkflowState) -> str:
         """AI分段后的决策"""
-        fragment_sequence = state.get("fragment_sequence")
+        fragment_sequence = state.fragment_sequence
         if not fragment_sequence or len(fragment_sequence.fragments) < 1:
             error("AI分段后，数据为空")
             return "critical_failure"
@@ -62,7 +62,7 @@ class DecisionFunctions:
 
     def decide_after_prompts(self, state: WorkflowState) -> str:
         """Prompt生成后的决策"""
-        instructions = state.get("instructions")
+        instructions = state.instructions
         if not instructions or len(instructions.fragments) < 1:
             error("Prompt生成，不符合")
             return "critical_failure"
@@ -71,8 +71,8 @@ class DecisionFunctions:
 
     def decide_after_audit(self, state: WorkflowState) -> str:
         """质量审查后的决策"""
-        report = state.get("audit_report", {})
-        status = report.get("overall_status", "failed")
+        report = state.audit_report
+        status = report.status
 
         decision_map = {
             "passed": "continuity_check",
@@ -86,7 +86,7 @@ class DecisionFunctions:
 
     def decide_after_continuity(self, state: WorkflowState) -> str:
         """连续性检查后的决策"""
-        issues = state.get("continuity_issues", [])
+        issues = state.continuity_issues
 
         if not issues:
             return "passed"
@@ -100,12 +100,12 @@ class DecisionFunctions:
 
     def decide_after_error(self, state: WorkflowState) -> str:
         """错误处理后的决策"""
-        if state["retry_count"] >= state["max_retries"]:
+        if state.retry_count >= state.max_retries:
             return "needs_human"
         return "recoverable"
 
     def decide_after_human(self, state: WorkflowState) -> str:
         """人工干预后的决策"""
         # 实际应该从state中读取人工决策
-        human_decision = state.get("human_feedback", {}).get("decision", "continue")
+        human_decision = state.human_feedback.get("decision", "continue")
         return human_decision

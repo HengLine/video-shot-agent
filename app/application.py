@@ -31,7 +31,7 @@ async def app_startup():
     # 在这里添加任何需要在应用启动时执行的初始化代码
     data_paths = get_data_paths()
     os.makedirs(data_paths["data_output"], exist_ok=True)
-    os.makedirs(data_paths["data_input"], exist_ok=True)
+    # os.makedirs(data_paths["data_input"], exist_ok=True)
     # os.makedirs(data_paths["model_cache"], exist_ok=True)
     # os.makedirs(data_paths["embedding_cache"], exist_ok=True)
 

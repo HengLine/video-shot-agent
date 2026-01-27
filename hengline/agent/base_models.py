@@ -13,16 +13,6 @@ from pydantic import BaseModel, Field
 
 
 # ==================== 基础枚举和类型定义 ====================
-
-@unique
-class AgentType(Enum):
-    PARSER = "parser"  # 智能体1：剧本解析
-    PLANNER = "planner"  # 智能体2：时序规划
-    CONTINUITY = "continuity"  # 智能体3：连贯性
-    VISUAL = "visual"  # 智能体4：视觉生成
-    REVIEWER = "reviewer"  # 智能体5：质量审查
-
-
 class ScriptType(Enum):
     """剧本格式类型"""
     NATURAL_LANGUAGE = "natural_language"  # 自然语言描述

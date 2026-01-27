@@ -15,7 +15,7 @@ video_splitter:
     如果需要分割，建议如何分割（分成几段，每段时长多少）。
     直接返回JSON格式，包含：
     - "needs_split": true/false
-    - "segments": [{"duration": 秒数, "description": "片段描述"}, ...]
+    - "segments": [{{"duration": 秒数, "description": "片段描述"}}, ...]
     - "reason": "分割理由"
 
     不要其他文字。

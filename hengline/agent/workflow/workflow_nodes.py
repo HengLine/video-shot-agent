@@ -5,11 +5,11 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
+from hengline.agent.workflow.workflow_models import AgentStage
 from hengline.agent.workflow.workflow_states import WorkflowState
-from hengline.logger import error, info, debug
+from hengline.logger import error, debug
 from hengline.tools.result_storage_tool import create_result_storage
 from utils.log_utils import print_log_exception
-from utils.obj_utils import obj_to_dict
 
 
 class WorkflowNodes:
@@ -43,27 +43,21 @@ class WorkflowNodes:
         输入：raw_script
         输出：parsed_script (包含顺序保持的元素列表)
         """
-        state["current_stage"] = "script_parsing"
-
         try:
-            parsed_script = self.script_parser.parser_process(state["raw_script"])
-
+            parsed_script = self.script_parser.parser_process(state.raw_script)
             debug(f"剧本解析完成，场景数: {len(parsed_script.scenes)}")
 
             # 保存剧本解析结果
-            task_id = state.get("task_id")
-            try:
-                self.storage.save_result(task_id, obj_to_dict(parsed_script), "script_parser_result.json")
-                info(f"剧本解析结果已保存到: data/output/{task_id}/script_parser_result.json")
-            except Exception as save_error:
-                error(f"保存剧本解析结果失败: {str(save_error)}")
+            self.storage.save_obj_result(state.task_id, parsed_script, "script_parser_result.json")
 
-            state["parsed_script"] = parsed_script
+            state.parsed_script = parsed_script
+            state.current_stage = AgentStage.PARSER
 
         except Exception as e:
             print_log_exception()
             error(f"剧本解析节点异常: {str(e)}")
-            state["error"] = str(e)
+            state.error = str(e)
+            state.error_messages.append(str(e))
 
         return state
 
@@ -74,28 +68,21 @@ class WorkflowNodes:
         输入：parsed_script
         输出：shots (带时间戳的镜头序列)
         """
-
-        state["current_stage"] = "shot_splitting"
-
         try:
-            shot_sequence = self.shot_segmenter.shot_process(state["parsed_script"])
-
+            shot_sequence = self.shot_segmenter.shot_process(state.parsed_script)
             debug(f"分镜解析完成，镜头数: {len(shot_sequence.shots)}")
 
             # 保存剧本解析结果
-            task_id = state.get("task_id")
-            try:
-                self.storage.save_result(task_id, obj_to_dict(shot_sequence), "shot_segmenter_result.json")
-                info(f"剧本分镜结果已保存到: data/output/{task_id}/shot_segmenter_result.json")
-            except Exception as save_error:
-                error(f"保存分镜解析结果失败: {str(save_error)}")
+            self.storage.save_obj_result(state.task_id, shot_sequence, "shot_segmenter_result.json")
 
-            state["shot_sequence"] = shot_sequence
+            state.shot_sequence = shot_sequence
+            state.current_stage = AgentStage.SEGMENTER
 
         except Exception as e:
             print_log_exception()
             error(f"分镜解析节点异常: {str(e)}")
-            state["error"] = str(e)
+            state.error = str(e)
+            state.error_messages.append(str(e))
 
         return state
 
@@ -110,27 +97,21 @@ class WorkflowNodes:
         # 2. <2秒的考虑合并
         # 3. 在动作边界自然切分
         # 4. 生成片段级连续性锚点
-
-        state["current_stage"] = "ai_fragmentation"
         try:
-            fragment_sequence = self.video_splitter.video_process(state["shot_sequence"])
-
+            fragment_sequence = self.video_splitter.video_process(state.shot_sequence)
             debug(f"视频分段完成，视频片段数: {len(fragment_sequence.fragments)}")
 
             # 保存剧本解析结果
-            task_id = state.get("task_id")
-            try:
-                self.storage.save_result(task_id, obj_to_dict(fragment_sequence), "video_splitter_result.json")
-                info(f"视频分段结果已保存到: data/output/{task_id}/video_splitter_result.json")
-            except Exception as save_error:
-                error(f"视频分段结果失败: {str(save_error)}")
+            self.storage.save_obj_result(state.task_id, fragment_sequence, "video_splitter_result.json")
 
-            state["fragment_sequence"] = fragment_sequence
+            state.fragment_sequence = fragment_sequence
+            state.current_stage = AgentStage.SPLITTER
 
         except Exception as e:
             print_log_exception()
             error(f"视频分段异常: {str(e)}")
-            state["error"] = str(e)
+            state.error = str(e)
+            state.error_messages.append(str(e))
 
         return state
 
@@ -146,26 +127,21 @@ class WorkflowNodes:
         # 3. 嵌入连续性约束
         # 4. 生成技术参数
 
-        state["current_stage"] = "prompt_generation"
         try:
-            instructions = self.prompt_converter.prompt_process(state["fragment_sequence"])
-
+            instructions = self.prompt_converter.prompt_process(state.fragment_sequence)
             debug(f"片段指令转换完成，指令片段数: {len(instructions.fragments)}")
 
             # 保存剧本解析结果
-            task_id = state.get("task_id")
-            try:
-                self.storage.save_result(task_id, obj_to_dict(instructions), "prompt_converter_result.json")
-                info(f"片段指令转换结果已保存到: data/output/{task_id}/prompt_converter_result.json")
-            except Exception as save_error:
-                error(f"片段指令转换结果失败: {str(save_error)}")
+            self.storage.save_obj_result(state.task_id, instructions, "prompt_converter_result.json")
 
-            state["instructions"] = instructions
+            state.instructions = instructions
+            state.current_stage = AgentStage.CONVERTER
 
         except Exception as e:
             print_log_exception()
             error(f"片段指令转换异常: {str(e)}")
-            state["error"] = str(e)
+            state.error = str(e)
+            state.error_messages.append(str(e))
 
         return state
 
@@ -181,27 +157,21 @@ class WorkflowNodes:
         # 3. 使用LLM评估视觉连贯性
         # 4. 生成修正建议
 
-        state["current_stage"] = "quality_audit"
-
         try:
-            audit_report = self.quality_auditor.qa_process(state["instructions"])
-
+            audit_report = self.quality_auditor.qa_process(state.instructions)
             debug(f"质量审查完成，违规记录数: {len(audit_report.violations)}")
 
             # 保存剧本解析结果
-            task_id = state.get("task_id")
-            try:
-                self.storage.save_result(task_id, obj_to_dict(audit_report), "quality_auditor_result.json")
-                info(f"质量审查结果已保存到: data/output/{task_id}/quality_auditor_result.json")
-            except Exception as save_error:
-                error(f"质量审查结果失败: {str(save_error)}")
+            self.storage.save_obj_result(state.task_id, audit_report, "quality_auditor_result.json")
 
-            state["audit_report"] = audit_report
+            state.audit_report = audit_report
+            state.current_stage = AgentStage.AUDITOR
 
         except Exception as e:
             print_log_exception()
             error(f"质量审查异常: {str(e)}")
-            state["error"] = str(e)
+            state.error = str(e)
+            state.error_messages.append(str(e))
 
         return state
 
@@ -217,9 +187,9 @@ class WorkflowNodes:
         # 2. 检查场景一致性
         # 3. 验证位置和动作连续性
         # 4. 标记不连续点
+        state.continuity_issues = []
+        state.current_stage = AgentStage.CONTINUITY
 
-        state["current_stage"] = "continuity_check"
-        state["continuity_issues"] = []
         return state
 
     def error_handler_node(self, state: WorkflowState) -> WorkflowState:
@@ -229,11 +199,11 @@ class WorkflowNodes:
         输入：error_messages, retry_count
         输出：更新状态，决定下一步
         """
-        state["current_stage"] = "error_handling"
-
         # 检查是否需要人工干预
-        if state["retry_count"] >= state["max_retries"]:
-            state["needs_human_review"] = True
+        if state.retry_count >= state.max_retries:
+            state.needs_human_review = True
+
+        state.current_stage = AgentStage.ERROR
 
         return state
 
@@ -244,21 +214,22 @@ class WorkflowNodes:
         输入：所有阶段的结果
         输出：final_output (完整处理结果)
         """
-        state["current_stage"] = "output_generation"
-        fragments = state.get("instructions", {}).fragments
+        state.current_stage = AgentStage.END
 
-        state["final_output"] = {
+        fragments = state.instructions.fragments if state.instructions else []
+
+        state.final_output = {
             "status": "completed",
             "metadata": {
                 "processed_at": "2024-01-20T12:00:00Z",
                 "total_fragments": len(fragments),
-                "total_duration": sum(f.get("duration", 0) for f in fragments)
+                "total_duration": sum(f.duration for f in fragments)
             },
             "fragments": fragments,
-            "audit_report": state.get("audit_report", {}),
+            "audit_report": state.audit_report,
             "continuity_report": {
-                "issues": state.get("continuity_issues", []),
-                "issue_count": len(state.get("continuity_issues", []))
+                "issues": state.continuity_issues,
+                "issue_count": len(state.continuity_issues)
             },
             "execution_instructions": [
                 "1. 按顺序生成每个片段视频",
@@ -275,13 +246,12 @@ class WorkflowNodes:
         输入：需要人工决策的状态
         输出：人工处理后的状态
         """
-        state["current_stage"] = "human_intervention"
-
+        state.current_stage = AgentStage.HUMAN
         # 这里应该等待外部系统（如Web界面）提供反馈
         # 实际实现时可以通过回调或消息队列处理
 
         # 模拟人工反馈（实际应从外部获取）
-        if state.get("human_feedback"):
+        if state.human_feedback:
             # 应用人工修正
             pass
 

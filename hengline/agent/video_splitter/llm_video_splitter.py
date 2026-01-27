@@ -12,6 +12,7 @@ from hengline.agent.video_splitter.base_video_splitter import BaseVideoSplitter
 from hengline.agent.video_splitter.rule_video_splitter import RuleVideoSplitter
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from hengline.logger import info, error
+from utils.log_utils import print_log_exception
 
 
 class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
@@ -42,6 +43,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
 
             except Exception as e:
                 error(f"镜头{shot.id}分割失败: {str(e)}")
+                print_log_exception()
                 # 降级到简单规则
                 simple_cutter = RuleVideoSplitter()
                 fallback_fragments = simple_cutter.split_shot(shot, current_time, len(fragments))
