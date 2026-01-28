@@ -4,13 +4,13 @@
 @Author: HengLine
 @Time: 2026/1/26 16:42
 """
-import logging
 import uuid
 from datetime import datetime
 from typing import Optional, Dict
 
 from hengline.agent import MultiAgentPipeline
-from hengline.client.client_factory import get_default_llm
+from hengline.hengline_config import HengLineConfig
+from hengline.logger import info
 
 
 class TaskManager:
@@ -19,9 +19,8 @@ class TaskManager:
     def __init__(self):
         self.tasks: Dict[str, Dict] = {}
         self.workflow_cache: Dict[str, MultiAgentPipeline] = {}
-        self.logger = logging.getLogger(__name__)
 
-    def create_task(self, script: str, config: Dict = None, task_id: str = None) -> str:
+    def create_task(self, script: str, config: Optional[HengLineConfig] = None, task_id: str = None) -> str:
         """创建新任务"""
         task_id = task_id or str(uuid.uuid4())
 
@@ -39,7 +38,7 @@ class TaskManager:
             "callbacks": []
         }
 
-        self.logger.info(f"创建任务: {task_id}")
+        info(f"创建任务: {task_id}")
         return task_id
 
     def update_task_progress(self, task_id: str, stage: str, progress: float = None):
@@ -70,12 +69,12 @@ class TaskManager:
         """获取任务信息"""
         return self.tasks.get(task_id)
 
-    def get_workflow(self, task_id, config: Dict = None) -> MultiAgentPipeline:
+    def get_workflow(self, task_id, config: Optional[HengLineConfig] = None) -> MultiAgentPipeline:
         """获取或创建工作流实例"""
-        config_key = str(config) if config else "default"
+        # config_key = str(config) if config else "default"
+        config_key = task_id if task_id else "default"
 
         if config_key not in self.workflow_cache:
-            llm = get_default_llm()
-            self.workflow_cache[config_key] = MultiAgentPipeline(llm, task_id)
+            self.workflow_cache[config_key] = MultiAgentPipeline(task_id, config)
 
         return self.workflow_cache[config_key]

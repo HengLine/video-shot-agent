@@ -5,22 +5,19 @@
 @Time: 2026/1/26 22:30
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info, warning, error
 
 
 class BaseVideoSplitter(ABC):
     """视频分割器抽象基类"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {
-            "max_fragment_duration": 5.0,  # 强制5秒限制
-            "min_fragment_duration": 0.5,  # 最小片段时长
-            "split_strategy": "simple",  # 简单拆分策略
-        }
+    def __init__(self, config: Optional[HengLineConfig] = None):
+        self.config = config
         self._initialize()
 
     def _initialize(self):
@@ -76,11 +73,11 @@ class BaseVideoSplitter(ABC):
 
         # 检查时长限制
         for i, frag in enumerate(fragments):
-            if frag.duration > self.config["max_fragment_duration"]:
-                error(f"片段{i + 1}超时: {frag.duration}秒 > {self.config['max_fragment_duration']}秒")
+            if frag.duration > self.config.max_fragment_duration:
+                error(f"片段{i + 1}超时: {frag.duration}秒 > {self.config.max_fragment_duration}秒")
                 return False
 
-            if frag.duration < self.config["min_fragment_duration"]:
+            if frag.duration < self.config.min_fragment_duration:
                 warning(f"片段{i + 1}时长过短: {frag.duration}秒")
 
         # 检查时间连续性

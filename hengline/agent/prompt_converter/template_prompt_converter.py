@@ -4,19 +4,20 @@
 @Author: HengLine
 @Time: 2026/1/26 23:41
 """
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from hengline.agent.prompt_converter.base_prompt_converter import BasePromptConverter
 from hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions, AIVideoPrompt
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotType
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info
 
 
 class TemplatePromptConverter(BasePromptConverter):
     """基于模板的提示词转换器 - MVP版本"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[HengLineConfig] = None):
         super().__init__(config)
         # 定义简单模板
         self.templates = {
@@ -88,16 +89,16 @@ class TemplatePromptConverter(BasePromptConverter):
         full_prompt = f"{prompt_text}, {style_hint}, high quality, 4K"
 
         # 截断到合理长度
-        if len(full_prompt) > self.config["max_prompt_length"]:
-            full_prompt = full_prompt[:self.config["max_prompt_length"] - 3] + "..."
+        if len(full_prompt) > self.config.max_prompt_length:
+            full_prompt = full_prompt[:self.config.max_prompt_length - 3] + "..."
 
         # 创建提示词对象
         return AIVideoPrompt(
             fragment_id=fragment.id,
             prompt=full_prompt,
-            negative_prompt=self.config["default_negative_prompt"],
+            negative_prompt=self.config.default_negative_prompt,
             duration=fragment.duration,
-            model=self.config["target_model"],
+            model=self.config.target_model,
             style=style_hint,
             requires_special_attention=fragment.requires_special_attention
         )

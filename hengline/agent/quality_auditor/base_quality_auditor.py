@@ -6,23 +6,19 @@
 """
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
 from hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport, BasicViolation
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info
 
 
 class BaseQualityAuditor(ABC):
     """质量审查器抽象基类"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {
-            "max_fragment_duration": 5.0,
-            "min_fragment_duration": 0.5,
-            "max_prompt_length": 300,
-            "min_prompt_length": 10
-        }
+    def __init__(self, config: Optional[HengLineConfig]):
+        self.config = config
         self._initialize()
 
     def _initialize(self):

@@ -4,20 +4,21 @@
 @Author: HengLine
 @Time: 2026/1/26 17:35
 """
-from typing import Dict, Any, Optional, List
+from typing import Optional, List
 
 from hengline.agent.base_agent import BaseAgent
 from hengline.agent.script_parser.script_parser_models import ParsedScript, SceneInfo
 from hengline.agent.shot_segmenter.base_shot_segmenter import BaseShotSegmenter
 from hengline.agent.shot_segmenter.rule_shot_segmenter import RuleShotSegmenter
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo, ShotType
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info, error
 
 
 class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
     """基于LLM的分镜拆分器"""
 
-    def __init__(self, llm_client, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm_client, config: Optional[HengLineConfig]):
         super().__init__(config)
         self.llm_client = llm_client
 

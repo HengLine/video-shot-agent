@@ -12,7 +12,7 @@
 >
 >   这便是本智能体需要完成的任务，用户只需要给出剧本，而后根据各种技术拆解，最后将拆解完成的剧本片段返回，用户只需要将其交给模型（Runway、Pika、Sora、Wan、Stable Video等）生成即可，最后再利用相关技术将片段合成为完整视频。
 
-**视频创作流程**：客户端  → LLM 剧本创作  →  <u>***剧本解析（剧本拆分）***</u> → DM 视频生成（文生视频） →  视频合成渲染（FFmpeg）
+**视频创作流程**：客户端  → LLM 剧本创作  →  <u>***剧本解析（拆分）***</u> → DM 视频生成（文生视频） →  视频合成渲染（FFmpeg）
 
 **注意**：本智能体不会参与剧本创作，不会调用模型生成视频，亦不会合成视频，以上流程中标注处就是本智能体的任务。
 
@@ -20,7 +20,7 @@
 ## 核心功能
 
 - **智能剧本解析**：自动识别场景、对话和动作指令，理解故事结构
-- **精准时序规划**：按短视频粒度智能切分内容，分配合理时长
+- **精准时序规划**：按镜头粒度智能切分内容，分配合理时长
 - **连续性守护**：确保相邻分镜间角色状态、场景和情节的一致性
 - **高质量分镜生成**：生成详细的中文画面描述和英文AI视频提示词
 - **多模型支持**：兼容OpenAI、Qwen、DeepSeek、Ollama等多种AI提供商
@@ -65,18 +65,22 @@ cp .env.example .env
 编辑 `.env` 文件，配置必要的参数：
 
 ```properties
-# 选择AI提供商：openai, qwen, deepseek, ollama
-AI_PROVIDER=qwen
+############################## LLM 模型
+# 默认使用的AI提供商，可选值（openai, qwen, deepseek, ollama），然后根据需要配置相应的API密钥和参数
+LLM_PROVIDER=openai
+
+# 生成温度参数，控制输出的随机性： 0.0 = 确定性输出，1.0 = 最大随机性
+LLM_TEMPERATURE=0.1
 
 # 根据选择的提供商配置对应的API密钥
 QWEN_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxx
-QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 QWEN_MODEL=qwen-plus
 
-# 嵌入模型配置，支持AI供应商：ollama、huggingface、openai
+############################## 嵌入模型
+# 默认嵌入模型提供商，可选值：openai, ollama, qwen
 EMBEDDING_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_EMBEDDING_MODEL=quentinz/bge-large-zh-v1.5
+EMBEDDING_BASE_URL=http://localhost:11434
+EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 ### 3. 启动应用
@@ -91,8 +95,10 @@ python start_app.py
 
 ### 1. 作为Python库使用
 
+以下为同步方式
+
 ```python
-from hengline.generate_agent import generate_storyboard
+from hengline.hengline_agent import generate_storyboard
 
 # 基本使用：传入中文剧本文本
 script_text = """
@@ -105,17 +111,16 @@ script_text = """
 
 # 生成分镜
 result = generate_storyboard(script_text)
-print(f"生成了 {result['total_shots']} 个分镜")
-for shot in result['shots']:
-    print(f"\n分镜 {shot['shot_id']}:")
-    print(f"时间: {shot['start_time']}-{shot['end_time']}s")
-    print(f"描述: {shot['description']}")
-    print(f"AI提示词: {shot['ai_prompt']}")
+print(f" 解析结果 {result['success']} ")
+for shot in result['data']:
+    print(f"\n分镜 {shot['fragments']}:")
+    print(f"审查报告: {shot['audit_report']}")
+    print(f"metadata: {shot['metadata']}")
 ```
 
 ### 2. 集成到Web应用（API）
 
-可以通过HTTP API将剧本分镜智能体集成到各种Web应用中：
+可以通过 HTTP API 将剧本分镜智能体集成到各种 Web 应用中：
 
 ```python
 from flask import Flask, request, jsonify
@@ -123,12 +128,11 @@ from hengline.generate_agent import generate_storyboard
 
 app = Flask(__name__)
 
-@app.route('/generate', methods=['POST'])
+@app.route('/api/v1/generate', methods=['POST'])
 def generate():
     data = request.json
     result = generate_storyboard(
         script_text=data['script_text'],
-        style=data.get('style', 'realistic')
     )
     return jsonify(result)
 ```
@@ -136,37 +140,33 @@ def generate():
 API接口调用
 
 ```bash
-curl -X POST http://localhost:8000/api/generate_storyboard \
+curl -X POST http://localhost:8000/api/v1/generate \
   -H "Content-Type: application/json" \
-  -d '{"script_text": "深夜11点，城市公寓客厅...", "style": "realistic", "duration_per_shot": 5}'
+  -d '{"script_text": "深夜11点，城市公寓客厅..."}'
 ```
 
 > - `script_text`：中文剧本文本（必填）
-> - `style`：分镜风格，可选值：`realistic`, `anime`, `cinematic`, `cartoon`（默认：`realistic`）
-> - `duration_per_shot`：每段分镜目标时长（秒），默认：`5`
+> - `max_fragment_duration`：每段分镜目标最大时长（秒），默认：`5`
 
 ### 3. 集成到LangGraph节点
 
-可以将剧本分镜智能体作为LangGraph工作流中的一个节点：
+可以将剧本分镜智能体作为 LangGraph 工作流中的一个节点：
 
 ```python
 from langgraph.graph import Graph, StateGraph, END
-from hengline.generate_agent import generate_storyboard
+from hengline.hengline_agent import generate_storyboard
 
 # 定义工作流状态
-class StoryWorkflowState:
-    def __init__(self):
-        self.script = ""
-        self.storyboard = None
-        self.status = "pending"
+class StoryWorkflowState(BaseModel):
+    self.script = ""
+    self.storyboard = None
+    self.status = "pending"
 
 # 创建分镜生成节点
-def generate_storyboard_node(state):
+def generate_storyboard_node(state:StoryWorkflowState) -> StoryWorkflowState:
     try:
         state.storyboard = generate_storyboard(
-            script_text=state.script,
-            style="cinematic",
-            enable_quality_check=True
+            script_text=state.script
         )
         state.status = "completed"
     except Exception as e:
@@ -193,43 +193,10 @@ result = app.invoke({
 
 将剧本分镜智能体集成到Agent-to-Agent协作系统中：
 
+如：上游是剧本创作智能体，下游是 文生视频+剪辑 智能。
+
 ```python
-from hengline.agent.multi_agent_pipeline import MultiAgentPipeline
-from hengline.agent.workflow_nodes import StoryboardAgentNode
 
-# 创建多智能体协作管道
-pipeline = MultiAgentPipeline()
-
-# 添加分镜智能体节点
-storyboard_node = StoryboardAgentNode(
-    name="storyboard_generator",
-    params={
-        "style": "realistic",
-        "duration_per_shot": 5,
-        "enable_continuity_check": True
-    }
-)
-
-# 配置工作流
-pipeline.add_node(storyboard_node)
-
-# 设置输入输出连接
-pipeline.connect(
-    source="script_provider",  # 上游提供剧本的节点
-    target="storyboard_generator",
-    input_mapping={"script": "script_text"}
-)
-
-pipeline.connect(
-    source="storyboard_generator",
-    target="video_renderer",  # 下游视频渲染节点
-    output_mapping={"shots": "storyboard_frames"}
-)
-
-# 执行协作流程
-result = pipeline.run({
-    "script_provider": {"script": "深夜11点，城市公寓客厅..."}
-})
 ```
 
 
@@ -238,51 +205,92 @@ result = pipeline.run({
 
 输入：中文剧本
 
-```python
-script_text = """
-深夜11点，城市公寓客厅，窗外大雨滂沱。
-林然裹着旧羊毛毯蜷在沙发里，电视静音播放着黑白老电影。
-茶几上半杯凉茶已凝出水雾，旁边摊开一本旧相册。
-手机突然震动，屏幕亮起"未知号码"。
-她盯着看了三秒，指尖悬停...
-"""
-
-result = generate_storyboard(script_text, style="cinematic")
+```json
+{
+    "script": "深夜11点，城市公寓客厅，窗外大雨滂沱。林然裹着旧羊毛毯蜷在沙发里，电视静音播放着黑白老电影。茶几上半杯凉茶已凝出水雾，旁边摊开一本旧相册。手机突然震动，屏幕亮起“未知号码”。她盯着看了三秒，指尖悬停在接听键上方，喉头轻轻滚动。终于，她按下接听，将手机贴到耳边。电话那头沉默两秒，传来一个沙哑的男声：“是我。”  林然的手指瞬间收紧，指节泛白，呼吸停滞了一瞬。  她声音微颤：“……陈默？你还好吗？”  对方停顿片刻，低声说：“我回来了。” 林然猛地坐直，瞳孔收缩，泪水在眼眶中打转。她张了张嘴，却发不出声音，只有毛毯从肩头滑落。”"
+}
 ```
 
 输出：结构化分镜结果
 
 ```json
 {
-  "total_shots": 3,
-  "storyboard_title": "深夜来电",
-  "status": "success",
-  "shots": [
+  "fragments": [
     {
-      "shot_id": "shot_001",
-      "start_time": 0.0,
-      "end_time": 5.0,
-      "duration": 5.0,
-      "description": "城市公寓客厅，深夜场景。窗外大雨猛烈敲击玻璃...",
-      "ai_prompt": "A dimly lit city apartment living room at midnight...",
-      "characters": ["林然"],
-      "dialogue": "",
-      "camera_angle": "medium shot",
-      "continuity_anchors": ["林然: 坐姿, 沙发", "环境: 客厅, 雨夜"]
+      "fragment_id": "frag_001",
+      "prompt": "Cinematic wide shot of a rainy-night city apartment living room: rain-streaked window blurs vibrant neon signs outside into soft, glowing color smudges; interior lit solely by a single warm yellow floor lamp casting gentle light on a dusty vintage record player, faded movie posters on the walls, and stacked leather-bound notebooks; shallow depth of field, moody chiaroscuro lighting, film grain texture, 35mm cinematic color grading, atmospheric haze, hyper-detailed realism, slow ambient camera drift",
+      "negative_prompt": "bright lighting, daylight, people, text, logos, modern furniture, clean surfaces, sharp focus everywhere, cartoonish style, low resolution, motion blur artifacts, lens flare, overexposure, cluttered composition",
+      "duration": 4.0,
+      "model": "runway_gen2",
+      "style": "cinematic noir ambiance with nostalgic analog warmth",
+      "requires_special_attention": false
+    },
+    {
+      "fragment_id": "frag_002",
+      "prompt": "Cinematic medium shot: Lin Ran curled up on a light gray fabric sofa, bare feet resting on a textured wool rug, knees covered by a faded indigo blanket with worn edges; she wears a creamy white cotton robe, hair slightly damp at the ends, her profile softly illuminated by warm floor lamp light revealing tired, serene contours; outside the window, a faint lightning flash briefly illuminates her still, delicate eyelashes — shallow depth of field, soft cinematic lighting, film grain texture, 35mm anamorphic lens aesthetic, natural skin tones, ultra-detailed fabric and textile realism, subtle ambient occlusion, moody yet intimate atmosphere.",
+      "negative_prompt": "blurry, deformed hands, extra limbs, text, logos, cartoonish style, low resolution, oversaturated colors, harsh shadows, noisy grain, CGI look, anime style, smiling, motion blur, talking, open eyes blinking, daylight, cluttered background",
+      "duration": 3.0,
+      "model": "runway_gen2",
+      "style": "Cinematic, moody, intimate, photorealistic, 35mm film aesthetic",
+      "requires_special_attention": false
     }
-    // 更多分镜...
+    ......
   ],
-  "final_continuity_state": {...},
-  "warnings": []
+  "global_settings": {
+    "style_consistency": true,
+    "use_common_negative_prompt": true
+  },
+  "execution_suggestions": [
+    "按顺序生成片段",
+    "保持相同种子值以获得一致性",
+    "生成后检查片段衔接"
+  ]
 }
 ```
 
-## 故障排除
 
-1. **API连接问题**：检查API密钥和网络连接
-2. **分镜生成失败**：尝试简化剧本描述，增加重试次数
-3. **连续性问题**：确保相邻场景描述包含足够的上下文信息
 
-## 联系方式
+## 未来更新展望
 
-如有问题或建议，请提交GitHub Issue或联系项目维护团队。
+> 1. **依赖外部API**：LLM版本需要稳定的网络连接
+> 2. **AI模型限制**：生成的视频质量受限于AI视频模型能力
+> 3. **处理长剧本**：长剧本可能需要分段处理
+> 4. **多语言支持**：主要针对中文优化，其他语言效果待测试
+
+### MVP版本限制
+
+1. **简单规则**：使用固定规则，无法处理复杂剧本结构
+2. **无状态记忆能力**：只支持一次拆解，不支持超长文本的多次拆分
+3. **无学习能力**：不会从用户反馈中学习优化
+4. **有限的自定义**：配置选项较少
+5. **错误处理简单**：遇到异常可能直接失败
+
+### 短期计划（v1.5）
+
+1. **智能合并策略**：优化超过5秒镜头的拆分逻辑
+2. **基础连续性检查**：添加角色服装、位置的基本一致性检查
+3. **多模型支持**：优化Sora、Pika等模型的提示词生成
+4. **批量处理**：支持多个剧本的批量处理
+
+### 中期计划（v2.0）
+
+1. **高级镜头语言**：支持更复杂的镜头类型和运动
+2. **情感分析**：基于剧本内容自动调整视频风格
+3. **自动优化**：根据生成结果自动调整提示词
+4. **Web界面**：提供可视化操作界面
+
+### 长期计划（v3.0）
+
+1. **多模态输入**：支持结合图片、音频的剧本
+2. **实时预览**：生成低分辨率预览视频
+3. **智能修复**：自动检测和修复连续性错误
+4. **生态系统集成**：与主流视频编辑软件集成
+
+## 贡献指南
+
+欢迎提交Issue和Pull Request来改进这个项目：
+
+1. **报告问题**：在使用中遇到的问题
+2. **功能建议**：希望添加的新功能
+3. **代码优化**：性能优化或代码重构
+4. **文档改进**：补充或修正文档

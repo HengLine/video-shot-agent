@@ -28,13 +28,14 @@ class QwenClient(BaseClient):
             model=self.config.model,
             model_kwargs=self._get_model_kwargs(),
             api_key=self.config.api_key,
-            max_retries=3,
+            max_retries=self.config.max_retries,
             streaming=False,
         )
 
     def llm_embed(self) -> Embeddings:
         return DashScopeEmbeddings(
             model=self.config.model,
+            max_retries=self.config.max_retries,
             dashscope_api_key=self.config.api_key
         )
 
@@ -42,6 +43,7 @@ class QwenClient(BaseClient):
         """返回模型参数字典"""
         model_kwargs = {
             "temperature": self.config.temperature,
+            "timeout": self.config.timeout,
             # "top_p": config.top_p,
             # "presence_penalty": config.presence_penalty,
             # "frequency_penalty": config.frequency_penalty,

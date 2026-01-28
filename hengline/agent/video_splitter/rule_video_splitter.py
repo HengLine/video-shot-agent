@@ -4,21 +4,22 @@
 @Author: HengLine
 @Time: 2026/1/26 22:30
 """
-from typing import Dict, Any, List, Optional
+from typing import List, Optional
 
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo, ShotType
 from hengline.agent.video_splitter.base_video_splitter import BaseVideoSplitter
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info
 
 
 class RuleVideoSplitter(BaseVideoSplitter):
     """简单规则视频分割器 - MVP版本"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[HengLineConfig]):
         super().__init__(config)
         # 简单规则：镜头时长>5秒就拆分
-        self.split_threshold = self.config.get("max_fragment_duration", 5.0)
+        self.split_threshold = self.config.max_fragment_duration
 
     def cut(self, shot_sequence: ShotSequence) -> FragmentSequence:
         """简单规则分割：镜头时长>5秒就拆分"""

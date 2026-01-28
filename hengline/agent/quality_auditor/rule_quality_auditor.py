@@ -4,19 +4,19 @@
 @Author: HengLine
 @Time: 2026/1/27 0:00
 """
-from abc import ABC, abstractmethod
-import logging
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Optional
 
 from hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
 from hengline.agent.quality_auditor.base_quality_auditor import BaseQualityAuditor
 from hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport
-from hengline.logger import info, debug, warning, error
+from hengline.hengline_config import HengLineConfig
+from hengline.logger import info
+
 
 class RuleQualityAuditor(BaseQualityAuditor):
     """基于基本规则的审查器 - MVP版本"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[HengLineConfig]):
         super().__init__(config)
         # 定义基本规则
         self.rules = [
@@ -57,28 +57,28 @@ class RuleQualityAuditor(BaseQualityAuditor):
         violations_count = 0
         for fragment in instructions.fragments:
             # 检查是否超过最大时长
-            if fragment.duration > self.config["max_fragment_duration"]:
+            if fragment.duration > self.config.max_fragment_duration:
                 self._add_violation(
                     report=report,
                     rule_id="duration_limit",
                     rule_name="片段时长限制",
-                    description=f"片段 {fragment.fragment_id} 时长 {fragment.duration}秒 超过 {self.config['max_fragment_duration']}秒 限制",
+                    description=f"片段 {fragment.fragment_id} 时长 {fragment.duration}秒 超过 {self.config.max_fragment_duration}秒 限制",
                     severity="error",
                     fragment_id=fragment.fragment_id,
-                    suggestion=f"将片段时长调整为 ≤{self.config['max_fragment_duration']}秒"
+                    suggestion=f"将片段时长调整为 ≤{self.config.max_fragment_duration}秒"
                 )
                 violations_count += 1
 
             # 检查是否低于最小时长
-            if fragment.duration < self.config["min_fragment_duration"]:
+            if fragment.duration < self.config.min_fragment_duration:
                 self._add_violation(
                     report=report,
                     rule_id="duration_limit",
                     rule_name="片段时长限制",
-                    description=f"片段 {fragment.fragment_id} 时长 {fragment.duration}秒 低于 {self.config['min_fragment_duration']}秒 最低要求",
+                    description=f"片段 {fragment.fragment_id} 时长 {fragment.duration}秒 低于 {self.config.min_fragment_duration}秒 最低要求",
                     severity="warning",
                     fragment_id=fragment.fragment_id,
-                    suggestion=f"将片段时长调整为 ≥{self.config['min_fragment_duration']}秒"
+                    suggestion=f"将片段时长调整为 ≥{self.config.min_fragment_duration}秒"
                 )
                 violations_count += 1
 
@@ -121,25 +121,25 @@ class RuleQualityAuditor(BaseQualityAuditor):
             prompt_length = len(fragment.prompt)
 
             # 检查是否过长
-            if prompt_length > self.config["max_prompt_length"]:
+            if prompt_length > self.config.max_prompt_length:
                 self._add_violation(
                     report=report,
                     rule_id="prompt_length",
                     rule_name="提示词长度",
-                    description=f"片段 {fragment.fragment_id} 提示词过长: {prompt_length}字符 (限制: {self.config['max_prompt_length']})",
+                    description=f"片段 {fragment.fragment_id} 提示词过长: {prompt_length}字符 (限制: {self.config.max_prompt_length})",
                     severity="warning",
                     fragment_id=fragment.fragment_id,
-                    suggestion=f"将提示词缩短到{self.config['max_prompt_length']}字符以内"
+                    suggestion=f"将提示词缩短到{self.config.max_prompt_length}字符以内"
                 )
                 too_long_count += 1
 
             # 检查是否过短
-            if prompt_length < self.config["min_prompt_length"]:
+            if prompt_length < self.config.min_prompt_length:
                 self._add_violation(
                     report=report,
                     rule_id="prompt_length",
                     rule_name="提示词长度",
-                    description=f"片段 {fragment.fragment_id} 提示词过短: {prompt_length}字符 (建议: ≥{self.config['min_prompt_length']})",
+                    description=f"片段 {fragment.fragment_id} 提示词过短: {prompt_length}字符 (建议: ≥{self.config.min_prompt_length})",
                     severity="warning",
                     fragment_id=fragment.fragment_id,
                     suggestion="添加更多描述性内容到提示词"

@@ -8,9 +8,11 @@ import asyncio
 from datetime import datetime
 from typing import List, Dict
 
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import error, info
 from hengline.task.task_handler import CallbackHandler
 from hengline.task.task_manager import TaskManager
+from utils.log_utils import print_log_exception
 
 
 class AsyncTaskProcessor:
@@ -52,6 +54,7 @@ class AsyncTaskProcessor:
 
         except Exception as e:
             error(f"任务处理失败: {task_id}, 错误: {str(e)}")
+            print_log_exception()
             self.task_manager.fail_task(task_id, str(e))
 
     async def _handle_callback(self, task_id: str, result: Dict):
@@ -70,7 +73,7 @@ class AsyncTaskProcessor:
 
         await self.callback_handler.notify_callback(task["callback_url"], callback_data)
 
-    async def process_batch(self, batch_id: str, scripts: List[str], config: Dict = None):
+    async def process_batch(self, batch_id: str, scripts: List[str], config: HengLineConfig = None):
         """批量处理任务"""
         tasks = []
         for script in scripts:

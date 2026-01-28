@@ -6,28 +6,28 @@
 @Time: 2025/10 - 2025/11
 """
 import re
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 
 from hengline.agent.script_parser.llm_script_parser import LLMScriptParser
 from hengline.logger import debug, info, warning
 from .base_models import AgentMode, ScriptType, ElementType
 from .script_parser.RuleScriptParser import RuleScriptParser
 from .script_parser.script_parser_models import ParsedScript
-from ..client.client_config import AIConfig
+from ..hengline_config import HengLineConfig
 
 
 class ScriptParserAgent:
     """优化版剧本解析智能体"""
 
-    def __init__(self, llm):
+    def __init__(self, llm, config: Optional[HengLineConfig]):
         """
         初始化剧本解析智能体
         
         Args:
             llm: 语言模型实例（推荐GPT-4o）
         """
-        self.use_local_rules = False  # 是否启用本地规则校验和补全
-        self.config = AIConfig()
+        self.config = config or {}
+        self.use_local_rules = self.config.use_local_rules  # 是否启用本地规则校验和补全
 
         self.script_parser = {
             AgentMode.LLM: LLMScriptParser(llm, self.config),

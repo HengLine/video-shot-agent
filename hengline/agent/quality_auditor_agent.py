@@ -4,12 +4,13 @@
 @Author: HengLine
 @Time: 2026/1/25 21:59
 """
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from hengline.agent.base_models import AgentMode
 from hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
 from hengline.agent.quality_auditor.quality_auditor_factory import QualityAuditorFactory
 from hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import debug, error
 from utils.log_utils import print_log_exception
 
@@ -17,7 +18,7 @@ from utils.log_utils import print_log_exception
 class QualityAuditorAgent:
     """质量审查器"""
 
-    def __init__(self, llm, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm, config: Optional[HengLineConfig]):
         """
         初始化分镜生成智能体
 
@@ -26,7 +27,10 @@ class QualityAuditorAgent:
         """
         self.llm = llm
         self.config = config or {}
-        self.auditor = QualityAuditorFactory.create_auditor(AgentMode.LLM, llm_client=llm)
+        if self.config.enable_llm:
+            self.auditor = QualityAuditorFactory.create_auditor(AgentMode.LLM, config, llm)
+        else:
+            self.auditor = QualityAuditorFactory.create_auditor(AgentMode.RULE, config)
 
     def qa_process(self, instructions: AIVideoInstructions) -> QualityAuditReport | None:
         """ 视频片段 """

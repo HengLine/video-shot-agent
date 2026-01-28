@@ -7,7 +7,7 @@
 """
 
 # 定义对外暴露的接口
-from hengline.generate_agent import generate_storyboard
+from hengline.hengline_agent import generate_storyboard
 # 导入主要模块
 from hengline.logger import (debug, info, warning, error, critical, log_with_context
 , log_function_call, log_performance)

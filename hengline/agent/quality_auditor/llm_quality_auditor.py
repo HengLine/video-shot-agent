@@ -11,13 +11,14 @@ from hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstr
 from hengline.agent.quality_auditor.base_quality_auditor import BaseQualityAuditor
 from hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport
 from hengline.agent.quality_auditor.rule_quality_auditor import RuleQualityAuditor
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info, error
 
 
 class LLMQualityAuditor(BaseQualityAuditor, BaseAgent):
     """基于LLM的质量审查器"""
 
-    def __init__(self, llm_client, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm_client, config: Optional[HengLineConfig]):
         super().__init__(config)
         self.llm_client = llm_client
 

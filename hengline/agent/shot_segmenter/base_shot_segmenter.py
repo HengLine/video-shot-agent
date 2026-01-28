@@ -5,23 +5,20 @@
 @Time: 2026/1/17 22:03
 """
 from abc import abstractmethod, ABC
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from hengline.agent.base_models import ElementType
 from hengline.agent.script_parser.script_parser_models import ParsedScript, BaseElement
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotType
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info, warning, error
 
 
 class BaseShotSegmenter(ABC):
     """分镜拆分器抽象基类"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {
-            "max_shot_duration": 10.0,
-            "min_shot_duration": 1.0,
-            "default_shot_duration": 3.0
-        }
+    def __init__(self, config: Optional[HengLineConfig]):
+        self.config = config
         self._initialize()
 
     def _initialize(self):
@@ -80,10 +77,10 @@ class BaseShotSegmenter(ABC):
             if abs(shot.start_time - current_time) > 0.1:  # 允许0.1秒误差
                 warning(f"镜头{i + 1}时间不连续: {shot.start_time} vs {current_time}")
 
-            if shot.duration < self.config["min_shot_duration"]:
+            if shot.duration < self.config.min_shot_duration:
                 warning(f"镜头{i + 1}时长过短: {shot.duration}秒")
 
-            if shot.duration > self.config["max_shot_duration"]:
+            if shot.duration > self.config.max_shot_duration:
                 warning(f"镜头{i + 1}时长过长: {shot.duration}秒")
 
             current_time = shot.start_time + shot.duration

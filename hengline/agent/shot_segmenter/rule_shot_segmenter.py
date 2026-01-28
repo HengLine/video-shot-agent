@@ -4,19 +4,20 @@
 @Author: HengLine
 @Time: 2026/1/26 17:40
 """
-from typing import List, Dict, Optional, Any
+from typing import List, Optional
 
 from hengline.agent.base_models import ElementType
 from hengline.agent.script_parser.script_parser_models import ParsedScript, BaseElement, SceneInfo
 from hengline.agent.shot_segmenter.base_shot_segmenter import BaseShotSegmenter
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo, ShotType
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info
 
 
 class RuleShotSegmenter(BaseShotSegmenter):
     """基于规则的MVP分镜拆分器"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[HengLineConfig]):
         super().__init__(config)
         # 规则配置
         self.rules = {

@@ -40,7 +40,7 @@ def generate_storyboard_api(request: ProcessRequest, background_tasks: Backgroun
             "接收到分镜生成请求",
             {
                 "task_id": request.task_id,
-                "duration": request.config.get("duration_per_shot", 0)
+                "duration": request.config.max_fragment_duration
             }
         )
 

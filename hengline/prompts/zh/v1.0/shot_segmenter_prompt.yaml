@@ -25,7 +25,7 @@ shot_segmenter:
     请返回JSON格式的镜头列表，每个镜头包含：
     - id: 镜头ID (shot_001, shot_002...)
     - description: 简洁描述
-    - duration: 镜头的预估时长（秒）， 
+    - duration: 镜头的预估时长（秒）， 最短不要低于2秒
     - shot_type: close_up/medium_shot/wide_shot
     - main_character: 主要角色名
     - element_ids: 引用的元素ID列表

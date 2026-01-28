@@ -5,6 +5,8 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
+import datetime
+
 from hengline.agent.workflow.workflow_models import AgentStage
 from hengline.agent.workflow.workflow_states import WorkflowState
 from hengline.logger import error, debug
@@ -221,7 +223,7 @@ class WorkflowNodes:
         state.final_output = {
             "status": "completed",
             "metadata": {
-                "processed_at": "2024-01-20T12:00:00Z",
+                "processed_at": datetime.datetime.now().isoformat(),
                 "total_fragments": len(fragments),
                 "total_duration": sum(f.duration for f in fragments)
             },

@@ -4,13 +4,14 @@
 @Author: HengLine
 @Time: 2026/1/26 22:30
 """
-from typing import Dict, Any, List, Optional
+from typing import List, Optional
 
 from hengline.agent.base_agent import BaseAgent
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo
 from hengline.agent.video_splitter.base_video_splitter import BaseVideoSplitter
 from hengline.agent.video_splitter.rule_video_splitter import RuleVideoSplitter
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info, error
 from utils.log_utils import print_log_exception
 
@@ -18,7 +19,7 @@ from utils.log_utils import print_log_exception
 class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
     """基于LLM的视频分割器（备用）"""
 
-    def __init__(self, llm_client, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm_client, config: Optional[HengLineConfig]):
         super().__init__(config)
         self.llm_client = llm_client
 

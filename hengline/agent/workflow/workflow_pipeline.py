@@ -4,7 +4,7 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
@@ -19,21 +19,24 @@ from ..prompt_converter_agent import PromptConverterAgent
 from ..quality_auditor_agent import QualityAuditorAgent
 from ..shot_segmenter_agent import ShotSegmenterAgent
 from ..video_splitter_agent import VideoSplitterAgent
+from ...hengline_config import HengLineConfig
 
 
 class MultiAgentPipeline:
     """多智能体协作流程"""
 
-    def __init__(self, llm, task_id):
+    def __init__(self, task_id, config: Optional[HengLineConfig]):
         """
         初始化多智能体流程
         
         Args:
-            llm: 语言模型实例
+            task_id: 任务ID
+            config: 用户配置（LLM）
         """
-        self.llm = llm
         self.task_id = task_id
         self.memory = MemorySaver()  # 状态记忆器
+        self.config = config or HengLineConfig()
+        self.llm = self.config.get_llm_by_config()
         self._init_agents()
         self.workflow = self._build_workflow()
 
@@ -41,11 +44,11 @@ class MultiAgentPipeline:
         """初始化各个智能体"""
         debug("初始化智能体组件")
 
-        self.script_parser = ScriptParserAgent(llm=self.llm)
-        self.shot_segmenter = ShotSegmenterAgent(llm=self.llm)
-        self.video_splitter = VideoSplitterAgent(llm=self.llm)
-        self.prompt_converter = PromptConverterAgent(llm=self.llm)
-        self.quality_auditor = QualityAuditorAgent(llm=self.llm)
+        self.script_parser = ScriptParserAgent(llm=self.llm, config=self.config)
+        self.shot_segmenter = ShotSegmenterAgent(llm=self.llm, config=self.config)
+        self.video_splitter = VideoSplitterAgent(llm=self.llm, config=self.config)
+        self.prompt_converter = PromptConverterAgent(llm=self.llm, config=self.config)
+        self.quality_auditor = QualityAuditorAgent(llm=self.llm, config=self.config)
 
         # 初始化工作流节点集合
         self.workflow_nodes = WorkflowNodes(
@@ -191,16 +194,15 @@ class MultiAgentPipeline:
 
         # ========== 公开接口 ==========
 
-    async def run_process(self, raw_script: str, config: Dict = None) -> Dict:
+    async def run_process(self, raw_script: str, config: HengLineConfig) -> Dict:
         """执行完整的工作流"""
         initial_state = WorkflowState(
             raw_script=raw_script,
             user_config=config or {},
-            duration_per_shot=config.get("duration_per_shot", 5.0),
             task_id=self.task_id,
             needs_human_review=False,
             human_feedback={},
-            max_retries=config.get("max_retries", 3),
+            max_retries=config.max_retries,
             current_stage=AgentStage.INIT,
         )
 

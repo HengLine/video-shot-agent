@@ -18,7 +18,7 @@ from hengline.tools.json_parser_tool import parse_json_response
 
 class LLMScriptParser(BaseScriptParser, BaseAgent):
 
-    def __init__(self, llm, config: AIConfig):
+    def __init__(self, llm, config: AIConfig = None):
         """
         初始化剧本解析智能体
 

@@ -10,19 +10,15 @@ from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel, Field
 
+from hengline.hengline_config import HengLineConfig
 from hengline.language_manage import Language
 
 
 class ProcessRequest(BaseModel):
     """处理请求数据模型"""
     script: str = Field(..., min_length=1, description="原始剧本文本")
-    config: Optional[Dict[str, Any]] = Field(
-        default={
-            # 每个分镜的持续时间（秒），默认5秒
-            "duration_per_shot": 5.0,
-            # 前一个分镜的连续性状态，用于保持连续性
-            "prev_continuity_state": None,
-        },
+    config: Optional[HengLineConfig] = Field(
+        default=HengLineConfig(),
         description="处理配置，如模型选择、风格偏好等"
     )
     callback_url: Optional[str] = Field(
@@ -64,7 +60,7 @@ class ProcessResult(BaseModel):
 class BatchProcessRequest(BaseModel):
     """批量处理请求模型"""
     scripts: List[str] = Field(..., min_length=1, max_length=10, description="剧本列表")
-    config: Optional[Dict[str, Any]] = None
+    config: HengLineConfig = HengLineConfig()
     batch_id: Optional[str] = None
 
 

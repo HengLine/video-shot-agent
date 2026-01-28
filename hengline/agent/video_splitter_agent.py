@@ -4,20 +4,21 @@
 @Author: HengLine
 @Time: 2026/1/22 22:00
 """
-from typing import Optional, Dict, Any
+from typing import Optional
 
-from hengline.logger import debug, error
 from hengline.agent.base_models import AgentMode
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence
 from hengline.agent.video_splitter.video_splitter_factory import VideoSplitterFactory
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence
+from hengline.hengline_config import HengLineConfig
+from hengline.logger import debug, error
 from utils.log_utils import print_log_exception
 
 
 class VideoSplitterAgent:
     """视频片段分割器"""
 
-    def __init__(self, llm, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm, config: Optional[HengLineConfig]):
         """
         初始化视频片段智能体
 
@@ -26,7 +27,10 @@ class VideoSplitterAgent:
         """
         self.llm = llm
         self.config = config or {}
-        self.splitter = VideoSplitterFactory.create_splitter(AgentMode.LLM, llm_client=llm)
+        if self.config.enable_llm:
+            self.splitter = VideoSplitterFactory.create_splitter(AgentMode.LLM, self.config, self.llm)
+        else:
+            self.splitter = VideoSplitterFactory.create_splitter(AgentMode.RULE, self.config)
 
     def video_process(self, shot_sequence: ShotSequence) -> FragmentSequence | None:
         """ 视频片段 """
@@ -39,5 +43,3 @@ class VideoSplitterAgent:
             print_log_exception()
             error(f"视频片段切割异常: {e}")
             return None
-
-

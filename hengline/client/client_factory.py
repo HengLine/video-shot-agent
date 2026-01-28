@@ -9,9 +9,9 @@ from typing import Dict, Type, List
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-from config.config import get_ai_config, get_embedding_config
+from config.config import get_llm_config, get_embedding_config
 from hengline.client.base_client import BaseClient
-from hengline.client.client_config import ClientType, AIConfig, get_client_type
+from hengline.client.client_config import ClientType, AIConfig, get_client_type, detect_ai_provider_by_url
 from hengline.client.llm.deepseek_client import DeepSeekClient
 from hengline.client.llm.ollama_client import OllamaClient
 from hengline.client.llm.openai_client import OpenAIClient
@@ -56,7 +56,11 @@ def get_client(provider: ClientType, config: AIConfig) -> BaseClient:
     return client_class(config)
 
 
-def get_llm_client(provider: ClientType, config: AIConfig = None, **kwargs):
+def get_llm_client(config: AIConfig, **kwargs):
+    return get_llm_client_by_provider(detect_ai_provider_by_url(config.base_url), config, **kwargs)
+
+
+def get_llm_client_by_provider(provider: ClientType, config: AIConfig = None, **kwargs):
     """
     获取指定 LLM 客户端的语言模型实例
 
@@ -81,7 +85,7 @@ def get_default_llm(**kwargs):
 
     try:
         # 获取配置
-        ai_config = get_ai_config()
+        ai_config = get_llm_config()
         provider = ai_config.get("provider", "openai").lower()
         model = ai_config.get("model_name", "gpt-4o")
 
@@ -90,8 +94,11 @@ def get_default_llm(**kwargs):
         config = AIConfig(
             model=model,
             api_key=ai_config.get("api_key", None),
+            base_url=ai_config.get("base_url", ""),
             temperature=ai_config.get("temperature", 0.1),
+            timeout=ai_config.get("timeout", 60),
             max_tokens=ai_config.get("max_tokens", 5000),
+            max_retries=ai_config.get("max_retries", 3),
         )
 
         fin_config = _fill_default_config(config, **kwargs)
@@ -112,9 +119,11 @@ def _fill_default_config(config: AIConfig = None, **kwargs) -> AIConfig:
     """填充默认配置"""
     config = config or AIConfig(
         model=kwargs.get('model', 'gpt-4o'),
+        base_url=kwargs.get('base_url', ""),
         api_key=kwargs.get("api_key", None),
         temperature=kwargs.get("temperature", 0.1),
         max_tokens=kwargs.get("max_tokens", 5000),
+        max_retries=kwargs.get("max_retries", 3),
     )
 
     if not kwargs:
@@ -190,6 +199,9 @@ def get_default_embedding_client(**kwargs):
 
         config = AIConfig(
             model=model,
+            base_url=ai_config.get("base_url", ""),
+            timeout=ai_config.get("timeout", 300),
+            max_retries=ai_config.get("max_retries", 3),
             api_key=ai_config.get("api_key", None),
         )
 
@@ -233,7 +245,7 @@ if __name__ == '__main__':
 
     ###############################################
     # 创建 Ollama 客户端（假设本地运行 llama3.1）
-    llm2 = get_llm_client(ClientType.OLLAMA, model="qwen3:4b", temperature=0.2)
+    llm2 = get_llm_client_by_provider(ClientType.OLLAMA, model="qwen3:4b", temperature=0.2)
 
     messages = [
         {"role": "system", "content": "你是一个专业的影视剧本解析分镜师，精通标准剧本格式，输出严格的JSON格式。"},

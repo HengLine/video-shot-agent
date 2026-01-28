@@ -5,12 +5,13 @@
 @Author: HengLine
 @Time: 2025/10 - 2025/11
 """
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from hengline.agent.base_models import AgentMode
 from hengline.agent.script_parser.script_parser_models import ParsedScript
 from hengline.agent.shot_segmenter.shot_segmenter_factory import ShotSegmenterFactory
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import debug, error
 from utils.log_utils import print_log_exception
 
@@ -18,7 +19,7 @@ from utils.log_utils import print_log_exception
 class ShotSegmenterAgent:
     """分镜生成智能体"""
 
-    def __init__(self, llm, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm, config: Optional[HengLineConfig] = None):
         """
         初始化分镜生成智能体
         
@@ -27,8 +28,11 @@ class ShotSegmenterAgent:
         """
         self.llm = llm
         self.config = config or {}
-        self.segmenter = ShotSegmenterFactory.create_segmenter(AgentMode.LLM, llm_client=llm)
 
+        if self.config.enable_llm:
+            self.segmenter = ShotSegmenterFactory.create_segmenter(AgentMode.LLM, self.config, self.llm)
+        else:
+            self.segmenter = ShotSegmenterFactory.create_segmenter(AgentMode.RULE, self.config)
 
     def shot_process(self, structured_script: ParsedScript) -> ShotSequence | None:
         """

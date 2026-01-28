@@ -18,7 +18,7 @@
     "response_format": "json_object",
     "temperature": 0.1,
     "max_tokens": 2000,
-    "retry_count": 3
+    "max_retries": 3
   },
   "storyboard": {
     "default_duration_per_shot": 5,
@@ -43,7 +43,7 @@
     "model_name": "text-embedding-3-small",
     "dimensions": 1536,
     "timeout": 60,
-    "retry_count": 3
+    "max_retries": 3
   },
   "paths": {
     "data_input": "data/input",

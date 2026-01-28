@@ -18,11 +18,6 @@ load_dotenv()
 
 # 默认配置
 DEFAULT_CONFIG = {
-    "app": {
-        "name": "Script-to-Shot AI Agent",
-        "version": "1.0.0",
-        "debug": False
-    },
     "api": {
         "host": "0.0.0.0",
         "port": 8000,
@@ -33,35 +28,20 @@ DEFAULT_CONFIG = {
         "base_url": "https://api.openai.com/v1",
         "api_key": "",
         "timeout": 60,
-        "default_model": "gpt-4o",
-        "fallback_model": "",
+        "model_name": "gpt-4o",
+        "response_format": "json_object",
         "temperature": 0.1,
         "max_tokens": 2000,
-        "retry_count": 3
-    },
-    "storyboard": {
-        "default_duration_per_shot": 5,
-        "max_duration_deviation": 0.5,
-        "max_retries": 2,
-        "default_style": "realistic",
-        "supported_styles": ["realistic", "anime", "cinematic", "cartoon"]
-    },
-    "logging": {
-        "level": "INFO",
-        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    },
-    "paths": {
-        "data_input": "data/input",
-        "data_output": "data/output"
+        "max_retries": 3
     },
     "embedding": {
         "provider": "openai",
         "base_url": "https://api.openai.com/v1",
         "api_key": "",
-        "model": "text-embedding-3-small",
+        "model_name": "text-embedding-3-small",
         "dimensions": 1536,
         "timeout": 60,
-        "retry_count": 3
+        "max_retries": 3
     }
 }
 
@@ -119,13 +99,13 @@ def _update_api_config_from_env(config: Dict[str, Any]) -> None:
 def _update_ai_config_from_env(config: Dict[str, Any]) -> None:
     """
     从环境变量更新AI配置
-    根据AI_PROVIDER环境变量动态加载相应的API配置
+    根据LLM_PROVIDER环境变量动态加载相应的API配置
     确保环境变量中的provider值具有最高优先级
     """
     ai_config = config.get("llm", {})
     
     # 优先从环境变量获取AI提供商，如果不存在则使用配置中的值，最后使用默认值
-    env_provider = os.environ.get("AI_PROVIDER")
+    env_provider = os.environ.get("LLM_PROVIDER")
     if env_provider:
         # 环境变量存在，优先使用
         provider = env_provider.lower()
@@ -166,32 +146,32 @@ def _update_ai_config_from_env(config: Dict[str, Any]) -> None:
         ai_config["fallback_model"] = os.environ[fallback_model_env_var]
     
     # 加载统一的超时时间配置
-    if os.environ.get("AI_API_TIMEOUT"):
+    if os.environ.get("LLM_API_TIMEOUT"):
         try:
-            ai_config["timeout"] = int(os.environ["AI_API_TIMEOUT"])
+            ai_config["timeout"] = int(os.environ["LLM_API_TIMEOUT"])
         except ValueError:
-            warning("Invalid AI_API_TIMEOUT value, using default")
+            warning("Invalid LLM_API_TIMEOUT value, using default")
 
     # 加载温度参数
-    if os.environ.get("AI_TEMPERATURE"):
+    if os.environ.get("LLM_TEMPERATURE"):
         try:
-            ai_config["temperature"] = float(os.environ["AI_TEMPERATURE"])
+            ai_config["temperature"] = float(os.environ["LLM_TEMPERATURE"])
         except ValueError:
-            warning("Invalid AI_TEMPERATURE value, using default")
+            warning("Invalid LLM_TEMPERATURE value, using default")
     
     # 加载最大令牌数
-    if os.environ.get("AI_MAX_TOKENS"):
+    if os.environ.get("LLM_MAX_TOKENS"):
         try:
-            ai_config["max_tokens"] = int(os.environ["AI_MAX_TOKENS"])
+            ai_config["max_tokens"] = int(os.environ["LLM_MAX_TOKENS"])
         except ValueError:
-            warning("Invalid AI_MAX_TOKENS value, using default")
+            warning("Invalid LLM_MAX_TOKENS value, using default")
     
     # 加载重试次数
-    if os.environ.get("AI_RETRY_COUNT"):
+    if os.environ.get("LLM_MAX_RETRIES"):
         try:
-            ai_config["retry_count"] = int(os.environ["AI_RETRY_COUNT"])
+            ai_config["max_retries"] = int(os.environ["LLM_MAX_RETRIES"])
         except ValueError:
-            warning("Invalid AI_RETRY_COUNT value, using default")
+            warning("Invalid LLM_MAX_RETRIES value, using default")
 
 
 def _update_embedding_config_from_env(config: Dict[str, Any]) -> None:
@@ -241,11 +221,11 @@ def _update_embedding_config_from_env(config: Dict[str, Any]) -> None:
             warning(f"无效的嵌入超时值: {os.environ['EMBEDDING_TIMEOUT']}")
     
     # 重试配置
-    if "EMBEDDING_RETRY_COUNT" in os.environ:
+    if "EMBEDDING_MAX_RETRIES" in os.environ:
         try:
-            embedding_config["retry_count"] = int(os.environ["EMBEDDING_RETRY_COUNT"])
+            embedding_config["max_retries"] = int(os.environ["EMBEDDING_MAX_RETRIES"])
         except ValueError:
-            warning(f"无效的嵌入重试次数: {os.environ['EMBEDDING_RETRY_COUNT']}")
+            warning(f"无效的嵌入重试次数: {os.environ['EMBEDDING_MAX_RETRIES']}")
     
     # 更新到原始配置中
     config["embedding"] = embedding_config
@@ -323,7 +303,7 @@ def get_storyboard_config() -> Dict[str, Any]:
     return config.get("storyboard", {})
 
 
-def get_ai_config() -> Dict[str, Any]:
+def get_llm_config() -> Dict[str, Any]:
     """
     获取AI模型配置
     """

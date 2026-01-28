@@ -16,13 +16,13 @@ from hengline.agent.script_parser.script_parser_models import ParsedScript
 from hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence
 from hengline.agent.workflow.workflow_models import AgentStage
+from hengline.hengline_config import HengLineConfig
 
 
 class InputState(BaseModel):
     """工作流输入状态"""
     raw_script: str  # 原始剧本文本
-    user_config: Dict = {}  # 用户配置（模型选择、风格偏好等）
-    duration_per_shot: float = 5.0  # 每段时长
+    user_config: HengLineConfig = {}  # 用户配置（模型选择、风格偏好等）
     task_id: str = str(uuid.uuid4())  # 唯一标识符
 
 class ScriptParsingState(BaseModel):

@@ -4,20 +4,21 @@
 @Author: HengLine
 @Time: 2026/1/26 23:36
 """
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from hengline.agent.base_agent import BaseAgent
 from hengline.agent.prompt_converter.base_prompt_converter import BasePromptConverter
 from hengline.agent.prompt_converter.prompt_converter_models import AIVideoPrompt, AIVideoInstructions
 from hengline.agent.prompt_converter.template_prompt_converter import TemplatePromptConverter
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info, error
 
 
 class LLMPromptConverter(BasePromptConverter, BaseAgent):
     """基于LLM的提示词转换器"""
 
-    def __init__(self, llm_client, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm_client, config: Optional[HengLineConfig]):
         super().__init__(config)
         self.llm_client = llm_client
 
@@ -58,7 +59,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
             duration=fragment.duration,
             character=fragment.continuity_notes.get("main_character", "角色"),
             location=fragment.continuity_notes.get("location", "场景"),
-            model=self.config["target_model"]
+            model=self.config.target_model
         )
 
         # 调用LLM
@@ -71,8 +72,8 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
         return AIVideoPrompt(
             fragment_id=fragment.id,
             prompt=result.get("prompt", fragment.description),
-            negative_prompt=result.get("negative_prompt", self.config["default_negative_prompt"]),
+            negative_prompt=result.get("negative_prompt", self.config.default_negative_prompt),
             duration=fragment.duration,
-            model=self.config["target_model"],
+            model=self.config.target_model,
             style=result.get("style_hint")
         )

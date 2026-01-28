@@ -21,7 +21,7 @@ class OpenAIClient(BaseClient):
             config: AIConfig,
     ):
         self.config = config
-        self.base_url = "https://api.openai.com/v1"
+        self.base_url = config.base_url or "https://api.openai.com/v1"
 
     def llm_model(self) -> BaseLanguageModel:
         return ChatOpenAI(
@@ -29,7 +29,8 @@ class OpenAIClient(BaseClient):
             temperature=self.config.temperature,
             api_key=self.config.api_key,
             base_url=self.base_url,
-            max_retries=3,
+            timeout=self.config.timeout,
+            max_retries=self.config.max_retries,
             max_tokens=self.config.max_tokens,
         )
 
@@ -37,5 +38,8 @@ class OpenAIClient(BaseClient):
         return OpenAIEmbeddings(
             model=self.config.model,
             api_key=self.config.api_key,
-            base_url=self.base_url
+            base_url=self.base_url,
+            dimensions=self.config.dimensions,
+            timeout=self.config.timeout,
+            max_retries=self.config.max_retries,
         )

@@ -21,7 +21,7 @@ class DeepSeekClient(BaseClient):
             config: AIConfig,
     ):
         self.config = config
-        self.base_url = "https://api.deepseek.com/v1/chat/completions"
+        self.base_url = config.base_url or "https://api.deepseek.com/v1/chat/completions"
 
     def llm_model(self) -> BaseLanguageModel:
         return ChatOpenAI(
@@ -29,7 +29,8 @@ class DeepSeekClient(BaseClient):
             temperature=self.config.temperature,
             api_key=self.config.api_key,
             base_url=self.base_url,
-            max_retries=3,
+            timeout=self.config.timeout,
+            max_retries=self.config.max_retries,
             max_tokens=self.config.max_tokens,
         )
 

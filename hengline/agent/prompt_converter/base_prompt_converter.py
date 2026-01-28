@@ -5,23 +5,19 @@
 @Time: 2026/1/26 23:36
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
 from hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
+from hengline.hengline_config import HengLineConfig
 from hengline.logger import info, error, warning
 
 
 class BasePromptConverter(ABC):
     """提示词转换器抽象基类"""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {
-            "target_model": "runway_gen2",
-            "default_negative_prompt": "blurry, distorted, low quality, cartoonish, bad anatomy",
-            "default_style": "cinematic",
-            "max_prompt_length": 300
-        }
+    def __init__(self, config: Optional[HengLineConfig]):
+        self.config = config
         self._initialize()
 
     def _initialize(self):
@@ -70,7 +66,7 @@ class BasePromptConverter(ABC):
 
         # 检查提示词长度
         for i, frag in enumerate(fragments):
-            if len(frag.prompt) > self.config["max_prompt_length"]:
+            if len(frag.prompt) > self.config.max_prompt_length:
                 warning(f"提示词{i + 1}过长: {len(frag.prompt)}字符")
 
             if not frag.prompt.strip():
@@ -88,7 +84,7 @@ class BasePromptConverter(ABC):
         base_template = "{description}, {style} style"
 
         # 获取风格
-        style = self.config.get("default_style", "cinematic")
+        style = self.config.default_style
 
         # 构建描述
         description = fragment.description or f"视频片段 {fragment.id}"
