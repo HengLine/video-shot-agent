@@ -1,0 +1,164 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-shot-agent"
+version = "1.0.0"
+description = "长剧本分镜智能体：基于AI的长视频分镜头检测与分析工具"
+readme = "README.md"
+authors = [
+    {name = "HengLine", email = "haeng2030@gmail.com"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Framework :: FastAPI",
+]
+
+keywords = ["剧本分镜", "shot-detection", "视频分割", "视频生成", "fastapi"]
+
+dependencies = [
+    # Web框架
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "httpx>=0.25.0",
+
+    # 核心AI/LLM
+    "langchain==0.3.27",
+    "langchain-community==0.3.31",
+    "langchain-deepseek>=0.1.0",
+    "langchain-ollama>=0.1.0",
+    "dashscope==1.23.9",
+    "langgraph==0.6.11",
+
+    # RAG/向量存储
+    "llama-index-core==0.14.4",
+    "llama-index-embeddings-openai>=0.1.0",
+    "llama-index-embeddings-huggingface>=0.1.0",
+    "llama-index-embeddings-ollama>=0.1.0",
+    "chromadb>=0.4.22",
+
+    # 配置与数据验证
+    "pydantic>=2.11.10",
+    "pydantic-settings>=2.10.1",
+    "python-dotenv>=1.0.0",
+
+    # 数据处理
+    "numpy>=1.24.0",
+    "jieba>=0.42.1",
+
+    # 工具库
+    "requests>=2.31.0",
+    "tiktoken>=0.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.11.0",
+    "flake8>=6.1.0",
+    "mypy>=1.7.0",
+    "isort>=5.12.0",
+    "pre-commit>=3.5.0",
+]
+
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.25.0",
+]
+
+video = [
+    "opencv-python>=4.8.0",
+    "moviepy>=1.0.3",
+    "pillow>=10.0.0",
+]
+
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+
+full = [
+    "opencv-python>=4.8.0",
+    "moviepy>=1.0.3",
+    "pillow>=10.0.0",
+    "aiofiles>=23.2.0",
+    "redis>=5.0.0",
+    "celery>=5.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/HengLine/video-shot-agent"
+Repository = "https://github.com/HengLine/video-shot-agent.git"
+Documentation = "https://HengLine.github.io/video-shot-agent"
+"Issue Tracker" = "https://github.com/HengLine/video-shot-agent/issues"
+"Changelog" = "https://github.com/HengLine/video-shot-agent/releases"
+
+# 注意：这里引用的是内部的Python包名 video_shot_breakdown
+[project.scripts]
+video-shot-agent = "video_shot_breakdown.cli:main"
+vs-agent = "video_shot_breakdown.cli:main"  # 简写别名
+
+# 如果使用FastAPI，可以添加一个serve命令
+[project.entry-points."console_scripts"]
+video-shot-agent-serve = "video_shot_breakdown.cli:serve"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["video_shot_breakdown*"]
+exclude = ["tests*", "tests.*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "langchain.*",
+    "langchain_community.*",
+    "llama_index.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-v",
+]

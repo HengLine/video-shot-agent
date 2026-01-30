@@ -38,9 +38,12 @@
 git clone https://github.com/HengLine/video-shot-agent.git
 cd video-shot-agent
 
+# 安装为可编辑包
+pip install -e .
+
 ######### 方式1：自动安装
 # 脚本会自动创建虚拟环境、安装依赖并启动服务，若失败，可手动安装
-python start_app.py
+python main.py
 
 
 ######### 方式2：手动安装

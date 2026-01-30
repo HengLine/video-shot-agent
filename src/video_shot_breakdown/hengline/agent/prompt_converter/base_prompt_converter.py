@@ -1,0 +1,100 @@
+"""
+@FileName: base_prompt_converter.py
+@Description: 
+@Author: HengLine
+@Time: 2026/1/26 23:36
+"""
+from abc import ABC, abstractmethod
+from typing import Optional
+
+from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
+from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
+from video_shot_breakdown.hengline.hengline_config import HengLineConfig
+from video_shot_breakdown.hengline.logger import info, error, warning
+
+
+class BasePromptConverter(ABC):
+    """提示词转换器抽象基类"""
+
+    def __init__(self, config: Optional[HengLineConfig]):
+        self.config = config
+        self._initialize()
+
+    def _initialize(self):
+        """初始化转换器"""
+        info(f"初始化提示词转换器: {self.__class__.__name__}")
+
+    @abstractmethod
+    def convert(self, fragment_sequence: FragmentSequence) -> AIVideoInstructions:
+        """将片段序列转换为AI提示词（抽象方法）"""
+        pass
+
+    def post_process(self, instructions: AIVideoInstructions) -> AIVideoInstructions:
+        """后处理：填充项目信息等"""
+        fragments = instructions.fragments
+
+        if not fragments:
+            warning("转换结果为空")
+            return instructions
+
+        # 计算项目信息
+        total_duration = sum(frag.duration for frag in fragments)
+
+        instructions.project_info.update({
+            "title": instructions.project_info.get("title", "AI视频项目"),
+            "total_fragments": len(fragments),
+            "total_duration": round(total_duration, 2),
+            "source_fragments": [frag.fragment_id for frag in fragments]
+        })
+
+        # 更新元数据
+        instructions.metadata.update({
+            "total_prompts": len(fragments),
+            "converter_type": self.__class__.__name__
+        })
+
+        info(f"转换完成: {len(fragments)}个提示词, 总时长{total_duration:.1f}秒")
+        return instructions
+
+    def validate_instructions(self, instructions: AIVideoInstructions) -> bool:
+        """验证指令集的基本有效性"""
+        fragments = instructions.fragments
+
+        if not fragments:
+            error("指令集为空")
+            return False
+
+        # 检查提示词长度
+        for i, frag in enumerate(fragments):
+            if len(frag.prompt) > self.config.max_prompt_length:
+                warning(f"提示词{i + 1}过长: {len(frag.prompt)}字符")
+
+            if not frag.prompt.strip():
+                error(f"提示词{i + 1}为空")
+                return False
+
+            if frag.duration < 0.5 or frag.duration > 5.0:
+                warning(f"片段{i + 1}时长异常: {frag.duration}秒")
+
+        return True
+
+    def _generate_base_prompt(self, fragment: VideoFragment) -> str:
+        """生成基础提示词（模板方法）"""
+        # 基础模板
+        base_template = "{description}, {style} style"
+
+        # 获取风格
+        style = self.config.default_style
+
+        # 构建描述
+        description = fragment.description or f"视频片段 {fragment.id}"
+
+        # 如果有连续性信息，可以加入
+        if fragment.continuity_notes.get("main_character"):
+            character = fragment.continuity_notes["main_character"]
+            description = f"{character}, {description}"
+
+        return base_template.format(
+            description=description,
+            style=style
+        )

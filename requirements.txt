@@ -1,23 +1,22 @@
 fastapi
 uvicorn
 langchain==0.3.27
-langchain-core==0.3.79
 langchain-community==0.3.31
 dashscope==1.23.9
 langgraph==0.6.11
-# 以下为过期版本
-# langchain-openai
-# langchain-wenxin
+langchain-wenxin
 langchain-deepseek
 langchain-ollama
-llama-index-core==0.13.6
+chromadb
+llama-index-core==0.14.4
 llama-index-embeddings-openai
 llama-index-embeddings-huggingface
 llama-index-embeddings-ollama
+#
 python-dotenv
-chromadb
-pydantic==2.11.10
-pydantic-settings==2.10.1
+pydantic
+pydantic-settings
+#
 numpy
 requests
 tiktoken
