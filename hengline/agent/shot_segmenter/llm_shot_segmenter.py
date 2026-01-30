@@ -49,7 +49,7 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
             except Exception as e:
                 error(f"场景{scene.id}分镜失败: {str(e)}")
                 # 降级到规则拆分
-                rule_splitter = RuleShotSegmenter()
+                rule_splitter = RuleShotSegmenter(self.config)
                 fallback_shots = rule_splitter.split_scene(scene, current_time, len(all_shots))
                 all_shots.extend(fallback_shots)
 
