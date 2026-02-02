@@ -10,7 +10,7 @@ from typing import Optional
 from video_shot_breakdown.hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info, warning, error
+from video_shot_breakdown.logger import info, warning, error
 
 
 class BaseVideoSplitter(ABC):

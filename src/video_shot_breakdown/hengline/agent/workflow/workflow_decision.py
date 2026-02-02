@@ -4,7 +4,7 @@
 @Author: HengLine
 @Time: 2026/1/26 16:12
 """
-from video_shot_breakdown.hengline.logger import error, warning
+from video_shot_breakdown.logger import error, warning
 from video_shot_breakdown.hengline.agent.workflow.workflow_states import WorkflowState
 
 

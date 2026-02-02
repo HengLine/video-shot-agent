@@ -6,7 +6,7 @@
 """
 from typing import Dict
 
-from video_shot_breakdown.hengline.logger import error
+from video_shot_breakdown.logger import error
 
 
 class CallbackHandler:

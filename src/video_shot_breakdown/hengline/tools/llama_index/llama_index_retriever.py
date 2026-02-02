@@ -12,7 +12,7 @@ from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.schema import NodeWithScore
 
-from video_shot_breakdown.hengline.logger import debug, info, error
+from video_shot_breakdown.logger import debug, info, error
 from .llama_index_tool import get_retriever_from_index
 
 

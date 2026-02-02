@@ -7,7 +7,7 @@
 """
 import os
 
-from video_shot_breakdown.hengline.logger import error
+from video_shot_breakdown.logger import error
 
 
 def print_large_ascii():

@@ -8,13 +8,13 @@
 @Time: 2025/10 - 2025/11
 """
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from typing import Dict, List, Optional, Any, Tuple
 
 from llama_index.core.schema import Document
 
 from video_shot_breakdown.hengline.agent.script_parser2.script_parser_models import Character, Scene, Action
-from video_shot_breakdown.hengline.logger import debug, info, error
+from video_shot_breakdown.logger import debug, info, error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 

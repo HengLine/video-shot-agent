@@ -10,7 +10,8 @@ import json
 from typing import Any, Dict, Optional
 from datetime import datetime
 
-from video_shot_breakdown.hengline.logger import debug, info, warning, error
+from video_shot_breakdown.config import settings
+from video_shot_breakdown.logger import debug, info, warning, error
 from video_shot_breakdown.utils.obj_utils import obj_to_dict
 
 
@@ -28,8 +29,7 @@ class ResultStorage:
             base_output_dir: 基础输出目录路径，默认为配置文件中的data_output路径
         """
         # 延迟导入以避免循环导入
-        from video_shot_breakdown.config.config import get_data_output_path
-        self.base_output_dir = base_output_dir or get_data_output_path()
+        self.base_output_dir = base_output_dir or settings.get_data_paths()['data_output']
         debug(f"结果存储初始化完成，基础目录: {self.base_output_dir}")
 
     def get_result_path(self, uuid: str, result_filename: str = "script_parser_result.json") -> str:

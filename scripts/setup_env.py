@@ -22,8 +22,9 @@ import time
 from abc import abstractmethod
 from typing import final
 
-from video_shot_breakdown.hengline.logger import debug, info, warning, error
+from video_shot_breakdown.logger import debug, info, warning, error
 from video_shot_breakdown.utils.env_utils import print_large_ascii
+from video_shot_breakdown.utils.log_utils import print_log_exception
 
 PROJECT_ROOT = "."
 
@@ -234,6 +235,7 @@ class AppBaseEnv:
             return True
         except Exception as e:
             error(f"[错误] 发生未预期的错误: {e}")
+            print_log_exception()
             return False
 
     @final

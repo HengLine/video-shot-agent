@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, SecretStr, field_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
-from video_shot_breakdown.hengline.logger import debug, error, warning
+from video_shot_breakdown.logger import debug, error, warning
 from video_shot_breakdown.utils.path_utils import PathResolver
 
 # ==================== 路径配置 ====================
@@ -103,7 +103,7 @@ class APIConfig(BaseModel):
     host: str = Field(default="127.0.0.1")
     port: int = Field(default=8000, ge=1, le=65535)
     workers: int = Field(default=1, ge=1, le=10)
-    reload: bool = Field(default=False)
+    reload: bool = Field(default=False)     # 调试模式下启用热重载
     cors_origins: List[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
@@ -400,12 +400,12 @@ class Settings(BaseSettings):
         """
         获取数据路径配置
         """
-        paths_config = self.PathsConfig()
+        paths_config = self.paths
         app_root = PathResolver.get_project_root()
 
         # 确保路径是绝对路径
         data_paths = {}
-        for key, path in paths_config.items():
+        for key, path in paths_config.model_dump().items():
             if path and not os.path.isabs(path):
                 data_paths[key] = os.path.join(app_root, path)
             else:

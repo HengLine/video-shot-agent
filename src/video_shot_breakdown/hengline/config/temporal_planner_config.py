@@ -9,7 +9,7 @@ from typing import Dict, Any
 
 from video_shot_breakdown.hengline.config.base_config import BaseConfig
 from video_shot_breakdown.hengline.language_manage import Language
-from video_shot_breakdown.hengline.logger import debug
+from video_shot_breakdown.logger import debug
 
 
 class TemporalPlannerConfig(BaseConfig):

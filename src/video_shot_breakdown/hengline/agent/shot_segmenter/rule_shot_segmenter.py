@@ -11,7 +11,7 @@ from video_shot_breakdown.hengline.agent.script_parser.script_parser_models impo
 from video_shot_breakdown.hengline.agent.shot_segmenter.base_shot_segmenter import BaseShotSegmenter
 from video_shot_breakdown.hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo, ShotType
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info
+from video_shot_breakdown.logger import info
 
 
 class RuleShotSegmenter(BaseShotSegmenter):

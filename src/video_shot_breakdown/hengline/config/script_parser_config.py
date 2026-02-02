@@ -11,7 +11,7 @@ from typing import Optional, Dict, List, Any
 import yaml
 
 from video_shot_breakdown.hengline.config.base_config import BaseConfig
-from video_shot_breakdown.hengline.logger import debug, warning, error
+from video_shot_breakdown.logger import debug, warning, error
 from video_shot_breakdown.hengline.language_manage import Language
 
 class ScriptParserConfig(BaseConfig):

@@ -11,7 +11,7 @@ from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_model
 from video_shot_breakdown.hengline.agent.quality_auditor.quality_auditor_factory import QualityAuditorFactory
 from video_shot_breakdown.hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import debug, error
+from video_shot_breakdown.logger import debug, error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 

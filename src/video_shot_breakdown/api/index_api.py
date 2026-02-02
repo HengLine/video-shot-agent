@@ -8,7 +8,7 @@
 import uvicorn
 from fastapi import APIRouter
 
-from video_shot_breakdown.hengline.logger import info, error
+from video_shot_breakdown.logger import info, error
 
 app = APIRouter()
 
@@ -39,7 +39,6 @@ def get_supported_styles():
     """
     获取支持的视频风格列表
     """
-    from video_shot_breakdown.config.config import get_supported_styles
     return {
         "supported_styles": get_supported_styles(),
         "default_style": "realistic"

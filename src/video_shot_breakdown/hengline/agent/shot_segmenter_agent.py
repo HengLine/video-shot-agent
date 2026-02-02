@@ -12,7 +12,7 @@ from video_shot_breakdown.hengline.agent.script_parser.script_parser_models impo
 from video_shot_breakdown.hengline.agent.shot_segmenter.shot_segmenter_factory import ShotSegmenterFactory
 from video_shot_breakdown.hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import debug, error
+from video_shot_breakdown.logger import debug, error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 

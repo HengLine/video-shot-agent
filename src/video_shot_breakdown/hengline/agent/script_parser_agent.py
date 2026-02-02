@@ -9,7 +9,7 @@ import re
 from typing import Dict, Tuple, List, Optional
 
 from video_shot_breakdown.hengline.agent.script_parser.llm_script_parser import LLMScriptParser
-from video_shot_breakdown.hengline.logger import debug, info, warning
+from video_shot_breakdown.logger import debug, info, warning
 from .base_models import AgentMode, ScriptType, ElementType
 from .script_parser.rule_script_parser import RuleScriptParser
 from .script_parser.script_parser_models import ParsedScript

@@ -10,7 +10,7 @@ from typing import Optional, Dict
 
 from video_shot_breakdown.hengline.agent import MultiAgentPipeline
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info
+from video_shot_breakdown.logger import info
 
 
 class TaskManager:

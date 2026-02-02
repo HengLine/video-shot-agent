@@ -7,6 +7,7 @@
 import sys
 import traceback
 from datetime import datetime
+from pathlib import Path
 
 
 def print_detailed_exception():
@@ -46,3 +47,18 @@ def print_log_exception():
     traceback.print_exception(exc_type, exc_value, exc_tb)
 
     print("🟢" * 50 + "\n")
+
+
+def _generate_dated_filename(base_name: str = "hengline", log_dir: Path = "logs") -> Path:
+    """
+    生成带日期的文件名
+
+    Args:
+        base_name: 基础文件名（如 'hengline'）
+        log_dir: 日志目录
+
+    Returns:
+        带完整路径的日期文件名
+    """
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    return log_dir / f"{base_name}_{date_str}.log"

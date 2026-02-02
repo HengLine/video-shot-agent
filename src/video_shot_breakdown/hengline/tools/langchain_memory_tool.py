@@ -14,7 +14,7 @@ from langchain.memory import VectorStoreRetrieverMemory
 from langchain_community.vectorstores import Chroma
 
 from video_shot_breakdown.hengline.client.client_factory import get_default_embedding_client
-from video_shot_breakdown.hengline.logger import debug, warning, error
+from video_shot_breakdown.logger import debug, warning, error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 

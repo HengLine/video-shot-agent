@@ -9,7 +9,7 @@ import datetime
 
 from video_shot_breakdown.hengline.agent.workflow.workflow_models import AgentStage
 from video_shot_breakdown.hengline.agent.workflow.workflow_states import WorkflowState
-from video_shot_breakdown.hengline.logger import error, debug
+from video_shot_breakdown.logger import error, debug
 from video_shot_breakdown.hengline.tools.result_storage_tool import create_result_storage
 from video_shot_breakdown.utils.log_utils import print_log_exception
 

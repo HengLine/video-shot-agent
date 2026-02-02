@@ -8,7 +8,7 @@ import os
 from enum import Enum
 from typing import Optional
 
-from video_shot_breakdown.hengline.logger import error
+from video_shot_breakdown.logger import error
 
 
 class Language(Enum):

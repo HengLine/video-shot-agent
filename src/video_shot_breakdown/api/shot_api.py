@@ -11,7 +11,7 @@ from fastapi import APIRouter, BackgroundTasks
 from fastapi import HTTPException
 
 from video_shot_breakdown.hengline.context_var import task_id_ctx
-from video_shot_breakdown.hengline.logger import error, log_with_context
+from video_shot_breakdown.logger import error, log_with_context
 from video_shot_breakdown.hengline.task.task_manager import TaskManager
 from video_shot_breakdown.hengline.task.task_models import ProcessRequest, ProcessResult, ProcessingStatus, BatchProcessResult, BatchProcessRequest
 from video_shot_breakdown.hengline.task.task_processor import AsyncTaskProcessor

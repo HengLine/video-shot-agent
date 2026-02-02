@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 
 from video_shot_breakdown.hengline.language_manage import Language, get_language
-from video_shot_breakdown.hengline.logger import info, error, warning
+from video_shot_breakdown.logger import info, error, warning
 
 
 class BaseConfig:

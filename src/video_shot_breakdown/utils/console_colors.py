@@ -8,7 +8,7 @@ import logging
 import sys
 
 import colorama
-from colorama import Fore, Style, Back
+from colorama import Fore, Style
 
 # 全局变量存储控制台颜色状态
 console_colors_initialized = False
@@ -125,3 +125,49 @@ def colored_log_formatter_factory(fmt=None, datefmt=None, style='%'):
             return formatted_message
 
     return ColoredFormatter(fmt=fmt, datefmt=datefmt, style=style)
+
+
+# 尝试导入颜色支持
+try:
+    from colorama import init
+
+    HAS_COLORAMA = True
+    IS_WINDOWS = sys.platform.startswith('win')
+    if IS_WINDOWS:
+        init()
+except ImportError:
+    HAS_COLORAMA = False
+    IS_WINDOWS = False
+
+
+class ColoredFormatter(logging.Formatter):
+    """带颜色的日志格式化器"""
+
+    # 颜色代码
+    COLORS = {
+        'DEBUG': '\033[36m',  # 青色
+        'INFO': '\033[32m',  # 绿色
+        'WARNING': '\033[33m',  # 黄色
+        'ERROR': '\033[31m',  # 红色
+        'CRITICAL': '\033[35m',  # 紫色
+        'RESET': '\033[0m'  # 重置
+    }
+
+    def __init__(self, fmt: str, datefmt: str = None):
+        """初始化格式化器"""
+        super().__init__(fmt, datefmt)
+        self.use_color = HAS_COLORAMA or not IS_WINDOWS
+
+    def format(self, record):
+        """格式化日志记录"""
+        if self.use_color and record.levelname in self.COLORS:
+            color = self.COLORS[record.levelname]
+            reset = self.COLORS['RESET']
+
+            # 为消息添加颜色
+            record.msg = f"{color}{record.msg}{reset}"
+
+            # 为级别名称添加颜色
+            record.levelname = f"{color}{record.levelname}{reset}"
+
+        return super().format(record)

@@ -9,7 +9,7 @@ import json
 import re
 from typing import Dict, Any, Optional, Union
 
-from video_shot_breakdown.hengline.logger import debug, info, warning, error
+from video_shot_breakdown.logger import debug, info, warning, error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 

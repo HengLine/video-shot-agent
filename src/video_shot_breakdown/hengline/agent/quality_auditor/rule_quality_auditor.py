@@ -10,7 +10,7 @@ from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_model
 from video_shot_breakdown.hengline.agent.quality_auditor.base_quality_auditor import BaseQualityAuditor
 from video_shot_breakdown.hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info
+from video_shot_breakdown.logger import info
 
 
 class RuleQualityAuditor(BaseQualityAuditor):

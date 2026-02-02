@@ -18,7 +18,7 @@ from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.schema import Document
 from llama_index.core.vector_stores import SimpleVectorStore
 
-from video_shot_breakdown.hengline.logger import debug, info, error, warning
+from video_shot_breakdown.logger import debug, info, error, warning
 from video_shot_breakdown.hengline.tools.script_parser_tool import parse_script_to_documents, parse_script_file_to_documents
 
 

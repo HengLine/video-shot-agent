@@ -10,7 +10,7 @@ from typing import Optional
 from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info, error, warning
+from video_shot_breakdown.logger import info, error, warning
 
 
 class BasePromptConverter(ABC):

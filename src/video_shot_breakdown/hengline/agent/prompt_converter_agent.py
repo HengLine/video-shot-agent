@@ -11,7 +11,7 @@ from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_facto
 from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import debug, error
+from video_shot_breakdown.logger import debug, error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 

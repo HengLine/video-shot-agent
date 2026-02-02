@@ -10,7 +10,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
 
 from video_shot_breakdown.hengline.agent.script_parser_agent import ScriptParserAgent
-from video_shot_breakdown.hengline.logger import debug
+from video_shot_breakdown.logger import debug
 from .workflow_decision import DecisionFunctions
 from .workflow_models import AgentStage
 from .workflow_nodes import WorkflowNodes

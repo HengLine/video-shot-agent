@@ -12,7 +12,7 @@ from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_model
 from video_shot_breakdown.hengline.agent.prompt_converter.template_prompt_converter import TemplatePromptConverter
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info, error
+from video_shot_breakdown.logger import info, error
 
 
 class LLMPromptConverter(BasePromptConverter, BaseAgent):

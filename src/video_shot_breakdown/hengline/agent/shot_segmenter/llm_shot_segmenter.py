@@ -12,7 +12,7 @@ from video_shot_breakdown.hengline.agent.shot_segmenter.base_shot_segmenter impo
 from video_shot_breakdown.hengline.agent.shot_segmenter.rule_shot_segmenter import RuleShotSegmenter
 from video_shot_breakdown.hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo, ShotType
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info, error
+from video_shot_breakdown.logger import info, error
 
 
 class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):

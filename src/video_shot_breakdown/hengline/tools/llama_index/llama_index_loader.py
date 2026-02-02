@@ -9,7 +9,7 @@ import os
 from typing import List, Dict, Optional, Any
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.schema import Document
-from video_shot_breakdown.hengline.logger import debug, info, error
+from video_shot_breakdown.logger import debug, info, error
 
 
 class DocumentLoader:

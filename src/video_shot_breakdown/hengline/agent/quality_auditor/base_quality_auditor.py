@@ -11,7 +11,7 @@ from typing import Optional
 from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
 from video_shot_breakdown.hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport, BasicViolation
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info
+from video_shot_breakdown.logger import info
 
 
 class BaseQualityAuditor(ABC):

@@ -18,9 +18,9 @@ from video_shot_breakdown.api.index_api import app as index_api
 #
 # 导入模型API路由器
 from video_shot_breakdown.api.shot_api import app as shot_api
-from video_shot_breakdown.config.config import get_data_paths
+from video_shot_breakdown.config import settings
 from video_shot_breakdown.hengline.context_var import RequestContextMiddleware
-from video_shot_breakdown.hengline.logger import error
+from video_shot_breakdown.logger import error
 from .proxy import router as proxy_router
 from ..utils.path_utils import PathResolver
 
@@ -30,7 +30,7 @@ async def app_startup():
     应用启动时的初始化操作
     """
     # 在这里添加任何需要在应用启动时执行的初始化代码
-    data_paths = get_data_paths()
+    data_paths = settings.get_data_paths()
     output_dir = os.path.join(PathResolver.get_project_root(), data_paths["data_output"])
     os.makedirs(output_dir, exist_ok=True)
     # os.makedirs(data_paths["data_input"], exist_ok=True)

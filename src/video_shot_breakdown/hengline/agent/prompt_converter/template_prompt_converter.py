@@ -11,7 +11,7 @@ from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_model
 from video_shot_breakdown.hengline.agent.shot_segmenter.shot_segmenter_models import ShotType
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info
+from video_shot_breakdown.logger import info
 
 
 class TemplatePromptConverter(BasePromptConverter):

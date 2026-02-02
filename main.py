@@ -14,15 +14,16 @@
 @Author: HengLine
 @Time: 2025/08 - 2025/11
 """
+import argparse
 import signal
 import sys
-import argparse
 from pathlib import Path
 
 from scripts.setup_env import AppBaseEnv
 from video_shot_breakdown.app import app
-from video_shot_breakdown.config.config import get_settings_config, is_debug_mode
-from video_shot_breakdown.hengline.logger import debug, info, error
+from video_shot_breakdown.config import settings
+from video_shot_breakdown.logger import debug, info, error, get_logging_manager
+from video_shot_breakdown.utils.log_utils import print_log_exception
 
 # 设置编码为UTF-8以确保中文显示正常
 sys.stdout.reconfigure(encoding='utf-8')
@@ -30,6 +31,7 @@ sys.stderr.reconfigure(encoding='utf-8')
 
 # 添加src目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent / "src"))
+
 
 # 全局变量 - uvicorn期望的格式为"模块名:应用实例名"，不需要路径分隔符
 # APP_FILE = "./app:app"  # 应用入口路径
@@ -62,16 +64,13 @@ class HengLineApp(AppBaseEnv):
             parser.add_argument('--port', type=int, help='服务器监听端口')
             args = parser.parse_args()
 
-            # 获取配置
-            config = get_settings_config()
-
             # 从配置中获取API服务器参数，设置合理的默认值
-            api_config = config.get("api", {})
-            host = args.host if args.host else api_config.get("host", "0.0.0.0")  # 默认监听所有网络接口
-            port = args.port if args.port else api_config.get("port", 8000)  # 默认端口8000
-            reload = is_debug_mode()  # 调试模式下启用热重载
-            workers = api_config.get("workers", 1)  # 默认1个工作进程
-            log_level = config.get("logging", {}).get("level", "INFO").lower()
+            api_config = settings.api
+            host = args.host if args.host else api_config.host  # 默认监听所有网络接口
+            port = args.port if args.port else api_config.port  # 默认端口8000
+            reload = api_config.reload  # 调试模式下启用热重载
+            workers = api_config.workers  # 默认1个工作进程
+            log_level = get_logging_manager().get_level("uvicorn").lower()
 
             # 当启用reload时，uvicorn不支持多进程模式，自动禁用workers参数
             # if reload and workers > 1:
@@ -97,8 +96,8 @@ class HengLineApp(AppBaseEnv):
                     log_level=log_level,
                     access_log=True
                 )
-                self.server = uvicorn.Server(config)
-                self.server.run()
+                server = uvicorn.Server(config)
+                server.run()
             else:
                 # 多进程模式下使用传统方式（此时reload一定为False）
                 uvicorn.run(
@@ -120,7 +119,9 @@ class HengLineApp(AppBaseEnv):
             return True
         except Exception as e:
             error(f"[错误] 发生未预期的错误: {e}")
+            print_log_exception()
             return False
+
 
 if __name__ == "__main__":
     HengLineApp().main()

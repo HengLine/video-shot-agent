@@ -10,7 +10,7 @@ from typing import Dict, Any
 import yaml
 from langchain_core.prompts import ChatPromptTemplate
 
-from video_shot_breakdown.hengline.logger import error
+from video_shot_breakdown.logger import error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 

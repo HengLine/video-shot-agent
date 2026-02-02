@@ -9,7 +9,7 @@ from typing import Dict, List, Any, Optional
 
 import yaml
 
-from video_shot_breakdown.hengline.logger import debug, warning
+from video_shot_breakdown.logger import debug, warning
 from video_shot_breakdown.hengline.language_manage import Language
 
 

@@ -10,7 +10,7 @@ from typing import Dict, Any
 
 from video_shot_breakdown.hengline.agent.base_models import ScriptType, ElementType
 from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import ParsedScript, SceneInfo, CharacterInfo, BaseElement
-from video_shot_breakdown.hengline.logger import info, warning
+from video_shot_breakdown.logger import info, warning
 from video_shot_breakdown.hengline.tools.script_assessor_tool import ComplexityAssessor
 
 

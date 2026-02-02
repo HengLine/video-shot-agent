@@ -12,7 +12,7 @@ from video_shot_breakdown.hengline.agent.video_splitter.base_video_splitter impo
 from video_shot_breakdown.hengline.agent.video_splitter.rule_video_splitter import RuleVideoSplitter
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info, error
+from video_shot_breakdown.logger import info, error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 

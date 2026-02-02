@@ -9,7 +9,7 @@
 # 定义对外暴露的接口
 from video_shot_breakdown.hengline.hengline_agent import generate_storyboard
 # 导入主要模块
-from video_shot_breakdown.hengline.logger import (debug, info, warning, error, critical, log_with_context
+from video_shot_breakdown.logger import (debug, info, warning, error, critical, log_with_context
 , log_function_call, log_performance)
 
 __all__ = [

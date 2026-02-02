@@ -12,7 +12,7 @@ from video_shot_breakdown.hengline.agent.base_models import ScriptType
 from video_shot_breakdown.hengline.agent.script_parser.base_script_parser import BaseScriptParser
 from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import ParsedScript
 from video_shot_breakdown.hengline.client.client_config import AIConfig
-from video_shot_breakdown.hengline.logger import info, warning, error
+from video_shot_breakdown.logger import info, warning, error
 from video_shot_breakdown.hengline.tools.json_parser_tool import parse_json_response
 
 

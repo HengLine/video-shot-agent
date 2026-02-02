@@ -11,12 +11,12 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 from video_shot_breakdown.config import settings
 from video_shot_breakdown.hengline.client.base_client import BaseClient
-from video_shot_breakdown.hengline.client.client_config import ClientType, AIConfig, get_client_type, detect_ai_provider_by_url
+from video_shot_breakdown.hengline.client.client_config import ClientType, AIConfig, detect_ai_provider_by_url
 from video_shot_breakdown.hengline.client.llm.deepseek_client import DeepSeekClient
 from video_shot_breakdown.hengline.client.llm.ollama_client import OllamaClient
 from video_shot_breakdown.hengline.client.llm.openai_client import OpenAIClient
 from video_shot_breakdown.hengline.client.llm.qwen_client import QwenClient
-from video_shot_breakdown.hengline.logger import error, warning, info
+from video_shot_breakdown.logger import error, warning, info
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 CLIENT_REGISTRY: Dict[ClientType, Type[BaseClient]] = {
@@ -103,7 +103,8 @@ def get_default_llm(**kwargs):
         fin_config = _fill_default_config(config, **kwargs)
 
         # 使用client_factory获取对应的LangChain LLM实例
-        client = get_client(get_client_type(provider), fin_config)
+        # client = get_client(get_client_type(provider), fin_config)
+        client = get_client(provider, fin_config)
 
         if not client:
             warning(f"AI模型初始化失败（未能获取 {provider} 的LLM实例），系统将自动使用规则引擎模式继续工作")
@@ -206,7 +207,7 @@ def get_default_embedding_client(**kwargs):
         fin_config = _fill_default_config(config, **kwargs)
 
         # 使用client_factory获取对应的嵌入模型实例
-        client = get_client(get_client_type(provider), fin_config)
+        client = get_client(provider, fin_config)
 
         if not client:
             warning(f"AI嵌入模型初始化失败（未能获取 {provider} 的嵌入实例），系统将自动使用规则引擎模式继续工作")

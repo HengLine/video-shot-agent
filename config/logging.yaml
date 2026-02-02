@@ -1,184 +1,37 @@
-# Script-to-Shot AI Agent - 日志配置
-
 version: 1
 disable_existing_loggers: false
 
-# 格式化器
-formatters:
-  simple:
-    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    datefmt: "%Y-%m-%d %H:%M:%S"
+# 统一格式
+formatter:
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  datefmt: "%Y-%m-%d %H:%M:%S"
 
-  detailed:
-    format: "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
-    datefmt: "%Y-%m-%d %H:%M:%S"
+# 控制台输出
+console:
+  level: INFO
+  class: logging.StreamHandler
+  formatter: formatter
+  stream: ext://sys.stdout
 
-  json:
-    format: json
-    class: pythonjsonlogger.jsonlogger.JsonFormatter
-    fmt: "%(asctime)s %(name)s %(levelname)s %(filename)s %(lineno)d %(message)s"
+# 文件输出
+file:
+  level: INFO
+  class: logging.handlers.RotatingFileHandler
+  formatter: formatter
+#  filename: "logs/hengline_%Y-%m-%d.log"  # 添加日期格式
+  maxBytes: 10485760
+  backupCount: 5
+  encoding: utf8
 
-# 处理器
+# 日志级别配置
+levels:
+  root: INFO
+  uvicorn: INFO
+  app: INFO
+  llm: DEBUG
+
+# handlers分配
 handlers:
-  # 控制台输出（开发环境）
-  console:
-    class: logging.StreamHandler
-    level: DEBUG
-    formatter: simple
-    stream: ext://sys.stdout
-
-  # 文件输出
-  file:
-    class: logging.handlers.RotatingFileHandler
-    level: INFO
-    formatter: detailed
-    filename: "logs/app.log"
-    maxBytes: 10485760  # 10MB
-    backupCount: 5
-    encoding: utf8
-
-  # 错误日志文件
-  error_file:
-    class: logging.handlers.RotatingFileHandler
-    level: ERROR
-    formatter: detailed
-    filename: "logs/error.log"
-    maxBytes: 10485760  # 10MB
-    backupCount: 10
-    encoding: utf8
-
-  # API访问日志
-  access_file:
-    class: logging.handlers.RotatingFileHandler
-    level: INFO
-    formatter: simple
-    filename: "logs/access.log"
-    maxBytes: 5242880  # 5MB
-    backupCount: 3
-    encoding: utf8
-
-  # JSON格式日志（生产环境）
-  json_file:
-    class: logging.handlers.RotatingFileHandler
-    level: INFO
-    formatter: json
-    filename: "logs/app.json.log"
-    maxBytes: 10485760  # 10MB
-    backupCount: 5
-    encoding: utf8
-
-# 记录器配置
-loggers:
-  # 根记录器
-  "":
-    level: INFO
-    handlers: [console, file, error_file]
-    propagate: yes
-
-  # 应用主记录器
-  "script_to_shot":
-    level: INFO
-    handlers: [console, file]
-    propagate: no
-
-  # FastAPI记录器
-  "uvicorn":
-    level: INFO
-    handlers: [console, file]
-    propagate: no
-
-  "uvicorn.access":
-    level: INFO
-    handlers: [access_file]
-    propagate: no
-
-  "uvicorn.error":
-    level: INFO
-    handlers: [error_file]
-    propagate: no
-
-  # AI相关记录器
-  "langchain":
-    level: WARNING
-    handlers: [file]
-    propagate: no
-
-  "openai":
-    level: WARNING
-    handlers: [file]
-    propagate: no
-
-  # 数据库记录器
-  "chromadb":
-    level: WARNING
-    handlers: [file]
-    propagate: no
-
-  # 请求记录器
-  "httpx":
-    level: WARNING
-    handlers: [file]
-    propagate: no
-
-  # 特定模块记录器
-  "script_to_shot.llm":
-    level: DEBUG
-    handlers: [file]
-    propagate: no
-    qualname: script_to_shot.llm
-
-  "script_to_shot.embedding":
-    level: DEBUG
-    handlers: [file]
-    propagate: no
-    qualname: script_to_shot.embedding
-
-  "script_to_shot.storyboard":
-    level: DEBUG
-    handlers: [file]
-    propagate: no
-    qualname: script_to_shot.storyboard
-
-# 环境特定的配置覆盖
-overrides:
-  development:
-    loggers:
-      "":
-        level: DEBUG
-        handlers: [console]
-
-      "script_to_shot":
-        level: DEBUG
-
-      "uvicorn":
-        level: DEBUG
-
-      "langchain":
-        level: INFO
-
-      "openai":
-        level: INFO
-
-  production:
-    handlers:
-      console:
-        level: WARNING
-
-      file:
-        level: INFO
-
-      json_file:
-        level: INFO
-
-    loggers:
-      "":
-        handlers: [json_file, error_file]
-
-      "script_to_shot":
-        handlers: [json_file]
-
-      "uvicorn.access":
-        handlers: [json_file]
-
-      "uvicorn.error":
-        handlers: [json_file, error_file]
+  root: [console, file]
+  uvicorn: [console]
+  app: [console, file]

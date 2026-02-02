@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import List, Dict
 
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import error, info
+from video_shot_breakdown.logger import error, info
 from video_shot_breakdown.hengline.task.task_handler import CallbackHandler
 from video_shot_breakdown.hengline.task.task_manager import TaskManager
 from video_shot_breakdown.utils.log_utils import print_log_exception

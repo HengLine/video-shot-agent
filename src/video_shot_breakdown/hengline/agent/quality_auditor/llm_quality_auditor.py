@@ -12,7 +12,7 @@ from video_shot_breakdown.hengline.agent.quality_auditor.base_quality_auditor im
 from video_shot_breakdown.hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport
 from video_shot_breakdown.hengline.agent.quality_auditor.rule_quality_auditor import RuleQualityAuditor
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.hengline.logger import info, error
+from video_shot_breakdown.logger import info, error
 
 
 class LLMQualityAuditor(BaseQualityAuditor, BaseAgent):

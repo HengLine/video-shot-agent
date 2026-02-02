@@ -12,7 +12,7 @@ import yaml
 
 from video_shot_breakdown.hengline.config.base_config import BaseConfig
 from video_shot_breakdown.hengline.language_manage import Language
-from video_shot_breakdown.hengline.logger import debug, error
+from video_shot_breakdown.logger import debug, error
 
 
 class KeywordConfig(BaseConfig):
