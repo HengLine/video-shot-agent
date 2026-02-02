@@ -144,12 +144,23 @@ def colored_log_formatter_factory(fmt=None, datefmt=None, style='%'):
 class ColoredFormatter(logging.Formatter):
     """带颜色的日志格式化器 - 简化版"""
 
+    # 正确的颜色代码
     COLORS = {
-        'DEBUG': '\033[36m',
-        'INFO': '\033[32m',
-        'WARNING': '\033[33m',
-        'ERROR': '\033[31m',
-        'CRITICAL': '\033[35m',
+        'DEBUG': '\033[36m',  # 青色 - cyan
+        'INFO': '\033[32m',  # 绿色 - green
+        'WARNING': '\033[33m',  # 黄色 - yellow
+        'ERROR': '\033[31m',  # 红色 - red
+        'CRITICAL': '\033[35m',  # 品红色 - magenta
+        'RESET': '\033[0m'  # 重置
+    }
+
+    # 或者使用更鲜艳的颜色（可选）
+    BRIGHT_COLORS = {
+        'DEBUG': '\033[96m',  # 亮青色
+        'INFO': '\033[92m',  # 亮绿色
+        'WARNING': '\033[93m',  # 亮黄色
+        'ERROR': '\033[91m',  # 亮红色
+        'CRITICAL': '\033[95m',  # 亮品红色
         'RESET': '\033[0m'
     }
 
@@ -190,3 +201,46 @@ class ColoredFormatter(logging.Formatter):
             result = f"{color}{result}{reset}"
 
         return result
+
+
+class LevelOnlyColoredFormatter(logging.Formatter):
+    """只给日志级别添加颜色"""
+
+    # 级别颜色映射
+    LEVEL_COLORS = {
+        logging.DEBUG: '\033[36m',  # 青色
+        logging.INFO: '\033[32m',  # 绿色
+        logging.WARNING: '\033[33m',  # 黄色
+        logging.ERROR: '\033[31m',  # 红色
+        logging.CRITICAL: '\033[35m',  # 紫色
+    }
+    RESET = '\033[0m'
+
+    def __init__(self, fmt=None, datefmt=None):
+        if fmt is None:
+            fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        super().__init__(fmt, datefmt)
+
+    def format(self, record):
+        # 检查是否应该使用颜色
+        if sys.stdout.isatty() and (not IS_WINDOWS or HAS_COLORAMA):
+            # 获取颜色
+            color = self.LEVEL_COLORS.get(record.levelno, '')
+            reset = self.RESET if color else ''
+
+            # 在格式化字符串中插入颜色
+            # 我们需要修改格式化过程，只给 %(levelname)s 加颜色
+            message = super().format(record)
+
+            # 查找并替换级别名称
+            # 例如: "INFO" -> "\033[32mINFO\033[0m"
+            level_name = logging.getLevelName(record.levelno)
+            colored_level = f"{color}{level_name}{reset}"
+
+            # 替换消息中的级别名称
+            # 注意：这里假设格式中包含 %(levelname)s
+            message = message.replace(level_name, colored_level, 1)
+
+            return message
+
+        return super().format(record)

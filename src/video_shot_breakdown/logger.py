@@ -16,7 +16,7 @@ from typing import Optional, Dict, Any, List
 import yaml
 
 # 导入自定义的控制台颜色处理模块
-from video_shot_breakdown.utils.console_colors import init_console_colors, IS_WINDOWS, HAS_COLORAMA, ColoredFormatter
+from video_shot_breakdown.utils.console_colors import init_console_colors, IS_WINDOWS, HAS_COLORAMA, LevelOnlyColoredFormatter
 from video_shot_breakdown.utils.log_utils import _generate_dated_filename
 from video_shot_breakdown.utils.path_utils import PathResolver
 
@@ -385,14 +385,16 @@ class Logger:
 
     def _create_console_handler(self, handler_config: Dict[str, Any], fmt: str,
                                 datefmt: str, level: int) -> logging.Handler:
-        """创建控制台处理器"""
-        # 创建处理器
+        """创建控制台处理器 - 只给级别加颜色"""
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(level)
 
-        # 设置格式化器
-        if HAS_COLORAMA or not IS_WINDOWS:
-            formatter = ColoredFormatter(fmt, datefmt)
+        # 检查是否应该使用颜色
+        use_color = sys.stdout.isatty() and (HAS_COLORAMA or not IS_WINDOWS)
+
+        if use_color:
+            # 使用只给级别加颜色的格式化器
+            formatter = LevelOnlyColoredFormatter(fmt, datefmt)
         else:
             formatter = logging.Formatter(fmt, datefmt)
 
