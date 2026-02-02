@@ -17,7 +17,7 @@ from video_shot_breakdown.logger import info
 class TemplatePromptConverter(BasePromptConverter):
     """基于模板的提示词转换器 - MVP版本"""
 
-    def __init__(self, config: Optional[HengLineConfig] = None):
+    def __init__(self, config: Optional[HengLineConfig]):
         super().__init__(config)
         # 定义简单模板
         self.templates = {

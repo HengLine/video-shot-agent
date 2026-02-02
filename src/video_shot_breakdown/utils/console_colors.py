@@ -5,6 +5,7 @@
 @Time: 2025/08 - 2025/11
 """
 import logging
+import os
 import sys
 
 import colorama
@@ -128,46 +129,64 @@ def colored_log_formatter_factory(fmt=None, datefmt=None, style='%'):
 
 
 # 尝试导入颜色支持
-try:
-    from colorama import init
-
-    HAS_COLORAMA = True
-    IS_WINDOWS = sys.platform.startswith('win')
-    if IS_WINDOWS:
-        init()
-except ImportError:
-    HAS_COLORAMA = False
-    IS_WINDOWS = False
+# try:
+#     from colorama import init
+#
+#     HAS_COLORAMA = True
+#     IS_WINDOWS = sys.platform.startswith('win')
+#     if IS_WINDOWS:
+#         init()
+# except ImportError:
+#     HAS_COLORAMA = False
+#     IS_WINDOWS = False
 
 
 class ColoredFormatter(logging.Formatter):
-    """带颜色的日志格式化器"""
+    """带颜色的日志格式化器 - 简化版"""
 
-    # 颜色代码
     COLORS = {
-        'DEBUG': '\033[36m',  # 青色
-        'INFO': '\033[32m',  # 绿色
-        'WARNING': '\033[33m',  # 黄色
-        'ERROR': '\033[31m',  # 红色
-        'CRITICAL': '\033[35m',  # 紫色
-        'RESET': '\033[0m'  # 重置
+        'DEBUG': '\033[36m',
+        'INFO': '\033[32m',
+        'WARNING': '\033[33m',
+        'ERROR': '\033[31m',
+        'CRITICAL': '\033[35m',
+        'RESET': '\033[0m'
     }
 
     def __init__(self, fmt: str, datefmt: str = None):
-        """初始化格式化器"""
         super().__init__(fmt, datefmt)
-        self.use_color = HAS_COLORAMA or not IS_WINDOWS
+        self.use_color = self._check_color_support()
+
+    def _check_color_support(self) -> bool:
+        """检查是否支持颜色"""
+        # 检查是否输出到终端
+        if not sys.stdout.isatty():
+            return False
+
+        # Windows需要colorama
+        if IS_WINDOWS:
+            return HAS_COLORAMA
+
+        # Unix-like系统检查TERM变量
+        term = os.getenv('TERM', '')
+        supported_terms = ['xterm', 'xterm-256color', 'screen', 'screen-256color',
+                           'linux', 'cygwin', 'vt100', 'vt220', 'ansi']
+
+        for term_type in supported_terms:
+            if term_type in term:
+                return True
+
+        return False
 
     def format(self, record):
         """格式化日志记录"""
+        # 先调用父类格式化
+        result = super().format(record)
+
+        # 如果需要颜色，添加颜色代码
         if self.use_color and record.levelname in self.COLORS:
             color = self.COLORS[record.levelname]
             reset = self.COLORS['RESET']
+            result = f"{color}{result}{reset}"
 
-            # 为消息添加颜色
-            record.msg = f"{color}{record.msg}{reset}"
-
-            # 为级别名称添加颜色
-            record.levelname = f"{color}{record.levelname}{reset}"
-
-        return super().format(record)
+        return result

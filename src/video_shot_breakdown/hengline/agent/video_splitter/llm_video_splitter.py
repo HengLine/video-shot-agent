@@ -46,7 +46,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
                 error(f"镜头{shot.id}分割失败: {str(e)}")
                 print_log_exception()
                 # 降级到简单规则
-                simple_cutter = RuleVideoSplitter()
+                simple_cutter = RuleVideoSplitter(self.config)
                 fallback_fragments = simple_cutter.split_shot(shot, current_time, len(fragments))
                 fragments.extend(fallback_fragments)
 

@@ -8,7 +8,6 @@
 """
 
 import logging
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -180,7 +179,7 @@ class LoggingConfigManager:
             "level": "INFO",
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "formatter",
-            "filename": "logs/app.log",
+            "filename": f"logs/hengline_{datetime.now().strftime('%Y-%m-%d')}.log",
             "maxBytes": 10485760,  # 10MB
             "backupCount": 5,
             "encoding": "utf8"

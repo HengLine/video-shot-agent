@@ -40,7 +40,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
             except Exception as e:
                 error(f"片段{fragment.id}转换失败: {str(e)}")
                 # 降级到模板转换
-                template_converter = TemplatePromptConverter()
+                template_converter = TemplatePromptConverter(self.config)
                 fallback_prompt = template_converter.convert_fragment(fragment)
                 prompts.append(fallback_prompt)
 

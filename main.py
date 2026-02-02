@@ -92,7 +92,7 @@ class HengLineApp(AppBaseEnv):
                     app,
                     host=host,
                     port=port,
-                    reload=reload,
+                    reload=False,
                     log_level=log_level,
                     access_log=True
                 )
