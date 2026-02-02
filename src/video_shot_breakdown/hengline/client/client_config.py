@@ -51,15 +51,15 @@ def detect_ai_provider_by_url(base_url: str) -> Optional[ClientType]:
     url_lower = base_url.lower()
 
     # 1. OpenAI - 严格匹配官方域名
-    if "api.openai.com" in url_lower:
+    if "openai.com" in url_lower:
         return ClientType.OPENAI
 
     # 2. Qwen (通义千问) - 阿里云 DashScope
-    if "dashscope.aliyuncs.com" in url_lower:
+    if "aliyuncs.com" in url_lower:
         return ClientType.QWEN
 
     # 3. DeepSeek
-    if "api.deepseek.com" in url_lower:
+    if "deepseek.com" in url_lower:
         return ClientType.DEEPSEEK
 
     # 4. Ollama - 两种识别方式：
@@ -68,7 +68,7 @@ def detect_ai_provider_by_url(base_url: str) -> Optional[ClientType]:
     if ":11434" in url_lower or "ollama" in url_lower:
         return ClientType.OLLAMA
 
-    return ClientType.OPENAI
+    return ClientType.OLLAMA
 
 
 @dataclass

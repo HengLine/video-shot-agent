@@ -4,7 +4,7 @@ langchain==0.3.27
 langchain-community==0.3.31
 dashscope==1.23.9
 langgraph==0.6.11
-langchain-wenxin
+# langchain-wenxin
 langchain-deepseek
 langchain-ollama
 chromadb

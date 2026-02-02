@@ -4,7 +4,6 @@ outputs/
 uploads/
 video_shot_agent.egg-info/
 .venv/
-env/
 .env/
 data/
 venv/

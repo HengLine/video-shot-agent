@@ -1,11 +1,12 @@
-# Script-to-Shot AI Agent - 开发环境配置
+# 应用程序配置文件，包含API、LLM、嵌入模型、分镜生成等各项配置。
+# 此配置只是默认值，系统优先使用环境变量或命令行参数。
 app:
   name: "Script-to-Shot AI Agent"
   version: "1.0.0"
   description: "脚本转分镜AI助手"
   environment: "development"
+  language: "zh"
 
-################## api #######################
 api:
   host: "127.0.0.1"
   port: 8000
@@ -17,16 +18,14 @@ api:
     - "http://localhost:8000"
   api_prefix: "/api"
   docs_url: "/docs"
-  redoc_url: "/redoc"
-  openapi_url: "/openapi.json"
 
-################### LLM ######################
+#################### LLM配置 #####################
 llm:
   default:
     base_url: "https://api.openai.com/v1"
-    api_key: "${LLM_API_KEY}"
-    timeout: 60
+    api_key: ""
     model_name: "gpt-4o"
+    timeout: 60
     response_format: "json_object"
     temperature: 0.1
     max_tokens: 2000
@@ -36,8 +35,8 @@ llm:
   # 备用llm模型配置
   fallback:
     base_url: "http://localhost:11434"
-    api_key: "${LLM_FALLBACK_API_KEY}"
-    model_name: "llama2:13b"
+    api_key: ""
+    model_name: "qwen3:8b"
     response_format: "json_object"
     timeout: 60
     temperature: 0.1
@@ -45,13 +44,13 @@ llm:
     max_retries: 3
     retry_delay: 1
 
-#################### embedding #####################
-embedding:
+#################### 嵌入模型配置 #####################
+embed:
   default:
     base_url: "https://api.openai.com/v1"
-    api_key: "${EMBEDDING_API_KEY}"
+    api_key: ""
     model_name: "text-embedding-3-small"
-    device: "cpu"
+    device: "gpu"
     normalize_embeddings: true
     dimensions: 1536
     timeout: 60
@@ -60,16 +59,14 @@ embedding:
   # 备用嵌入模型配置
   fallback:
     base_url: "http://localhost:11434"
-    api_key: "${EMBEDDING_FALLBACK_API_KEY}"
-    model_name: "nomic-embed-text"
-    device: "cpu"
+    api_key: ""
+    model_name: "qllama/bge-small-zh-v1.5"
+    device: "gpu"
     timeout: 60
     max_retries: 3
 
-
-################## storyboard ####################
+#################### 分镜配置 #####################
 storyboard:
-  # 分镜生成配置
   generation:
     default_duration_per_shot: 5
     max_duration_deviation: 0.5
@@ -84,7 +81,6 @@ storyboard:
       - "sci-fi"
       - "documentary"
 
-  # 分镜结构配置
   structure:
     min_shots: 1
     max_shots: 50
@@ -93,85 +89,67 @@ storyboard:
     include_dialogue: true
     include_camera_angles: true
 
-  # 输出配置
   output:
-    format: "json"  # json, yaml, markdown
+    format: "json"
     include_timestamps: true
     include_visual_descriptions: true
     include_character_list: true
     include_location_list: true
     include_shot_duration: true
 
-################## paths #######################
+#################### 路径配置 #####################
 paths:
-  # 数据路径
   data:
-    input: "data/input"
-    output: "data/output"
-    cache: "data/cache"
+    input: "./data/input"
+    output: "./data/output"
+    cache: "./data/cache"
 
-  # 模型路径
   models:
-    base: "data/models"
-    embeddings: "data/models/embeddings"
-    llm_cache: "data/models/llm_cache"
+    base: "./data/models"
+    embeddings: "./data/models/embeddings"
+    llm_cache: "./data/models/llm_cache"
 
-  # 缓存路径
   cache:
-    base: "data/cache"
-    embeddings: "data/cache/embeddings"
-    llm_responses: "data/cache/llm_responses"
+    base: "./data/cache"
+    embeddings: "./data/cache/embeddings"
+    llm_responses: "./data/cache/llm_responses"
 
-  # 日志路径
   logs:
-    base: "logs"
-    app: "logs/app"
-    api: "logs/api"
-    errors: "logs/errors"
+    base: "./logs"
+    app: "./logs/app"
+    api: "./logs/api"
+    errors: "./logs/errors"
 
-  # 临时文件
-  temp: "tmp"
-  uploads: "tmp/uploads"
-  processed: "tmp/processed"
+  temp:
+    base: "./tmp"
+    uploads: "./tmp/uploads"
+    processed: "./tmp/processed"
 
-################## other configs #######################
-# 向量存储配置
+#################### 向量存储配置 #####################
 vector_store:
   provider: "chroma"
+
   chroma:
-    persist_directory: "data/vector_store"
+    persist_directory: "./data/vector_store"
     collection_name: "script_embeddings"
-    embedding_function: "openai"
+    embedding_function: "default"
     distance_metric: "cosine"
 
-  # 备用向量存储
-  faiss:
-    index_path: "data/vector_store/faiss.index"
-    dimension: 1536
-
-# 缓存配置
+#################### 缓存配置 #####################
 cache:
-  # 内存缓存
   memory:
     enabled: true
-    ttl: 300  # 5分钟
+    ttl: 300
     max_size: 1000
 
-  # Redis缓存（可选）
   redis:
     enabled: false
-    host: "localhost"
-    port: 6379
-    db: 0
-    ttl: 3600  # 1小时
 
-  # 文件缓存
   file:
     enabled: true
-    directory: "data/cache"
+    directory: "./data/cache"
     ttl: 86400  # 24小时
 
-  # 特定缓存配置
   llm_response:
     ttl: 3600  # 1小时
     max_items: 1000
@@ -180,23 +158,20 @@ cache:
     ttl: 604800  # 7天
     max_items: 10000
 
-# 任务处理配置
+#################### 处理配置 #####################
 processing:
-  # 并发配置
   max_workers: 4
   max_concurrent_tasks: 10
   task_timeout: 300  # 5分钟
 
-  # 重试配置
   max_retries: 3
   retry_delay: 5
   backoff_factor: 2
 
-  # 批量处理
   batch_size: 10
   batch_timeout: 30
 
-# 文件上传配置
+#################### 上传配置 #####################
 upload:
   max_file_size: "10MB"
   allowed_extensions:
@@ -209,26 +184,20 @@ upload:
   max_files_per_request: 5
   chunk_size: 1024 * 1024  # 1MB
 
-# 监控配置
+#################### 监控配置 #####################
 monitoring:
-  # 健康检查
   health:
     enabled: true
     endpoint: "/health"
     check_interval: 30
 
-  # 性能指标
   metrics:
     enabled: false
-    endpoint: "/metrics"
-    port: 9090
 
-  # 请求追踪
   tracing:
     enabled: false
-    sampling_rate: 0.1
 
-# 功能开关
+#################### 功能开关 #####################
 features:
   enable_api: true
   enable_cli: true
@@ -239,7 +208,7 @@ features:
   enable_rate_limiting: false
   enable_auth: false
 
-# 开发工具
+#################### 开发工具 #####################
 development:
   enable_hot_reload: true
   enable_debug_endpoints: true

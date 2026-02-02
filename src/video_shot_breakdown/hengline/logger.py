@@ -173,12 +173,9 @@ class Logger:
                 'ERROR': logging.ERROR,
                 'CRITICAL': logging.CRITICAL
             }
-            from video_shot_breakdown.config.config import get_settings_config
-            logging_config = get_settings_config().get('logging', {})
-            
+
             # 获取配置的日志级别
-            log_level_str = logging_config.get('level', 'DEBUG').upper()
-            log_level = level_map.get(log_level_str, logging.DEBUG)
+            log_level = level_map.get("INFO", logging.DEBUG)
             self.logger.setLevel(log_level)
             
         except ImportError:
@@ -215,14 +212,10 @@ class Logger:
             }
             
             # 获取配置的日志级别
-            from video_shot_breakdown.config.config import get_settings_config
-            logging_config = get_settings_config().get('logging', {})
-            log_level_str = logging_config.get('level', 'INFO').upper()
-            log_level = level_map.get(log_level_str, logging.INFO)
+            log_level = level_map.get("INFO", logging.INFO)
             
             # 设置控制台处理器级别
-            console_level_str = logging_config.get('console_level', log_level_str).upper()
-            console_level = level_map.get(console_level_str, log_level)
+            console_level = level_map.get("INFO", log_level)
             console_handler.setLevel(console_level)
             
         except ImportError:
@@ -242,9 +235,6 @@ class Logger:
         
         try:
             # 设置文件处理器级别
-            from video_shot_breakdown.config.config import get_settings_config
-            logging_config = get_settings_config().get('logging', {})
-
             level_map = {
                 'DEBUG': logging.DEBUG,
                 'INFO': logging.INFO,
@@ -254,16 +244,14 @@ class Logger:
             }
             
             # 获取配置的日志级别
-            log_level_str = logging_config.get('level', 'INFO').upper()
-            log_level = level_map.get(log_level_str, logging.INFO)
+            log_level = level_map.get("INFO", logging.INFO)
             
             # 设置文件处理器级别
-            file_level_str = logging_config.get('file_level', log_level_str).upper()
-            file_level = level_map.get(file_level_str, log_level)
+            file_level = level_map.get("INFO", log_level)
             file_handler.setLevel(file_level)
             
             # 禁用不必要的日志
-            if logging_config.get('disable_unnecessary_logs', True):
+            if {}.get('disable_unnecessary_logs', True):
                 # 禁用第三方库的日志
                 for logger_name in ['urllib3', 'requests', 'PIL', 'matplotlib']:
                     logging.getLogger(logger_name).setLevel(logging.WARNING)

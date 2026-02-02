@@ -9,7 +9,7 @@ from typing import Dict, Type, List
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-from video_shot_breakdown.config.config import get_llm_config, get_embedding_config
+from video_shot_breakdown.config import settings
 from video_shot_breakdown.hengline.client.base_client import BaseClient
 from video_shot_breakdown.hengline.client.client_config import ClientType, AIConfig, get_client_type, detect_ai_provider_by_url
 from video_shot_breakdown.hengline.client.llm.deepseek_client import DeepSeekClient
@@ -85,20 +85,19 @@ def get_default_llm(**kwargs):
 
     try:
         # 获取配置
-        ai_config = get_llm_config()
-        provider = ai_config.get("provider", "openai").lower()
-        model = ai_config.get("model_name", "gpt-4o")
+        ai_config = settings.get_llm_config()
+        provider = detect_ai_provider_by_url(ai_config.base_url)
 
-        info(f"使用AI提供商: {provider}, 模型: {model}")
+        info(f"使用AI提供商: {provider}, 模型: {ai_config.model_name}")
 
         config = AIConfig(
-            model=model,
-            api_key=ai_config.get("api_key", None),
-            base_url=ai_config.get("base_url", ""),
-            temperature=ai_config.get("temperature", 0.1),
-            timeout=ai_config.get("timeout", 60),
-            max_tokens=ai_config.get("max_tokens", 5000),
-            max_retries=ai_config.get("max_retries", 3),
+            model=ai_config.model_name,
+            api_key=ai_config.api_key,
+            base_url=ai_config.base_url,
+            temperature=ai_config.temperature,
+            timeout=ai_config.timeout,
+            max_tokens=ai_config.max_tokens,
+            max_retries=ai_config.max_retries,
         )
 
         fin_config = _fill_default_config(config, **kwargs)
@@ -167,7 +166,6 @@ def _convert_messages(messages: List[Dict[str, str]]):
     return lc_messages
 
 
-
 ################################# 获取嵌入模型实例 #################################
 def get_embedding_client(provider: ClientType, config: AIConfig):
     """
@@ -182,6 +180,7 @@ def get_embedding_client(provider: ClientType, config: AIConfig):
     client = get_client(provider, config)
     return client.llm_embed()
 
+
 def get_default_embedding_client(**kwargs):
     """
     获取默认的 LLM 客户端的嵌入模型实例（默认为 OpenAI）
@@ -191,18 +190,17 @@ def get_default_embedding_client(**kwargs):
     """
     try:
         # 获取配置
-        ai_config = get_embedding_config()
-        provider = ai_config.get("provider", "openai").lower()
-        model = ai_config.get("model_name", "text-embedding-3-small")
+        ai_config = settings.get_embedding_config()
+        provider = detect_ai_provider_by_url(ai_config.base_url)
 
-        info(f"使用AI提供商: {provider}, 嵌入模型: {model}")
+        info(f"使用AI提供商: {provider}, 嵌入模型: {ai_config.model_name}")
 
         config = AIConfig(
-            model=model,
-            base_url=ai_config.get("base_url", ""),
-            timeout=ai_config.get("timeout", 300),
-            max_retries=ai_config.get("max_retries", 3),
-            api_key=ai_config.get("api_key", None),
+            model=ai_config.model_name,
+            base_url=ai_config.base_url,
+            timeout=ai_config.timeout,
+            max_retries=ai_config.max_retries,
+            api_key=ai_config.api_key
         )
 
         fin_config = _fill_default_config(config, **kwargs)
@@ -217,6 +215,7 @@ def get_default_embedding_client(**kwargs):
     except Exception as e:
         print_log_exception()
         error(f"AI嵌入模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
+
 
 def embed_client_query(provider: ClientType, text: str, config: AIConfig = None, **kwargs) -> List[float]:
     """
@@ -233,8 +232,6 @@ def embed_client_query(provider: ClientType, text: str, config: AIConfig = None,
 
     client = get_embedding_client(provider, fin_config)
     return client.embed_query(text)
-
-
 
 
 if __name__ == '__main__':

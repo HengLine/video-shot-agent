@@ -1,0 +1,11 @@
+app:
+  debug: true
+  environment: "development"
+
+api:
+  reload: true
+
+llm:
+  default:
+    model_name: "gpt-4o-mini"
+    max_tokens: 5000

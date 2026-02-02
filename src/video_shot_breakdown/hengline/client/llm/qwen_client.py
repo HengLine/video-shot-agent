@@ -22,6 +22,7 @@ class QwenClient(BaseClient):
             config: AIConfig,
     ):
         self.config = config
+        self.base_url = "https://dashscope-intl.aliyuncs.com/api/v1"
 
     def llm_model(self) -> BaseLanguageModel:
         return ChatTongyi(

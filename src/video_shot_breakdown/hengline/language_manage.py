@@ -51,7 +51,7 @@ def _init_language_from_env():
     if _current_language is None:
         # 从环境变量获取语言设置
         try:
-            lang_str = os.environ.get("APP_LANGUAGE")
+            lang_str = os.environ.get("LANGUAGE")
             _current_language = Language.from_string(lang_str) or Language.ZH
         except Exception as e:
             error(f'初始化语言设置失败，使用默认值{Language.ZH.value}：{e}')
