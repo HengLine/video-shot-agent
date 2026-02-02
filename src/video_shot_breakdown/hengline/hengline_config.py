@@ -17,19 +17,19 @@ class HengLineConfig(AIConfig):
     use_local_rules: bool = False  # 是否启用本地规则校验和补全
 
     # ======================镜头拆分
-    max_shot_duration: float = 20.0,  # 镜头允许的时长范围
-    min_shot_duration: float = 2.0,
+    max_shot_duration: float = 20.0  # 镜头允许的时长范围
+    min_shot_duration: float = 2.0
     default_shot_duration: float = 3.0
 
     # ======================视频分割
     max_fragment_duration: float = 5.0  # 每个分镜的最大持续时间（秒）
     min_fragment_duration: float = 1.0  # 最小片段时长
-    split_strategy: str = "simple",  # 简单拆分策略
+    split_strategy: str = "simple"  # 简单拆分策略
 
     # ======================指令转换
-    target_model: str = "runway_gen2",
-    default_negative_prompt: str = "blurry, distorted, low quality, cartoonish, bad anatomy",
-    default_style: str = "cinematic",
+    target_model: str = "runway_gen2"
+    default_negative_prompt: str = "blurry, distorted, low quality, cartoonish, bad anatomy"
+    default_style: str = "cinematic"
     max_prompt_length: int = 300
     min_prompt_length: int = 10
 

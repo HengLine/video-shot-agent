@@ -36,7 +36,9 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseAgent):
             self._merge_llm_result(basic_report, llm_result)
         except Exception as e:
             error(f"LLM审查失败: {str(e)}")
-            # 只使用基本规则结果
+            # 确保 basic_report 不为 None
+            if basic_report is None:
+                basic_report = QualityAuditReport()
 
         return self.post_process(basic_report)
 
