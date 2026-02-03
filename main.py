@@ -41,7 +41,7 @@ class HengLineApp(AppBaseEnv):
 
     def start_application(self):
         """启动应用的抽象方法"""
-        info("=== 正在启动HengLine应用.... ===")
+        info("=== 正在启动 HengLine 应用.... ===")
 
         # 设置信号处理函数
         def signal_handler(sig, frame):

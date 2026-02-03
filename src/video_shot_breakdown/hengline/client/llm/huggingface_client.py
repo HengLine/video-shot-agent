@@ -15,11 +15,8 @@ from video_shot_breakdown.hengline.client.client_config import AIConfig
 class HuggingFaceClient(BaseClient):
     """HuggingFace LLM 客户端实现"""
 
-    def __init__(
-            self,
-            config: AIConfig,
-    ):
-        self.config = config
+    def __init__(self, config: AIConfig):
+        super().__init__(config)
         # 常用中文嵌入模型
         self.MODEL_NAMES = {
             # 中文模型

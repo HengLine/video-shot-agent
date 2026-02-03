@@ -16,11 +16,8 @@ from video_shot_breakdown.hengline.client.client_config import AIConfig
 class DeepSeekClient(BaseClient):
     """DeepSeek 客户端实现"""
 
-    def __init__(
-            self,
-            config: AIConfig,
-    ):
-        self.config = config
+    def __init__(self, config: AIConfig):
+        super().__init__(config)
         self.base_url = config.base_url or "https://api.deepseek.com/v1/chat/completions"
 
     def llm_model(self) -> BaseLanguageModel:

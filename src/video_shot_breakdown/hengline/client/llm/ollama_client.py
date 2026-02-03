@@ -16,11 +16,8 @@ from video_shot_breakdown.hengline.client.client_config import AIConfig
 class OllamaClient(BaseClient):
     """Ollama 客户端实现"""
 
-    def __init__(
-            self,
-            config: AIConfig
-    ):
-        self.config = config
+    def __init__(self, config: AIConfig):
+        super().__init__(config)
         self.base_url = config.base_url or "http://localhost:11434"  # Ollama 默认本地地址
 
     def llm_model(self) -> BaseLanguageModel:

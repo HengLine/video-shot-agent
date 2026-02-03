@@ -17,6 +17,7 @@ from video_shot_breakdown.hengline.client.llm.ollama_client import OllamaClient
 from video_shot_breakdown.hengline.client.llm.openai_client import OpenAIClient
 from video_shot_breakdown.hengline.client.llm.qwen_client import QwenClient
 from video_shot_breakdown.logger import error, warning, info
+from video_shot_breakdown.utils.api_utils import check_llm_provider
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 CLIENT_REGISTRY: Dict[ClientType, Type[BaseClient]] = {
@@ -82,10 +83,17 @@ def get_default_llm(**kwargs):
     Returns:
         语言模型实例
     """
-
     try:
         # 获取配置
         ai_config = settings.get_llm_config()
+        try:
+            import asyncio
+            asyncio.run(check_llm_provider(ai_config.base_url, ai_config.api_key))
+        except Exception as e:
+            warning(f"LLM提供商连接检查失败: {str(e)}")
+            ai_config = settings.get_llm_config("fallback")
+            check_llm_provider(ai_config.base_url, ai_config.api_key)
+
         provider = detect_ai_provider_by_url(ai_config.base_url)
 
         info(f"使用AI提供商: {provider}, 模型: {ai_config.model_name}")
@@ -192,6 +200,14 @@ def get_default_embedding_client(**kwargs):
     try:
         # 获取配置
         ai_config = settings.get_embedding_config()
+        try:
+            import asyncio
+            asyncio.run(check_llm_provider(ai_config.base_url, ai_config.api_key))
+        except Exception as e:
+            warning(f"嵌入模型提供商连接检查失败: {str(e)}")
+            ai_config = settings.get_embedding_config("fallback")
+            check_llm_provider(ai_config.base_url, ai_config.api_key)
+
         provider = detect_ai_provider_by_url(ai_config.base_url)
 
         info(f"使用AI提供商: {provider}, 嵌入模型: {ai_config.model_name}")

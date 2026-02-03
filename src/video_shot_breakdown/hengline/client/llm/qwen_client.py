@@ -17,11 +17,8 @@ from video_shot_breakdown.hengline.client.client_config import AIConfig
 class QwenClient(BaseClient):
     """Qwen LLM 客户端实现"""
 
-    def __init__(
-            self,
-            config: AIConfig,
-    ):
-        self.config = config
+    def __init__(self, config: AIConfig):
+        super().__init__(config)
         self.base_url = "https://dashscope-intl.aliyuncs.com/api/v1"
 
     def llm_model(self) -> BaseLanguageModel:

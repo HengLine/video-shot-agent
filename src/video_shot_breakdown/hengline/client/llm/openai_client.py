@@ -16,11 +16,8 @@ from video_shot_breakdown.hengline.client.client_config import AIConfig
 class OpenAIClient(BaseClient):
     """OpenAI 客户端实现"""
 
-    def __init__(
-            self,
-            config: AIConfig,
-    ):
-        self.config = config
+    def __init__(self, config: AIConfig):
+        super().__init__(config)
         self.base_url = config.base_url or "https://api.openai.com/v1"
 
     def llm_model(self) -> BaseLanguageModel:

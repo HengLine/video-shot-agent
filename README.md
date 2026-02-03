@@ -68,28 +68,62 @@ cp .env.example .env
 编辑 `.env` 文件，配置必要的参数：
 
 ```properties
-############################## LLM 模型
-# 默认使用的AI提供商，可选值（openai, qwen, deepseek, ollama），然后根据需要配置相应的API密钥和参数
-LLM_PROVIDER=openai
+# 部署环境（development, production）
+APP__ENVIRONMENT=development
+# 剧本的语言设置，目前支持：zh（中文）或en（英文）
+APP__LANGUAGE=zh
+# ================= API配置 =================
+#  服务器主机，支持HOST环境变量
+API__HOST=localhost
+#  服务器端口，支持PORT环境变量
+API__PORT=8000
 
+########################## LLM 模型配置 #########################
+# 系统支持的厂商（openai, qwen, deepseek, ollama），当默认模型不可用时使用备用厂商
+
+# ================= LLM默认配置 =================
+# LLM 厂商 API
+LLM__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
+# LLM 厂商 KAY
+LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# LLM 厂商 模型
+LLM__DEFAULT__MODEL_NAME=qwen-plus
 # 生成温度参数，控制输出的随机性： 0.0 = 确定性输出，1.0 = 最大随机性
-LLM_TEMPERATURE=0.1
+LLM__DEFAULT__TEMPERATURE=0.1
+# 默认API超时时间（秒）
+LLM__DEFAULT__TIMEOUT=60
+# 最大重试次数
+LLM__DEFAULT__MAX_RETRIES=2
+# 最大生成令牌数
+LLM__DEFAULT__MAX_TOKENS=3000
+LLM__DEFAULT__RETRY_DELAY=1
 
-# 根据选择的提供商配置对应的API密钥
-QWEN_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxx
-QWEN_MODEL=qwen-plus
+# ================= LLM备用配置 =================
+LLM__FALLBACK__BASE_URL=http://localhost:11434
+LLM__FALLBACK__MODEL_NAME=qwen3:4b
+LLM__FALLBACK__TEMPERATURE=0.1
+LLM__FALLBACK__TIMEOUT=300
+LLM__FALLBACK__MAX_TOKENS=5000
 
-############################## 嵌入模型
-# 默认嵌入模型提供商，可选值：openai, ollama, qwen
-EMBEDDING_PROVIDER=ollama
-EMBEDDING_BASE_URL=http://localhost:11434
-EMBEDDING_MODEL=text-embedding-3-small
+
+########################## 嵌入模型配置 #########################
+# 系统支持的厂商（openai, qwen, HuggingFace, ollama），当默认模型不可用时使用备用厂商
+
+# ================ 嵌入模型默认配置 ================
+EMBED__DEFAULT__BASE_URL=https://api.openai.com/v1
+EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# 中文常用模型：gte-large-zh，bge-large-zh-v1.5，text-embedding-3-small
+EMBED__DEFAULT__MODEL_NAME=text-embedding-3-small
+EMBED__DEFAULT__DEVICE=gpu
+EMBED__DEFAULT__NORMALIZE_EMBEDDINGS=true
+EMBED__DEFAULT__DIMENSIONS=1536
+EMBED__DEFAULT__TIMEOUT=60
 ```
 
 ### 3. 启动应用
 
 ```bash
-python start_app.py
+python main.py
 ```
 
 应用将在 `http://0.0.0.0:8000` 启动，提供API接口服务。
