@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 @FileName: env_utils.py
 @Description: 环境工具模块，提供环境相关的辅助功能
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/08 - 2025/11
 """
 import os

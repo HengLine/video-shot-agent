@@ -2,6 +2,7 @@
 @FileName: a2a_api.py
 @Description:  分镜生成API，通过A2A协议调用分镜生成功能
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10/23 11:19
 """
 import uuid

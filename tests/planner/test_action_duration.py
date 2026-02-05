@@ -2,6 +2,7 @@
 @FileName: action_duration_example_improved.py
 @Description: 动作时长估算和分镜切分示例
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10/24 14:21
 """
 from video_shot_breakdown.hengline.tools.action_duration_tool import ActionDurationEstimatorTool

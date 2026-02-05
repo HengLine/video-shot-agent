@@ -2,6 +2,7 @@
 @FileName: continuity_guardian_config.py
 @Description: 连续性守护智能体配置
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/11/3 21:31
 """
 import os

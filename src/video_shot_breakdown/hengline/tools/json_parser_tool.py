@@ -1,10 +1,10 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
-JSON响应解析工具模块
-提供从LLM响应中提取和解析JSON数据的功能，支持处理Markdown代码块中的JSON
+@FileName: json_parser_tool.py
+@Description: JSON响应解析工具模块，提供从LLM响应中提取和解析JSON数据的功能，支持处理Markdown代码块中的JSON
+@Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
+@Time: 2025/12/18
 """
-
 import json
 import re
 from typing import Dict, Any, Optional, Union

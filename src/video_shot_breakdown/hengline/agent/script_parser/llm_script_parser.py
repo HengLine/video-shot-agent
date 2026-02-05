@@ -2,6 +2,7 @@
 @FileName: llm_script_parser.py
 @Description: LLM 剧本解析智能体实现
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/9 21:23
 """
 import json

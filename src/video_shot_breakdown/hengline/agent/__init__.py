@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
+
 """
 @FileName: __init__.py
 @Description: 智能体模块初始化
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
 from .prompt_converter_agent import PromptConverterAgent

@@ -1,8 +1,9 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
-LlamaIndex 工具函数模块
-提供向量存储创建、嵌入模型获取等实用功能
+@FileName: llama_index_tool.py
+@Description: LlamaIndex 工具函数模块
+@Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
+@Time: 2025/12/18
 """
 
 import os

@@ -2,6 +2,7 @@
 @FileName: test_config.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/31 22:03
 """
 import os

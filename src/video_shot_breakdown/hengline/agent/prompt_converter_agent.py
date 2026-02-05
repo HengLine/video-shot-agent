@@ -2,6 +2,7 @@
 @FileName: prompt_converter_agent.py
 @Description: 提示词转换智能体
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/18 14:23
 """
 from typing import Optional

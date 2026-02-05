@@ -2,6 +2,7 @@
 @FileName: video_assembler_agent.py
 @Description: 视频片段分割器
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/22 22:00
 """
 from typing import Optional

@@ -1,8 +1,9 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
-剧本知识库管理模块
-提供基于LlamaIndex的结构化剧本知识库管理功能
+@FileName: llama_index_knowledge.py
+@Description: 剧本知识库管理模块，提供基于LlamaIndex的结构化剧本知识库管理功能
+@Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
+@Time: 2025/12/18
 """
 
 import json

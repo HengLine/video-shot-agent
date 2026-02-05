@@ -2,6 +2,7 @@
 @FileName: qwen_client.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/10 23:13
 """
 
@@ -19,7 +20,7 @@ class QwenClient(BaseClient):
 
     def __init__(self, config: AIConfig):
         super().__init__(config)
-        self.base_url = "https://dashscope-intl.aliyuncs.com/api/v1"
+        self.base_url = "https://dashscope.aliyuncs.com/api/v1"
 
     def llm_model(self) -> BaseLanguageModel:
         return ChatTongyi(

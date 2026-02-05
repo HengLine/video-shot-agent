@@ -2,6 +2,7 @@
 @FileName: counter_utils.py
 @Description: 线程安全的数据递增器
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/17 22:32
 """
 

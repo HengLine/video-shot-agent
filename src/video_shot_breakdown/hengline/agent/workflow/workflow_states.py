@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 @FileName: workflow_states.py
 @Description: 分镜生成工作流的状态定义
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
 import uuid

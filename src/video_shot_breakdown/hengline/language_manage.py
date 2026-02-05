@@ -2,6 +2,7 @@
 @FileName: language_manage.py
 @Description: 语言管理模块
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/12/18 14:10
 """
 import os

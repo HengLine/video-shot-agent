@@ -2,6 +2,7 @@
 @FileName: shot_generator_models.py
 @Description: 模型
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/18 14:26
 """
 

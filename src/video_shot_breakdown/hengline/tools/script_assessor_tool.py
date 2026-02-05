@@ -2,6 +2,7 @@
 @FileName: script_assessor_tool.py
 @Description: 剧本评估工具，评估剧本质量并提供改进建议
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/12/18 23:33
 """
 import hashlib

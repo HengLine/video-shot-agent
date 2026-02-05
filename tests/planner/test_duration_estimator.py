@@ -2,6 +2,7 @@
 @FileName: ai_estimator.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/12 21:03
 """
 import hashlib

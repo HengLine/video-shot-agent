@@ -2,6 +2,7 @@
 @FileName: prompt_utils.py
 @Description: 提示词处理工具
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/5 23:46
 """
 

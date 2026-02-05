@@ -2,6 +2,7 @@
 @FileName: huggingface_client.py
 @Description: huggingface
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/30 18:24
 """
 from langchain_community.embeddings import HuggingFaceEmbeddings

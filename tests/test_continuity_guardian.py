@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 @FileName: continuity_guardian_agent.py
 @Description: 连续性守护智能体，负责跟踪角色状态，生成/验证连续性锚点
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
 from typing import Dict, List, Optional, Any

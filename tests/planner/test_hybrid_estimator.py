@@ -2,6 +2,7 @@
 @FileName: test_hybrid_estimator.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/15 19:10
 """
 import json

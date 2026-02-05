@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 @FileName: script_parser_agent.py
 @Description: 剧本解析智能体，将整段中文剧本转换为结构化动作序列
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
 import re
