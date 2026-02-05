@@ -13,7 +13,7 @@ from langgraph.graph import StateGraph, END
 from video_shot_breakdown.hengline.agent.script_parser_agent import ScriptParserAgent
 from video_shot_breakdown.logger import debug
 from .workflow_decision import DecisionFunctions
-from .workflow_models import AgentStage, PipelineState, PipelineNode
+from .workflow_models import AgentStage, PipelineNode, DecisionState
 from .workflow_nodes import WorkflowNodes
 from .workflow_states import WorkflowState
 from ..prompt_converter_agent import PromptConverterAgent
@@ -102,94 +102,193 @@ class MultiAgentPipeline:
         # 设置入口点
         workflow.set_entry_point(PipelineNode.PARSE_SCRIPT)
 
-        # 剧本解析后的分支
+        # ========== 剧本解析后的分支 ==========
         workflow.add_conditional_edges(
-            PipelineNode.PARSE_SCRIPT,
-            lambda graph_state: self.decision_funcs.decide_after_parsing(graph_state),
+            PipelineNode.PARSE_SCRIPT,  # 当前节点：剧本解析
+            lambda graph_state: self.decision_funcs.decide_after_parsing(graph_state),  # 决策函数：解析后判断
             {
-                PipelineState.SUCCESS: PipelineNode.SEGMENT_SHOT,
-                PipelineState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER,
-                PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION
+                # 解析成功，进入镜头拆分阶段
+                DecisionState.SUCCESS: PipelineNode.SEGMENT_SHOT,  # 下一步：拆分镜头
+
+                # 解析遇到严重错误（如数据损坏、系统错误），进入错误处理
+                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER,  # 下一步：错误处理
+
+                # 解析结果需要人工判断（如剧本格式模糊、内容歧义）
+                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION  # 下一步：人工干预
             }
         )
 
-        # 镜头拆分后的分支
+        # ========== 镜头拆分后的分支 ==========
         workflow.add_conditional_edges(
-            PipelineNode.SEGMENT_SHOT,
-            lambda graph_state: self.decision_funcs.decide_after_splitting(graph_state),
+            PipelineNode.SEGMENT_SHOT,  # 当前节点：镜头拆分
+            lambda graph_state: self.decision_funcs.decide_after_splitting(graph_state),  # 决策函数：拆分后判断
             {
-                PipelineState.SUCCESS: PipelineNode.SPLIT_VIDEO,
-                PipelineState.RETRY: PipelineNode.SEGMENT_SHOT,  # 重试当前节点
-                PipelineState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER
+                # 拆分成功，进入AI分段阶段
+                DecisionState.SUCCESS: PipelineNode.SPLIT_VIDEO,  # 下一步：AI分段
+
+                # 拆分需要重试（如过长镜头过多、临时问题）
+                DecisionState.SHOULD_RETRY: PipelineNode.SEGMENT_SHOT,  # 下一步：重试当前节点（镜头拆分）
+
+                # 拆分需要调整后重试（如参数不合理）
+                DecisionState.RETRY_WITH_ADJUSTMENT: PipelineNode.SEGMENT_SHOT,  # 下一步：调整后重试当前节点
+
+                # 拆分遇到严重错误，进入错误处理
+                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
             }
         )
 
-        # AI分段后的分支
+        # ========== AI分段后的分支 ==========
         workflow.add_conditional_edges(
-            PipelineNode.SPLIT_VIDEO,
-            lambda graph_state: self.decision_funcs.decide_after_fragmenting(graph_state),
+            PipelineNode.SPLIT_VIDEO,  # 当前节点：AI分段（片段切割）
+            lambda graph_state: self.decision_funcs.decide_after_fragmenting(graph_state),  # 决策函数：分段后判断
             {
-                PipelineState.SUCCESS: PipelineNode.CONVERT_PROMPT,
-                PipelineState.NEEDS_ADJUSTMENT: PipelineNode.SEGMENT_SHOT,  # 返回调整镜头
-                PipelineState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER
+                # 分段成功，进入提示词生成阶段
+                DecisionState.SUCCESS: PipelineNode.CONVERT_PROMPT,  # 下一步：生成提示词
+
+                # 分段需要调整（如个别片段时长不合理）
+                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.SPLIT_VIDEO,  # 下一步：重试当前节点（AI分段）
+
+                # 分段需要修复（如多个片段超时、结构性问题）
+                DecisionState.NEEDS_FIX: PipelineNode.SPLIT_VIDEO,  # 下一步：重新生成片段
+
+                # 分段遇到严重错误，进入错误处理
+                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER,  # 下一步：错误处理
+
+                # 分段结果需要人工判断
+                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION  # 下一步：人工干预
             }
         )
 
-        # Prompt生成后的分支（总是进入质量审查）
+        # ========== Prompt生成后的分支 ==========
+        # 问题：这里lambda函数返回PipelineNode，应该返回DecisionState
+        # 修正：使用决策函数decide_after_prompts
         workflow.add_conditional_edges(
-            PipelineNode.CONVERT_PROMPT,
-            lambda graph_state: PipelineNode.AUDIT_QUALITY,
-            {PipelineNode.AUDIT_QUALITY: PipelineNode.AUDIT_QUALITY}
-        )
-
-        # 质量审查后的分支
-        workflow.add_conditional_edges(
-            PipelineNode.AUDIT_QUALITY,
-            lambda graph_state: self.decision_funcs.decide_after_audit(graph_state),
+            PipelineNode.CONVERT_PROMPT,  # 当前节点：提示词生成
+            lambda graph_state: self.decision_funcs.decide_after_prompts(graph_state),  # 决策函数：生成后判断
             {
-                PipelineNode.CONTINUITY_CHECK: PipelineNode.CONTINUITY_CHECK,
-                PipelineNode.CONVERT_PROMPT: PipelineNode.CONVERT_PROMPT,  # 重新生成Prompt
-                PipelineNode.SEGMENT_SHOT: PipelineNode.SEGMENT_SHOT,  # 重新拆分镜头
-                PipelineNode.HUMAN_INTERVENTION: PipelineNode.HUMAN_INTERVENTION
+                # 生成成功，进入质量审查阶段
+                DecisionState.SUCCESS: PipelineNode.AUDIT_QUALITY,  # 下一步：质量审查
+
+                # 生成通过验证，进入质量审查阶段
+                DecisionState.VALID: PipelineNode.AUDIT_QUALITY,  # 下一步：质量审查
+
+                # 生成需要调整（如提示词质量不高、有空提示词）
+                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
+                DecisionState.NEEDS_OPTIMIZATION: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
+
+                # 生成遇到严重错误，进入错误处理
+                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
             }
         )
 
-        # 连续性检查后的分支
+        # ========== 质量审查后的分支 ==========
         workflow.add_conditional_edges(
-            PipelineNode.CONTINUITY_CHECK,
-            lambda graph_state: self.decision_funcs.decide_after_continuity(graph_state),
+            PipelineNode.AUDIT_QUALITY,  # 当前节点：质量审查
+            lambda graph_state: self.decision_funcs.decide_after_audit(graph_state),  # 决策函数：审查后判断
             {
-                PipelineState.SUCCESS: PipelineNode.GENERATE_OUTPUT,
-                PipelineState.FIXABLE_ISSUES: PipelineNode.CONVERT_PROMPT,  # 调整Prompt修复连续性
-                PipelineState.STRUCTURAL_ISSUES: PipelineNode.SPLIT_VIDEO,  # 调整分段
-                PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION
+                # 审查成功通过，进入连续性检查阶段
+                DecisionState.SUCCESS: PipelineNode.CONTINUITY_CHECK,  # 下一步：连续性检查
+
+                # 审查验证通过（有轻微问题），进入连续性检查阶段
+                DecisionState.VALID: PipelineNode.CONTINUITY_CHECK,  # 下一步：连续性检查
+
+                # 审查需要调整（如提示词需要优化）
+                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
+
+                # 审查需要修复（如片段问题需要重新生成）
+                DecisionState.NEEDS_FIX: PipelineNode.SPLIT_VIDEO,  # 下一步：重新生成片段
+
+                # 审查需要重试（如临时问题）
+                DecisionState.SHOULD_RETRY: PipelineNode.CONVERT_PROMPT,  # 下一步：重试提示词生成
+
+                # 审查需要调整后重试（如参数需要调整）
+                DecisionState.RETRY_WITH_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,  # 下一步：调整后重试
+
+                # 审查需要人工判断（如发现严重不确定性问题）
+                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION,  # 下一步：人工干预
+
+                # 审查失败（业务逻辑失败），进入错误处理
+                DecisionState.FAILED: PipelineNode.ERROR_HANDLER,  # 下一步：错误处理
+
+                # 审查遇到严重错误（系统错误），进入错误处理
+                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
             }
         )
 
-        # 错误处理后的分支
+        # ========== 连续性检查后的分支 ==========
         workflow.add_conditional_edges(
-            PipelineNode.ERROR_HANDLER,
-            lambda graph_state: self.decision_funcs.decide_after_error(graph_state),
+            PipelineNode.CONTINUITY_CHECK,  # 当前节点：连续性检查
+            lambda graph_state: self.decision_funcs.decide_after_continuity(graph_state),  # 决策函数：检查后判断
             {
-                PipelineState.RECOVERABLE: PipelineNode.PARSE_SCRIPT,  # 从开头重试
-                PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION,
-                PipelineState.ABORT: END
+                # 检查成功通过，进入生成输出阶段
+                DecisionState.SUCCESS: PipelineNode.GENERATE_OUTPUT,  # 下一步：生成输出
+
+                # 检查验证通过（有可接受问题），进入生成输出阶段
+                DecisionState.VALID: PipelineNode.GENERATE_OUTPUT,  # 下一步：生成输出
+
+                # 检查需要调整（如可修复的连续性问题）
+                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
+
+                # 检查需要修复（如结构性问题需要重新分段）
+                DecisionState.NEEDS_FIX: PipelineNode.SPLIT_VIDEO,  # 下一步：调整AI分段
+
+                # 检查需要优化（如连续性问题需要优化）
+                DecisionState.NEEDS_OPTIMIZATION: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
+
+                # 检查需要人工判断（如复杂的连续性问题）
+                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION,  # 下一步：人工干预
+
+                # 检查遇到严重错误，进入错误处理
+                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
             }
         )
 
-        # 人工干预后的分支
+        # ========== 错误处理后的分支 ==========
+        # 问题：这里使用了PipelineState，应该使用DecisionState
+        # 修正：使用DecisionState枚举值
         workflow.add_conditional_edges(
-            PipelineNode.HUMAN_INTERVENTION,
-            lambda graph_state: self.decision_funcs.decide_after_human(graph_state),
+            PipelineNode.ERROR_HANDLER,  # 当前节点：错误处理
+            lambda graph_state: self.decision_funcs.decide_after_error(graph_state),  # 决策函数：处理后判断
             {
-                PipelineState.CONTINUE: PipelineNode.GENERATE_OUTPUT,  # 继续流程
-                PipelineState.RETRY: PipelineNode.PARSE_SCRIPT,  # 重新开始
-                PipelineState.ABORT: END  # 中止流程
+                # 错误可恢复（如验证错误），重新开始流程
+                DecisionState.VALID: PipelineNode.PARSE_SCRIPT,  # 下一步：重新开始（剧本解析）
+
+                # 错误应该重试（如网络问题），重新开始流程
+                DecisionState.SHOULD_RETRY: PipelineNode.PARSE_SCRIPT,  # 下一步：重新开始（剧本解析）
+
+                # 错误需要人工处理（如多次重试失败）
+                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION,  # 下一步：人工干预
+
+                # 错误需要中止流程（如用户取消、超时）
+                DecisionState.ABORT_PROCESS: END  # 下一步：结束工作流
             }
         )
 
-        # 结果生成后结束
-        workflow.add_edge(PipelineNode.GENERATE_OUTPUT, END)
+        # ========== 人工干预后的分支 ==========
+        # 问题：这里使用了PipelineState，应该使用DecisionState
+        # 修正：使用DecisionState枚举值
+        workflow.add_conditional_edges(
+            PipelineNode.HUMAN_INTERVENTION,  # 当前节点：人工干预
+            lambda graph_state: self.decision_funcs.decide_after_human(graph_state),  # 决策函数：干预后判断
+            {
+                # 人工决定继续流程
+                DecisionState.SUCCESS: PipelineNode.GENERATE_OUTPUT,
+                DecisionState.VALID: PipelineNode.GENERATE_OUTPUT,
+
+                # 人工要求重试
+                DecisionState.SHOULD_RETRY: PipelineNode.PARSE_SCRIPT,
+
+                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,
+                DecisionState.NEEDS_FIX: PipelineNode.SPLIT_VIDEO,
+                DecisionState.NEEDS_OPTIMIZATION: PipelineNode.CONVERT_PROMPT,
+                DecisionState.RETRY_WITH_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,
+                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION,
+                DecisionState.ABORT_PROCESS: END
+            }
+        )
+
+        # ========== 结果生成后结束 ==========
+        workflow.add_edge(PipelineNode.GENERATE_OUTPUT, END)  # 生成输出后直接结束
 
         return workflow.compile(checkpointer=self.memory)
 
@@ -215,7 +314,7 @@ class MultiAgentPipeline:
             )
 
             return {
-                PipelineState.SUCCESS: final_state.final_output is not None,
+                "success": final_state.final_output is not None,
                 "data": final_state.final_output,
                 "errors": final_state.error_messages,
                 "processing_stats": {
@@ -226,7 +325,7 @@ class MultiAgentPipeline:
 
         except Exception as e:
             return {
-                PipelineState.SUCCESS: False,
+                "success": False,
                 "error": str(e),
                 "data": None
             }

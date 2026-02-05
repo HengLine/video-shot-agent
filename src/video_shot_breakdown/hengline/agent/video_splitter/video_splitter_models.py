@@ -26,9 +26,9 @@ class VideoFragment(BaseModel):
     start_time: float = Field(default=0.0, description="全局开始时间（秒）")
     duration: float = Field(
         default=3.0,
-        ge=0.5,
-        le=5.0,
-        description="片段时长（秒），强制≤5秒"
+        ge=1,
+        le=10.0,
+        description="片段时长（秒），强制≤10秒"
     )
 
     # 内容信息（极简）

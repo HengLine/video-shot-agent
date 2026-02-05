@@ -7,6 +7,7 @@
 """
 import datetime
 
+from video_shot_breakdown.hengline.agent.human_decision.human_decision_intervention import HumanIntervention
 from video_shot_breakdown.hengline.agent.workflow.workflow_models import AgentStage
 from video_shot_breakdown.hengline.agent.workflow.workflow_states import WorkflowState
 from video_shot_breakdown.logger import error, debug
@@ -29,13 +30,16 @@ class WorkflowNodes:
             quality_auditor: 质量审查实例
             llm: 语言模型实例（可选）
         """
+        self.llm = llm
+
         self.script_parser = script_parser
         self.shot_segmenter = shot_segmenter
         self.video_splitter = video_splitter
         self.prompt_converter = prompt_converter
         self.quality_auditor = quality_auditor
 
-        self.llm = llm
+        # 初始化人工干预节点
+        self.human_intervention = HumanIntervention(timeout_seconds=180)
         self.storage = create_result_storage()
 
     def parse_script_node(self, state: WorkflowState) -> WorkflowState:
@@ -255,6 +259,6 @@ class WorkflowNodes:
         # 模拟人工反馈（实际应从外部获取）
         if state.human_feedback:
             # 应用人工修正
-            pass
+            self.human_intervention(state)
 
         return state

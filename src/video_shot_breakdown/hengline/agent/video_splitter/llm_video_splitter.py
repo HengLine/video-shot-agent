@@ -13,7 +13,7 @@ from video_shot_breakdown.hengline.agent.video_splitter.base_video_splitter impo
 from video_shot_breakdown.hengline.agent.video_splitter.rule_video_splitter import RuleVideoSplitter
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.logger import info, error
+from video_shot_breakdown.logger import info, error, warning
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 
@@ -81,12 +81,15 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             for seg_idx, segment in enumerate(segments):
                 fragment_id = f"frag_{fragment_offset + len(fragments) + 1:03d}_{seg_idx + 1}"
 
+                duration = min(segment.get("duration", self.config.max_fragment_duration), self.config.max_fragment_duration)
+                if duration != segment.get("duration", self.config.max_fragment_duration):
+                    warning(f"片段 {fragment_id} 的时长超过 {self.config.max_fragment_duration} 秒，已调整为 {self.config.max_fragment_duration} 秒")
                 fragment = VideoFragment(
                     id=fragment_id,
                     shot_id=shot.id,
                     element_ids=shot.element_ids if seg_idx == 0 else [],
                     start_time=start_time + sum(s["duration"] for s in segments[:seg_idx]),
-                    duration=segment.get("duration", 2.5),
+                    duration=duration,
                     description=segment.get("description", f"{shot.description} 部分{seg_idx + 1}"),
                     continuity_notes={
                         "main_character": shot.main_character,
@@ -97,12 +100,15 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         else:
             # 不分割，直接作为一个片段
             fragment_id = self._generate_fragment_id(fragment_offset)
+            duration = min(shot.duration, self.config.max_fragment_duration)
+            if duration != shot.duration:
+                warning(f"片段 {fragment_id} 的时长超过 {self.config.max_fragment_duration} 秒，已调整为 {self.config.max_fragment_duration} 秒")
             fragment = VideoFragment(
                 id=fragment_id,
                 shot_id=shot.id,
                 element_ids=shot.element_ids,
                 start_time=start_time,
-                duration=shot.duration,
+                duration=duration,
                 description=shot.description,
                 continuity_notes={
                     "main_character": shot.main_character,
