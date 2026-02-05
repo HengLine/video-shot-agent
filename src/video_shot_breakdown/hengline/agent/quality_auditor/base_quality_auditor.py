@@ -2,6 +2,7 @@
 @FileName: base_quality_auditor.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/27 0:00
 """
 from abc import ABC, abstractmethod

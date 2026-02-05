@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 @FileName: keyword_config.py
 @Description: 统一关键词配置加载器
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/12/18
 """
 import os

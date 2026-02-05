@@ -2,6 +2,7 @@
 @FileName: RuleScriptParser.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/26 14:38
 """
 from typing import Any

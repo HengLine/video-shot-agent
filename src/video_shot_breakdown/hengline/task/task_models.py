@@ -2,6 +2,7 @@
 @FileName: task_models.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/26 16:41
 """
 import random

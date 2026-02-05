@@ -2,6 +2,7 @@
 @FileName: llm_prompt_converter.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/26 23:36
 """
 from typing import Optional

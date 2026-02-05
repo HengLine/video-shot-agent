@@ -2,6 +2,7 @@
 @FileName: color_utils.py
 @Description: 色彩处理工具
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/6 15:12
 """
 import colorsys

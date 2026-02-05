@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
+
 """
 @FileName: application.py
 @Description: 应用程序主模块 - 负责初始化和配置整个应用
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10/6
 """
 import os

@@ -2,6 +2,7 @@
 @FileName: quality_auditor_agent.py
 @Description: 质量审查器
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/25 21:59
 """
 from typing import Optional

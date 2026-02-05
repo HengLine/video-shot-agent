@@ -2,6 +2,7 @@
 @FileName: client_factory.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/10 23:13
 """
 from typing import Dict, Type, List
@@ -17,7 +18,6 @@ from video_shot_breakdown.hengline.client.llm.ollama_client import OllamaClient
 from video_shot_breakdown.hengline.client.llm.openai_client import OpenAIClient
 from video_shot_breakdown.hengline.client.llm.qwen_client import QwenClient
 from video_shot_breakdown.logger import error, warning, info
-from video_shot_breakdown.utils.api_utils import check_llm_provider
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 CLIENT_REGISTRY: Dict[ClientType, Type[BaseClient]] = {
@@ -77,50 +77,51 @@ def get_llm_client_by_provider(provider: ClientType, config: AIConfig = None, **
 
 
 def get_default_llm(**kwargs):
+    # 获取配置
+    try:
+        return _get_default_llm(settings.get_llm_config(), **kwargs)
+    except Exception as e:
+        warning("默认AI嵌入模型初始化失败，尝试使用备用配置")
+        try:
+            return _get_default_llm(settings.get_llm_config("fallback"), **kwargs)
+        except Exception as e:
+            print_log_exception()
+            error(f"AI模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
+            return None
+
+
+def _get_default_llm(ai_config, **kwargs):
     """
     获取默认的 LLM 客户端的语言模型实例（默认为 OpenAI）
 
     Returns:
         语言模型实例
     """
-    try:
-        # 获取配置
-        ai_config = settings.get_llm_config()
-        try:
-            import asyncio
-            asyncio.run(check_llm_provider(ai_config.base_url, ai_config.api_key))
-        except Exception as e:
-            warning(f"LLM提供商连接检查失败: {str(e)}")
-            ai_config = settings.get_llm_config("fallback")
-            check_llm_provider(ai_config.base_url, ai_config.api_key)
+    # 获取配置
+    provider = detect_ai_provider_by_url(ai_config.base_url)
+    info(f"使用AI提供商: {provider}, 模型: {ai_config.model_name}")
 
-        provider = detect_ai_provider_by_url(ai_config.base_url)
+    config = AIConfig(
+        model=ai_config.model_name,
+        api_key=ai_config.api_key,
+        base_url=ai_config.base_url,
+        temperature=ai_config.temperature,
+        timeout=ai_config.timeout,
+        max_tokens=ai_config.max_tokens,
+        max_retries=ai_config.max_retries,
+    )
 
-        info(f"使用AI提供商: {provider}, 模型: {ai_config.model_name}")
+    fin_config = _fill_default_config(config, **kwargs)
 
-        config = AIConfig(
-            model=ai_config.model_name,
-            api_key=ai_config.api_key,
-            base_url=ai_config.base_url,
-            temperature=ai_config.temperature,
-            timeout=ai_config.timeout,
-            max_tokens=ai_config.max_tokens,
-            max_retries=ai_config.max_retries,
-        )
+    # 使用client_factory获取对应的LangChain LLM实例
+    # client = get_client(get_client_type(provider), fin_config)
+    client = get_client(provider, fin_config)
 
-        fin_config = _fill_default_config(config, **kwargs)
+    if not client:
+        warning(f"AI模型初始化失败（未能获取 {provider} 的LLM实例），系统将自动使用规则引擎模式继续工作")
+        raise ConnectionError(f"LLM client initialization failed for provider: {provider}")
 
-        # 使用client_factory获取对应的LangChain LLM实例
-        # client = get_client(get_client_type(provider), fin_config)
-        client = get_client(provider, fin_config)
-
-        if not client:
-            warning(f"AI模型初始化失败（未能获取 {provider} 的LLM实例），系统将自动使用规则引擎模式继续工作")
-
-        return client.llm_model()
-    except Exception as e:
-        print_log_exception()
-        error(f"AI模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
+    return client.llm_model()
 
 
 def _fill_default_config(config: AIConfig = None, **kwargs) -> AIConfig:
@@ -191,47 +192,49 @@ def get_embedding_client(provider: ClientType, config: AIConfig):
 
 
 def get_default_embedding_client(**kwargs):
+    # 获取配置
+    try:
+        ai_config = settings.get_embedding_config()
+        return _get_default_embedding_client(ai_config, **kwargs)
+    except Exception as e:
+        warning("默认AI嵌入模型初始化失败，尝试使用备用配置")
+        try:
+            ai_config = settings.get_embedding_config("fallback")
+            return _get_default_embedding_client(ai_config, **kwargs)
+        except Exception as e:
+            print_log_exception()
+            error(f"AI嵌入模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
+            return None
+
+
+def _get_default_embedding_client(ai_config, **kwargs):
     """
     获取默认的 LLM 客户端的嵌入模型实例（默认为 OpenAI）
 
     Returns:
         嵌入模型实例
     """
-    try:
-        # 获取配置
-        ai_config = settings.get_embedding_config()
-        try:
-            import asyncio
-            asyncio.run(check_llm_provider(ai_config.base_url, ai_config.api_key))
-        except Exception as e:
-            warning(f"嵌入模型提供商连接检查失败: {str(e)}")
-            ai_config = settings.get_embedding_config("fallback")
-            check_llm_provider(ai_config.base_url, ai_config.api_key)
+    provider = detect_ai_provider_by_url(ai_config.base_url)
+    info(f"使用AI提供商: {provider}, 嵌入模型: {ai_config.model_name}")
 
-        provider = detect_ai_provider_by_url(ai_config.base_url)
+    config = AIConfig(
+        model=ai_config.model_name,
+        base_url=ai_config.base_url,
+        timeout=ai_config.timeout,
+        max_retries=ai_config.max_retries,
+        api_key=ai_config.api_key
+    )
 
-        info(f"使用AI提供商: {provider}, 嵌入模型: {ai_config.model_name}")
+    fin_config = _fill_default_config(config, **kwargs)
 
-        config = AIConfig(
-            model=ai_config.model_name,
-            base_url=ai_config.base_url,
-            timeout=ai_config.timeout,
-            max_retries=ai_config.max_retries,
-            api_key=ai_config.api_key
-        )
+    # 使用client_factory获取对应的嵌入模型实例
+    client = get_client(provider, fin_config)
 
-        fin_config = _fill_default_config(config, **kwargs)
+    if not client:
+        warning(f"AI嵌入模型初始化失败（未能获取 {provider} 的嵌入实例），系统将自动使用规则引擎模式继续工作")
+        raise ConnectionError(f"LLM Embedding client initialization failed for provider: {provider}")
 
-        # 使用client_factory获取对应的嵌入模型实例
-        client = get_client(provider, fin_config)
-
-        if not client:
-            warning(f"AI嵌入模型初始化失败（未能获取 {provider} 的嵌入实例），系统将自动使用规则引擎模式继续工作")
-
-        return client.llm_embed()
-    except Exception as e:
-        print_log_exception()
-        error(f"AI嵌入模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
+    return client.llm_embed()
 
 
 def embed_client_query(provider: ClientType, text: str, config: AIConfig = None, **kwargs) -> List[float]:

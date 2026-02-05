@@ -1,8 +1,9 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
-LlamaIndex 文档加载模块
-提供各种文档加载器，支持不同格式的文档导入
+@FileName: llama_index_loader.py
+@Description: LlamaIndex 文档加载模块，提供各种文档加载器，支持不同格式的文档导入
+@Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
+@Time: 2025/12/18
 """
 
 import os

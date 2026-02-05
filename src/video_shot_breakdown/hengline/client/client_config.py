@@ -2,6 +2,7 @@
 @FileName: client_type.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/11 16:31
 """
 from dataclasses import dataclass

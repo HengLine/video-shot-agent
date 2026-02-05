@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 @FileName: enhanced_script_parser_example.py
 @Description: 优化版剧本解析智能体使用示例
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/11
 """
 import json

@@ -2,6 +2,7 @@
 @FileName: hengline_config.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/28 12:25
 """
 from video_shot_breakdown.hengline.client.client_config import AIConfig

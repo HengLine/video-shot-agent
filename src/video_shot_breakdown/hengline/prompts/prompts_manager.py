@@ -2,6 +2,7 @@
 @FileName: prompts_manager.py
 @Description: 提示词模板管理类
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10/23 21:54
 """
 from pathlib import Path

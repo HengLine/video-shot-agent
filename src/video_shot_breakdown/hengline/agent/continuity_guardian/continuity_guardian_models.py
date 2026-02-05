@@ -2,6 +2,7 @@
 @FileName: continuity_guardian_models.py
 @Description: 连续性管理模型
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/18 14:26
 """
 from typing import List, Dict, Any

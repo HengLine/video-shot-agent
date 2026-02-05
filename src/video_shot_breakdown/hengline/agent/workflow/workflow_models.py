@@ -2,6 +2,7 @@
 @FileName: workflow_models.py
 @Description: 工作流模型定义文件，包含工作流状态和条件的枚举类
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/27 19:12
 """
 from enum import Enum, unique
@@ -48,6 +49,16 @@ class DecisionState(str, Enum):
 @unique
 class PipelineState(str, Enum):
     """工作流管道状态枚举类，定义工作流管道中的状态"""
+    SUCCESS = "success"  # 操作成功
+    CRITICAL_FAILURE = "critical_failure"  # 严重失败，需要终止流程
+    NEEDS_HUMAN = "needs_human"  # 需要人工干预
+    RETRY = "retry"  # 需要重试
+    NEEDS_ADJUSTMENT = "needs_adjustment"  # 需要调整
+    FIXABLE_ISSUES = "fixable_issues"  # 可修复的问题
+    STRUCTURAL_ISSUES = "structural_issues"  # 结构性问题
+    RECOVERABLE = "recoverable"  # 可恢复的错误
+    ABORT = "abort"  # 中止流程
+    CONTINUE = "continue"  # 继续下一步
     CONTINUITY_CHECK = "continuity_check"  # 连续性检查
     HUMAN_INTERVENTION = "human_intervention"  # 人工干预
     GENERATE_PROMPTS = "generate_prompts"  # 生成指令

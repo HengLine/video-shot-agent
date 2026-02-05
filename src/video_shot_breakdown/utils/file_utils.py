@@ -2,6 +2,7 @@
 @FileName: file_utils.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/18 12:24
 """
 import json

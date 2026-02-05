@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 @FileName: workflow_nodes.py
 @Description: LangGraph工作流节点实现，包含所有工作流执行功能
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
 import datetime

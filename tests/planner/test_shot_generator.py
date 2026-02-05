@@ -2,6 +2,7 @@
 @FileName: test_shot_generator.py
 @Description: 
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/17 23:22
 """
 

@@ -2,6 +2,7 @@
 @FileName: test_temporal_scene_planner.py
 @Description: 对话估算器演示
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/13 16:12
 """
 from video_shot_breakdown.hengline.agent.script_parser2.script_parser_models import Dialogue

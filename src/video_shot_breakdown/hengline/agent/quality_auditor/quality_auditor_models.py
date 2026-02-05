@@ -2,6 +2,7 @@
 @FileName: quality_auditor_models.py
 @Description: 质量审核模型
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/19 22:58
 """
 from datetime import datetime
@@ -116,4 +117,9 @@ class QualityAuditReport(BaseModel):
     conclusion: str = Field(
         default="审查通过，可以开始视频生成",
         description="审查结论"
+    )
+
+    detailed_analysis: Dict[str, Any] = Field(
+        default=None,
+        description="详细分析报告"
     )

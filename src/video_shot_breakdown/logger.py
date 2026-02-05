@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
+
 """
 @FileName: logger.py
 @Description: 自定义日志模块，支持按天创建日志文件、日志文件大小限制、控制台彩色输出等功能
             自定义日志模块，按天创建日志文件，最大10MB
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/08 - 2025/11
 """
 

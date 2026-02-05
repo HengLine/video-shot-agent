@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 @FileName: __init__.py
 @Description: HengLine 包初始化文件
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
 

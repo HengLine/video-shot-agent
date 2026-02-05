@@ -2,6 +2,7 @@
 @FileName: workflow_decision.py
 @Description: 决策函数类 - 控制工作流分支逻辑
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/26 16:12
 """
 from typing import Dict
