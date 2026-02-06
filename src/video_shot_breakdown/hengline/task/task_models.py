@@ -27,7 +27,7 @@ class ProcessRequest(BaseModel):
         description="回调URL，处理完成后通知（可选）"
     )
     task_id: Optional[str] = Field(
-        default="hengline-" + str(datetime.now().strftime("%Y%m%d-%H%M%S")) + str(random.randint(100, 999)),
+        default="hengline" + str(datetime.now().strftime("%Y%m%d%H%M%S")) + str(random.randint(1000, 9999)),
         description="外部请求ID（可选）"
     )
     # 剧本语言，可选值："zh"（中文）、"en"（英文）

@@ -3,17 +3,17 @@
 @Description: 多智能体协作流程，负责协调各个智能体完成端到端的分镜生成
 @Author: HengLine
 @Github: https://github.com/HengLine/video-shot-agent
-@Time: 2025/10 - 2025/11
+@Time: 2025/10 - 至今
 """
-from typing import List, Dict, Optional
+from typing import Dict, Optional, Any
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
 
 from video_shot_breakdown.hengline.agent.script_parser_agent import ScriptParserAgent
-from video_shot_breakdown.logger import debug
-from .workflow_decision import DecisionFunctions
-from .workflow_models import AgentStage, PipelineNode, DecisionState
+from video_shot_breakdown.logger import debug, error
+from .workflow_decision import PipelineDecision
+from .workflow_models import AgentStage, PipelineNode, PipelineState
 from .workflow_nodes import WorkflowNodes
 from .workflow_states import WorkflowState
 from ..prompt_converter_agent import PromptConverterAgent
@@ -60,7 +60,7 @@ class MultiAgentPipeline:
             quality_auditor=self.quality_auditor,
             llm=self.llm
         )
-        self.decision_funcs = DecisionFunctions()
+        self.decision_funcs = PipelineDecision()
 
     def _build_workflow(self):
         """初始化基于LangGraph的工作流"""
@@ -97,43 +97,46 @@ class MultiAgentPipeline:
         workflow.add_node(PipelineNode.HUMAN_INTERVENTION,
                           lambda graph_state: self.workflow_nodes.human_intervention_node(graph_state))
 
+        # 添加循环检查节点
+        workflow.add_node(PipelineNode.LOOP_CHECK,
+                          lambda graph_state: self.workflow_nodes.loop_check_node(graph_state))
+
         # ========== 定义工作流执行流程 ==========
 
         # 设置入口点
         workflow.set_entry_point(PipelineNode.PARSE_SCRIPT)
 
-        # ========== 剧本解析后的分支 ==========
         workflow.add_conditional_edges(
-            PipelineNode.PARSE_SCRIPT,  # 当前节点：剧本解析
-            lambda graph_state: self.decision_funcs.decide_after_parsing(graph_state),  # 决策函数：解析后判断
+            PipelineNode.PARSE_SCRIPT,
+            lambda graph_state: self.decision_funcs.decide_after_parsing(graph_state),
             {
                 # 解析成功，进入镜头拆分阶段
-                DecisionState.SUCCESS: PipelineNode.SEGMENT_SHOT,  # 下一步：拆分镜头
+                PipelineState.SUCCESS: PipelineNode.SEGMENT_SHOT,
 
-                # 解析遇到严重错误（如数据损坏、系统错误），进入错误处理
-                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER,  # 下一步：错误处理
+                # 解析需要人工干预
+                PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION,
 
-                # 解析结果需要人工判断（如剧本格式模糊、内容歧义）
-                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION  # 下一步：人工干预
+                # 解析失败
+                PipelineState.FAILED: PipelineNode.ERROR_HANDLER
             }
         )
 
-        # ========== 镜头拆分后的分支 ==========
+        # ========== 镜头拆分后的分支（保持原有逻辑，但能检测循环） ==========
         workflow.add_conditional_edges(
             PipelineNode.SEGMENT_SHOT,  # 当前节点：镜头拆分
             lambda graph_state: self.decision_funcs.decide_after_splitting(graph_state),  # 决策函数：拆分后判断
             {
-                # 拆分成功，进入AI分段阶段
-                DecisionState.SUCCESS: PipelineNode.SPLIT_VIDEO,  # 下一步：AI分段
+                # 拆分成功，进入AI分段阶段（通过循环检查节点）
+                PipelineState.SUCCESS: PipelineNode.LOOP_CHECK,  # 下一步：循环检查 -> AI分段
 
                 # 拆分需要重试（如过长镜头过多、临时问题）
-                DecisionState.SHOULD_RETRY: PipelineNode.SEGMENT_SHOT,  # 下一步：重试当前节点（镜头拆分）
+                PipelineState.RETRY: PipelineNode.SEGMENT_SHOT,  # 下一步：重试当前节点（镜头拆分）
 
-                # 拆分需要调整后重试（如参数不合理）
-                DecisionState.RETRY_WITH_ADJUSTMENT: PipelineNode.SEGMENT_SHOT,  # 下一步：调整后重试当前节点
+                # 拆分需要修复/调整（如参数不合理）
+                PipelineState.NEEDS_REPAIR: PipelineNode.SEGMENT_SHOT,  # 下一步：修复后重试当前节点
 
                 # 拆分遇到严重错误，进入错误处理
-                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
+                PipelineState.FAILED: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
             }
         )
 
@@ -142,42 +145,59 @@ class MultiAgentPipeline:
             PipelineNode.SPLIT_VIDEO,  # 当前节点：AI分段（片段切割）
             lambda graph_state: self.decision_funcs.decide_after_fragmenting(graph_state),  # 决策函数：分段后判断
             {
-                # 分段成功，进入提示词生成阶段
-                DecisionState.SUCCESS: PipelineNode.CONVERT_PROMPT,  # 下一步：生成提示词
+                # 分段成功，进入提示词生成阶段（通过循环检查节点）
+                PipelineState.SUCCESS: PipelineNode.LOOP_CHECK,  # 下一步：循环检查 -> 提示词生成
 
-                # 分段需要调整（如个别片段时长不合理）
-                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.SPLIT_VIDEO,  # 下一步：重试当前节点（AI分段）
+                # 分段需要修复/调整（如片段时长不合理）
+                PipelineState.NEEDS_REPAIR: PipelineNode.SPLIT_VIDEO,  # 下一步：修复后重试当前节点（AI分段）
 
-                # 分段需要修复（如多个片段超时、结构性问题）
-                DecisionState.NEEDS_FIX: PipelineNode.SPLIT_VIDEO,  # 下一步：重新生成片段
+                # 分段需要重试（如临时问题）
+                PipelineState.RETRY: PipelineNode.SPLIT_VIDEO,  # 下一步：重试当前节点
 
                 # 分段遇到严重错误，进入错误处理
-                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER,  # 下一步：错误处理
+                PipelineState.FAILED: PipelineNode.ERROR_HANDLER,  # 下一步：错误处理
 
                 # 分段结果需要人工判断
-                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION  # 下一步：人工干预
+                PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION  # 下一步：人工干预
             }
         )
 
         # ========== Prompt生成后的分支 ==========
-        # 问题：这里lambda函数返回PipelineNode，应该返回DecisionState
-        # 修正：使用决策函数decide_after_prompts
         workflow.add_conditional_edges(
             PipelineNode.CONVERT_PROMPT,  # 当前节点：提示词生成
             lambda graph_state: self.decision_funcs.decide_after_prompts(graph_state),  # 决策函数：生成后判断
             {
-                # 生成成功，进入质量审查阶段
-                DecisionState.SUCCESS: PipelineNode.AUDIT_QUALITY,  # 下一步：质量审查
+                # 生成成功，进入质量审查阶段（通过循环检查节点）
+                PipelineState.SUCCESS: PipelineNode.LOOP_CHECK,  # 下一步：循环检查 -> 质量审查
 
-                # 生成通过验证，进入质量审查阶段
-                DecisionState.VALID: PipelineNode.AUDIT_QUALITY,  # 下一步：质量审查
+                # 生成验证通过（有小问题），进入质量审查阶段
+                PipelineState.VALID: PipelineNode.LOOP_CHECK,  # 下一步：循环检查 -> 质量审查
 
-                # 生成需要调整（如提示词质量不高、有空提示词）
-                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
-                DecisionState.NEEDS_OPTIMIZATION: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
+                # 生成需要修复/调整（如提示词质量不高、有空提示词）
+                PipelineState.NEEDS_REPAIR: PipelineNode.CONVERT_PROMPT,  # 下一步：修复提示词
+
+                # 生成需要重试（如临时问题）
+                PipelineState.RETRY: PipelineNode.CONVERT_PROMPT,  # 下一步：重试提示词生成
 
                 # 生成遇到严重错误，进入错误处理
-                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
+                PipelineState.FAILED: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
+            }
+        )
+
+        # ========== 循环检查节点的分支 ==========
+        workflow.add_conditional_edges(
+            PipelineNode.LOOP_CHECK,
+            lambda graph_state: self.decision_funcs.decide_after_loop_check(graph_state),
+            {
+                # 根据阶段决定下一个节点
+                PipelineNode.SEGMENT_SHOT: PipelineNode.SEGMENT_SHOT,  # 继续到镜头拆分
+                PipelineNode.SPLIT_VIDEO: PipelineNode.SPLIT_VIDEO,  # 继续到AI分段
+                PipelineNode.CONVERT_PROMPT: PipelineNode.CONVERT_PROMPT,  # 继续到提示词生成
+                PipelineNode.AUDIT_QUALITY: PipelineNode.AUDIT_QUALITY,  # 继续到质量审查
+
+                # 特殊状态处理
+                PipelineState.FAILED: PipelineNode.ERROR_HANDLER,  # 循环超限，错误处理
+                PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION,  # 需要人工干预
             }
         )
 
@@ -187,31 +207,22 @@ class MultiAgentPipeline:
             lambda graph_state: self.decision_funcs.decide_after_audit(graph_state),  # 决策函数：审查后判断
             {
                 # 审查成功通过，进入连续性检查阶段
-                DecisionState.SUCCESS: PipelineNode.CONTINUITY_CHECK,  # 下一步：连续性检查
+                PipelineState.SUCCESS: PipelineNode.CONTINUITY_CHECK,  # 下一步：连续性检查
 
                 # 审查验证通过（有轻微问题），进入连续性检查阶段
-                DecisionState.VALID: PipelineNode.CONTINUITY_CHECK,  # 下一步：连续性检查
+                PipelineState.VALID: PipelineNode.CONTINUITY_CHECK,  # 下一步：连续性检查
 
-                # 审查需要调整（如提示词需要优化）
-                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
-
-                # 审查需要修复（如片段问题需要重新生成）
-                DecisionState.NEEDS_FIX: PipelineNode.SPLIT_VIDEO,  # 下一步：重新生成片段
+                # 审查需要修复/调整（如提示词需要优化）
+                PipelineState.NEEDS_REPAIR: PipelineNode.CONVERT_PROMPT,  # 下一步：修复提示词
 
                 # 审查需要重试（如临时问题）
-                DecisionState.SHOULD_RETRY: PipelineNode.CONVERT_PROMPT,  # 下一步：重试提示词生成
-
-                # 审查需要调整后重试（如参数需要调整）
-                DecisionState.RETRY_WITH_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,  # 下一步：调整后重试
+                PipelineState.RETRY: PipelineNode.CONVERT_PROMPT,  # 下一步：重试提示词生成
 
                 # 审查需要人工判断（如发现严重不确定性问题）
-                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION,  # 下一步：人工干预
+                PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION,  # 下一步：人工干预
 
-                # 审查失败（业务逻辑失败），进入错误处理
-                DecisionState.FAILED: PipelineNode.ERROR_HANDLER,  # 下一步：错误处理
-
-                # 审查遇到严重错误（系统错误），进入错误处理
-                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
+                # 审查失败（业务逻辑失败或系统错误），进入错误处理
+                PipelineState.FAILED: PipelineNode.ERROR_HANDLER,  # 下一步：错误处理
             }
         )
 
@@ -221,69 +232,64 @@ class MultiAgentPipeline:
             lambda graph_state: self.decision_funcs.decide_after_continuity(graph_state),  # 决策函数：检查后判断
             {
                 # 检查成功通过，进入生成输出阶段
-                DecisionState.SUCCESS: PipelineNode.GENERATE_OUTPUT,  # 下一步：生成输出
+                PipelineState.SUCCESS: PipelineNode.GENERATE_OUTPUT,  # 下一步：生成输出
 
                 # 检查验证通过（有可接受问题），进入生成输出阶段
-                DecisionState.VALID: PipelineNode.GENERATE_OUTPUT,  # 下一步：生成输出
+                PipelineState.VALID: PipelineNode.GENERATE_OUTPUT,  # 下一步：生成输出
 
-                # 检查需要调整（如可修复的连续性问题）
-                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
-
-                # 检查需要修复（如结构性问题需要重新分段）
-                DecisionState.NEEDS_FIX: PipelineNode.SPLIT_VIDEO,  # 下一步：调整AI分段
-
-                # 检查需要优化（如连续性问题需要优化）
-                DecisionState.NEEDS_OPTIMIZATION: PipelineNode.CONVERT_PROMPT,  # 下一步：调整提示词
+                # 检查需要修复/调整（如可修复的连续性问题）
+                PipelineState.NEEDS_REPAIR: PipelineNode.CONVERT_PROMPT,  # 下一步：修复提示词
 
                 # 检查需要人工判断（如复杂的连续性问题）
-                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION,  # 下一步：人工干预
+                PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION,  # 下一步：人工干预
 
                 # 检查遇到严重错误，进入错误处理
-                DecisionState.CRITICAL_FAILURE: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
+                PipelineState.FAILED: PipelineNode.ERROR_HANDLER  # 下一步：错误处理
             }
         )
 
         # ========== 错误处理后的分支 ==========
-        # 问题：这里使用了PipelineState，应该使用DecisionState
-        # 修正：使用DecisionState枚举值
         workflow.add_conditional_edges(
             PipelineNode.ERROR_HANDLER,  # 当前节点：错误处理
-            lambda graph_state: self.decision_funcs.decide_after_error(graph_state),  # 决策函数：处理后判断
-            {
-                # 错误可恢复（如验证错误），重新开始流程
-                DecisionState.VALID: PipelineNode.PARSE_SCRIPT,  # 下一步：重新开始（剧本解析）
-
-                # 错误应该重试（如网络问题），重新开始流程
-                DecisionState.SHOULD_RETRY: PipelineNode.PARSE_SCRIPT,  # 下一步：重新开始（剧本解析）
-
-                # 错误需要人工处理（如多次重试失败）
-                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION,  # 下一步：人工干预
-
-                # 错误需要中止流程（如用户取消、超时）
-                DecisionState.ABORT_PROCESS: END  # 下一步：结束工作流
-            }
+            lambda graph_state: self.decision_funcs.decide_next_after_error(graph_state),  # 决策函数：处理后判断
+            # {
+            #     # 错误可恢复（如验证错误），根据错误来源决定重试节点
+            #     PipelineState.VALID: self.decision_funcs.decide_retry_node_based_on_error_source,  # 根据错误来源决定
+            #
+            #     # 错误应该重试（如网络问题），根据错误来源决定重试节点
+            #     PipelineState.RETRY: self.decision_funcs.decide_retry_node_based_on_error_source,  # 根据错误来源决定
+            #
+            #     # 错误需要修复/调整（如参数问题）
+            #     PipelineState.NEEDS_REPAIR: PipelineNode.CONVERT_PROMPT,  # 根据错误来源决定
+            #
+            #     # 错误需要人工处理（如多次重试失败）
+            #     PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION,
+            #
+            #     # 错误需要中止流程（如用户取消、超时）
+            #     PipelineState.ABORT: END
+            # }
         )
 
         # ========== 人工干预后的分支 ==========
-        # 问题：这里使用了PipelineState，应该使用DecisionState
-        # 修正：使用DecisionState枚举值
         workflow.add_conditional_edges(
             PipelineNode.HUMAN_INTERVENTION,  # 当前节点：人工干预
             lambda graph_state: self.decision_funcs.decide_after_human(graph_state),  # 决策函数：干预后判断
             {
                 # 人工决定继续流程
-                DecisionState.SUCCESS: PipelineNode.GENERATE_OUTPUT,
-                DecisionState.VALID: PipelineNode.GENERATE_OUTPUT,
+                PipelineState.SUCCESS: PipelineNode.GENERATE_OUTPUT,
+                PipelineState.VALID: PipelineNode.GENERATE_OUTPUT,
 
                 # 人工要求重试
-                DecisionState.SHOULD_RETRY: PipelineNode.PARSE_SCRIPT,
+                PipelineState.RETRY: PipelineNode.PARSE_SCRIPT,
 
-                DecisionState.NEEDS_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,
-                DecisionState.NEEDS_FIX: PipelineNode.SPLIT_VIDEO,
-                DecisionState.NEEDS_OPTIMIZATION: PipelineNode.CONVERT_PROMPT,
-                DecisionState.RETRY_WITH_ADJUSTMENT: PipelineNode.CONVERT_PROMPT,
-                DecisionState.REQUIRE_HUMAN: PipelineNode.HUMAN_INTERVENTION,
-                DecisionState.ABORT_PROCESS: END
+                # 人工要求修复/调整
+                PipelineState.NEEDS_REPAIR: PipelineNode.CONVERT_PROMPT,
+
+                # 人工需要进一步干预
+                PipelineState.NEEDS_HUMAN: PipelineNode.HUMAN_INTERVENTION,
+
+                # 人工决定中止流程
+                PipelineState.ABORT: END
             }
         )
 
@@ -296,14 +302,34 @@ class MultiAgentPipeline:
 
     async def run_process(self, raw_script: str, config: HengLineConfig) -> Dict:
         """执行完整的工作流"""
+        # 计算全局循环限制：所有节点最大循环次数之和
+        total_node_max_loops = config.max_total_loops
+        default_global_max_loops = total_node_max_loops * 2  # 2倍安全系数
+
         initial_state = WorkflowState(
             raw_script=raw_script,
             user_config=config or {},
             task_id=self.task_id,
-            needs_human_review=False,
-            human_feedback={},
-            max_retries=config.max_retries,
             current_stage=AgentStage.INIT,
+            # 镜头及片段参数
+            max_shot_duration=config.max_shot_duration,
+            min_shot_duration=config.min_shot_duration,
+            max_fragment_duration=config.max_fragment_duration,
+            min_fragment_duration=config.min_fragment_duration,
+            max_prompt_length=config.max_prompt_length,
+            min_prompt_length=config.min_prompt_length,
+            # 节点循环控制
+            # node_max_loops=node_max_loops,
+            # 阶段重试控制
+            # stage_max_retries=stage_max_retries,
+
+            # 全局循环控制
+            global_max_loops=getattr(config, 'global_max_loops', default_global_max_loops),
+            global_loop_exceeded=config.global_loop_exceeded,
+
+            # 其他
+            loop_warning_issued=config.loop_warning_issued,
+            current_node=PipelineNode.PARSE_SCRIPT,
         )
 
         try:
@@ -313,26 +339,75 @@ class MultiAgentPipeline:
                 config={"configurable": {"thread_id": f"process_{id(raw_script)}"}}
             )
 
+            success = False
+            data = None
+            errors = []
+            processing_stats = {}
+
+            # 检查 final_state 的类型
+            if isinstance(final_state, dict):
+                # 如果是字典，尝试从中提取
+                debug("final_state 是字典类型")
+                success = final_state.get("success", False)
+                data = final_state.get("data")
+                errors = final_state.get("errors", [])
+
+                # 尝试提取状态信息
+                state_obj = final_state.get("state")
+                if state_obj:
+                    processing_stats = self._get_completed_stages(state_obj)
+            elif hasattr(final_state, 'final_output'):
+                # 如果是 WorkflowState 对象
+                debug("final_state 是 WorkflowState 对象")
+                success = final_state.final_output is not None
+                data = final_state.final_output
+                errors = final_state.error_messages if hasattr(final_state, 'error_messages') else []
+                processing_stats = self._get_completed_stages(final_state)
+            else:
+                # 未知类型
+                debug(f"final_state 是未知类型: {type(final_state)}")
+                # 尝试将其视为字典访问
+                try:
+                    success = getattr(final_state, 'success', False)
+                    data = getattr(final_state, 'data', None)
+                    errors = getattr(final_state, 'errors', [])
+                    processing_stats = self._get_completed_stages(final_state)
+                except:
+                    # 如果失败，创建默认响应
+                    success = False
+                    data = None
+                    errors = ["无法解析工作流结果"]
+                    processing_stats = {"error": "unknown_state_type"}
+
             return {
-                "success": final_state.final_output is not None,
-                "data": final_state.final_output,
-                "errors": final_state.error_messages,
-                "processing_stats": {
-                    "retry_count": final_state.retry_count,
-                    "stages_completed": self._get_completed_stages(final_state)
-                }
+                "success": success,
+                "data": data,
+                "errors": errors,
+                "processing_stats": processing_stats,
+                "task_id": self.task_id
             }
 
         except Exception as e:
+            error(f"执行工作流时出错: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
             return {
                 "success": False,
                 "error": str(e),
-                "data": None
+                "data": None,
+                "processing_stats": {
+                    "error": "workflow_exception",
+                    "exception": str(e),
+                    "task_id": self.task_id
+                },
+                "task_id": self.task_id
             }
 
-    def _get_completed_stages(self, state: WorkflowState) -> List[AgentStage]:
-        """获取已完成的阶段列表"""
+    def _get_completed_stages(self, state: WorkflowState) -> dict[str, Any]:
+        """获取已完成的阶段列表和统计信息（简化版）"""
         stages = []
+
         if state.parsed_script:
             stages.append(AgentStage.PARSER)
         if state.shot_sequence:
@@ -345,4 +420,57 @@ class MultiAgentPipeline:
             stages.append(AgentStage.AUDITOR)
         if state.continuity_issues is not None:
             stages.append(AgentStage.CONTINUITY)
-        return stages
+
+        # 计算各节点的剩余循环次数
+        node_loop_summary = {}
+        for node, max_loops in state.node_max_loops.items():
+            current_loops = state.node_current_loops.get(node, 0)
+            exceeded = state.node_loop_exceeded.get(node, False)
+
+            node_loop_summary[node.value] = {
+                "current": current_loops,
+                "max": max_loops,
+                "remaining": max(0, max_loops - current_loops),
+                "exceeded": exceeded
+            }
+
+        # 计算各阶段的剩余重试次数
+        stage_retry_summary = {}
+        for node, max_retries in state.stage_max_retries.items():
+            current_retries = state.stage_current_retries.get(node, 0)
+
+            stage_retry_summary[node.value] = {
+                "current": current_retries,
+                "max": max_retries,
+                "remaining": max(0, max_retries - current_retries)
+            }
+
+        # 综合统计信息
+        stage_info = {
+            "completed_stages": stages,
+            "stage_count": len(stages),
+
+            # 节点循环统计
+            "node_loops": node_loop_summary,
+            "total_node_loops": sum(state.node_current_loops.values()),
+
+            # 阶段重试统计
+            "stage_retries": stage_retry_summary,
+            "total_retries": state.total_retries,
+
+            # 全局循环统计
+            "global_loops": {
+                "current": state.global_current_loops,
+                "max": state.global_max_loops,
+                "remaining": max(0, state.global_max_loops - state.global_current_loops),
+                "exceeded": state.global_loop_exceeded
+            },
+
+            # 当前状态
+            "current_node": state.current_node.value if state.current_node else None,
+            "last_node": state.last_node.value if state.last_node else None,
+            "has_errors": len(state.error_messages) > 0 if state.error_messages else False,
+            "error_count": len(state.error_messages) if state.error_messages else 0,
+        }
+
+        return stage_info

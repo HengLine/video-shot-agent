@@ -23,7 +23,7 @@ task_manager = TaskManager()
 task_processor = AsyncTaskProcessor(task_manager)
 
 
-@app.post("/generate", response_model=ProcessResult)
+@app.post("/storyboard", response_model=ProcessResult)
 def generate_storyboard_api(request: ProcessRequest, background_tasks: BackgroundTasks):
     """
     通过A2A协议调用分镜生成功能
@@ -78,7 +78,7 @@ def generate_storyboard_api(request: ProcessRequest, background_tasks: Backgroun
         raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
 
 
-@app.post("/api/v1/process/batch", response_model=BatchProcessResult)
+@app.post("/storyboard/batch", response_model=BatchProcessResult)
 async def batch_process_scripts(
         request: BatchProcessRequest,
         background_tasks: BackgroundTasks
@@ -117,8 +117,8 @@ async def batch_process_scripts(
         )
 
 
-@app.get("/api/v1/status/{task_id}", response_model=ProcessingStatus)
-async def get_task_status(task_id: str):
+@app.get("/status/{task_id}", response_model=ProcessingStatus)
+def get_task_status(task_id: str):
     """
     获取任务状态
 
@@ -150,7 +150,7 @@ async def get_task_status(task_id: str):
     )
 
 
-@app.get("/api/v1/result/{task_id}", response_model=ProcessResult)
+@app.get("/result/{task_id}", response_model=ProcessResult)
 async def get_task_result(task_id: str):
     """
     获取任务结果
@@ -179,8 +179,10 @@ async def get_task_result(task_id: str):
     # 计算处理时间
     processing_time = None
     if task.get("completed_at"):
+        completed_at = datetime.strptime(task["completed_at"], "%Y-%m-%dT%H:%M:%S.%f")
+        created_at = datetime.strptime(task["created_at"], "%Y-%m-%dT%H:%M:%S.%f")
         processing_time = int(
-            (task["completed_at"] - task["created_at"]).total_seconds() * 1000
+            (completed_at - created_at).total_seconds() * 1000
         )
 
     return ProcessResult(
@@ -195,7 +197,7 @@ async def get_task_result(task_id: str):
     )
 
 
-@app.delete("/api/v1/task/{task_id}")
+@app.delete("/task/{task_id}")
 async def cancel_task(task_id: str):
     """
     取消任务（标记为取消状态）

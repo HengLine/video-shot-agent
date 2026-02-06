@@ -1,6 +1,6 @@
 """
 @FileName: human_decision_intervention.py
-@Description: 
+@Description: 人工干预工作流节点
 @Author: HengLine
 @Time: 2026/2/5 17:28
 """
@@ -8,7 +8,7 @@ import threading
 import time
 
 from video_shot_breakdown.hengline.agent.human_decision.human_decision_converter import HumanDecisionConverter
-from video_shot_breakdown.hengline.agent.workflow.workflow_models import DecisionState
+from video_shot_breakdown.hengline.agent.workflow.workflow_models import PipelineState
 from video_shot_breakdown.hengline.agent.workflow.workflow_states import WorkflowState
 from video_shot_breakdown.logger import info, warning, error
 
@@ -78,9 +78,9 @@ class HumanIntervention:
             print("  [1] CONTINUE  - 继续流程（默认）")
             print("  [2] APPROVE   - 批准通过")
             print("  [3] RETRY     - 重新开始")
-            print("  [4] ADJUST    - 调整优化")
-            print("  [5] FIX       - 修复问题")
-            print("  [6] OPTIMIZE  - 优化质量")
+            print("  [4] REPAIR    - 修复问题")
+            print("  [5] REPAIR    - 修复问题")
+            print("  [6] REPAIR    - 修复问题")
             print("  [7] ESCALATE  - 升级处理")
             print("  [8] ABORT     - 中止流程")
             print("\n输入选项编号 (1-8) 或输入选项名称: ", end="", flush=True)
@@ -93,9 +93,9 @@ class HumanIntervention:
                     "1": "CONTINUE",
                     "2": "APPROVE",
                     "3": "RETRY",
-                    "4": "ADJUST",
-                    "5": "FIX",
-                    "6": "OPTIMIZE",
+                    "4": "REPAIR",
+                    "5": "REPAIR",
+                    "6": "REPAIR",
                     "7": "ESCALATE",
                     "8": "ABORT"
                 }
@@ -145,18 +145,19 @@ class HumanIntervention:
             ("1", "CONTINUE", "继续流程"),
             ("2", "APPROVE", "批准通过"),
             ("3", "RETRY", "重新开始"),
-            ("4", "ADJUST", "调整优化"),
-            ("5", "FIX", "修复问题"),
-            ("6", "OPTIMIZE", "优化质量"),
+            ("4", "REPAIR", "修复问题"),
+            ("5", "REPAIR", "修复问题"),
+            ("6", "REPAIR", "修复问题"),
             ("7", "ESCALATE", "升级处理"),
             ("8", "ABORT", "中止流程"),
         ]
 
         for num, code, desc in options:
-            # 获取对应的 DecisionState
-            decision_state = self.converter.STANDARD_TO_DECISION_MAP.get(code, DecisionState.SUCCESS)
+            # 获取对应的 PipelineState
+            decision_state = self.converter.STANDARD_TO_STATE_MAP.get(code, PipelineState.SUCCESS)
             decision_desc = self.converter.get_decision_description(decision_state)
-            print(f"  [{num}] {code:10} - {desc:8} -> {decision_desc}")
+            input_desc = self.converter.get_standard_input_description(code)
+            print(f"  [{num}] {code:10} - {input_desc:8} -> {decision_desc}")
 
         print("-" * 40)
 
@@ -198,7 +199,7 @@ class HumanIntervention:
 
         print(f"\n超时设置: {minutes}分{seconds}秒")
         print("超时将自动选择: CONTINUE (继续流程)")
-        print(f"超时后映射到: {self.converter.get_decision_description(DecisionState.SUCCESS)}")
+        print(f"超时后映射到: {self.converter.get_decision_description(PipelineState.SUCCESS)}")
 
     def __call__(self, graph_state: WorkflowState) -> WorkflowState:
         """执行人工干预节点"""

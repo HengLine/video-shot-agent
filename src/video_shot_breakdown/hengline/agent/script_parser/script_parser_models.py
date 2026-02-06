@@ -48,7 +48,6 @@ class BaseElement(BaseModel):
     duration: float = Field(
         default=3.0,
         ge=0.5,
-        le=6.0,
         description="预估持续时间（秒），基于简单规则估算"
     )
 

@@ -102,7 +102,7 @@ class EmbeddingConfig(BaseModel):
 class APIConfig(BaseModel):
     """API配置"""
     host: str = Field(default="127.0.0.1")
-    port: int = Field(default=8000, ge=1, le=65535)
+    port: int = Field(default=8000, ge=5000, le=65535)
     workers: int = Field(default=1, ge=1, le=10)
     reload: bool = Field(default=False)     # 调试模式下启用热重载
     cors_origins: List[str] = Field(

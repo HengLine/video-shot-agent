@@ -2,21 +2,21 @@
 @FileName: human_decision_converter.py
 @Description: 人工决策转换器
 @Author: HengLine
+@Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/2/5 17:09
 """
 import time
 from typing import Dict, Any, Optional
 
-from video_shot_breakdown.hengline.agent.workflow.workflow_models import DecisionState
+from video_shot_breakdown.hengline.agent.workflow.workflow_models import PipelineState
 from video_shot_breakdown.logger import info, warning
-
 
 class HumanDecisionConverter:
     """人工决策转换器
 
     职责：
     1. 将各种形式的人工输入标准化
-    2. 将标准化输入映射到 DecisionState
+    2. 将标准化输入映射到 PipelineState
     3. 提供输入验证和清理功能
     """
 
@@ -26,9 +26,9 @@ class HumanDecisionConverter:
         "1": "CONTINUE",
         "2": "APPROVE",
         "3": "RETRY",
-        "4": "ADJUST",
-        "5": "FIX",
-        "6": "OPTIMIZE",
+        "4": "REPAIR",
+        "5": "REPAIR",
+        "6": "REPAIR",
         "7": "ESCALATE",
         "8": "ABORT",
 
@@ -51,21 +51,21 @@ class HumanDecisionConverter:
         "TRY_AGAIN": "RETRY",
         "REPEAT": "RETRY",
 
-        "ADJUST": "ADJUST",
-        "MODIFY": "ADJUST",
-        "TWEAK": "ADJUST",
-        "CHANGE": "ADJUST",
-        "EDIT": "ADJUST",
+        "ADJUST": "REPAIR",
+        "MODIFY": "REPAIR",
+        "TWEAK": "REPAIR",
+        "CHANGE": "REPAIR",
+        "EDIT": "REPAIR",
 
-        "FIX": "FIX",
-        "REPAIR": "FIX",
-        "CORRECT": "FIX",
-        "RESOLVE": "FIX",
+        "FIX": "REPAIR",
+        "REPAIR": "REPAIR",
+        "CORRECT": "REPAIR",
+        "RESOLVE": "REPAIR",
 
-        "OPTIMIZE": "OPTIMIZE",
-        "IMPROVE": "OPTIMIZE",
-        "ENHANCE": "OPTIMIZE",
-        "REFINE": "OPTIMIZE",
+        "OPTIMIZE": "REPAIR",
+        "IMPROVE": "REPAIR",
+        "ENHANCE": "REPAIR",
+        "REFINE": "REPAIR",
 
         "ESCALATE": "ESCALATE",
         "E": "ESCALATE",
@@ -81,16 +81,14 @@ class HumanDecisionConverter:
         "Q": "ABORT",
     }
 
-    # 标准决策到 DecisionState 的映射
-    STANDARD_TO_DECISION_MAP = {
-        "CONTINUE": DecisionState.SUCCESS,
-        "APPROVE": DecisionState.SUCCESS,
-        "RETRY": DecisionState.SHOULD_RETRY,
-        "ADJUST": DecisionState.NEEDS_ADJUSTMENT,  # -> CONVERT_PROMPT
-        "FIX": DecisionState.NEEDS_FIX,  # -> SPLIT_VIDEO
-        "OPTIMIZE": DecisionState.NEEDS_OPTIMIZATION,  # -> CONVERT_PROMPT
-        "ESCALATE": DecisionState.REQUIRE_HUMAN,
-        "ABORT": DecisionState.ABORT_PROCESS
+    # 标准决策到 PipelineState 的映射
+    STANDARD_TO_STATE_MAP = {
+        "CONTINUE": PipelineState.SUCCESS,
+        "APPROVE": PipelineState.SUCCESS,
+        "RETRY": PipelineState.RETRY,
+        "REPAIR": PipelineState.NEEDS_REPAIR,
+        "ESCALATE": PipelineState.NEEDS_HUMAN,
+        "ABORT": PipelineState.ABORT
     }
 
     def __init__(self):
@@ -133,7 +131,7 @@ class HumanDecisionConverter:
         return "CONTINUE"
 
     def convert_to_decision_state(self, normalized_input: str,
-                                  context: Optional[Dict[str, Any]] = None) -> DecisionState:
+                                  context: Optional[Dict[str, Any]] = None) -> PipelineState:
         """转换为决策状态
 
         Args:
@@ -141,12 +139,12 @@ class HumanDecisionConverter:
             context: 转换上下文（可选）
 
         Returns:
-            DecisionState: 决策状态
+            PipelineState: 决策状态
         """
         # 获取映射
-        decision_state = self.STANDARD_TO_DECISION_MAP.get(
+        decision_state = self.STANDARD_TO_STATE_MAP.get(
             normalized_input,
-            DecisionState.SUCCESS  # 默认值
+            PipelineState.SUCCESS  # 默认值
         )
 
         # 记录转换历史
@@ -161,7 +159,7 @@ class HumanDecisionConverter:
 
         return decision_state
 
-    def validate_decision(self, decision_state: DecisionState,
+    def validate_decision(self, decision_state: PipelineState,
                           context: Optional[Dict[str, Any]] = None) -> bool:
         """验证决策的合理性
 
@@ -177,14 +175,22 @@ class HumanDecisionConverter:
 
         if context and context.get("is_timeout", False):
             # 超时情况下，只能继续或中止
-            valid_states = [DecisionState.SUCCESS, DecisionState.ABORT_PROCESS]
+            valid_states = [PipelineState.SUCCESS, PipelineState.ABORT]
             if decision_state not in valid_states:
                 warning(f"超时情况下不允许的决策: {decision_state.value}")
                 return False
 
+        # 检查是否需要重试但已超重试次数
+        if context and decision_state == PipelineState.RETRY:
+            retry_count = context.get("retry_count", 0)
+            max_retries = context.get("max_retries", 3)
+            if retry_count >= max_retries:
+                warning(f"重试次数已超限制 ({retry_count}/{max_retries})，不允许重试")
+                return False
+
         return True
 
-    def get_decision_description(self, decision_state: DecisionState) -> str:
+    def get_decision_description(self, decision_state: PipelineState) -> str:
         """获取决策描述
 
         Args:
@@ -194,16 +200,31 @@ class HumanDecisionConverter:
             str: 人类可读的描述
         """
         descriptions = {
-            DecisionState.SUCCESS: "继续流程",
-            DecisionState.VALID: "验证通过",
-            DecisionState.SHOULD_RETRY: "重新开始",
-            DecisionState.NEEDS_ADJUSTMENT: "调整优化",
-            DecisionState.NEEDS_FIX: "修复问题",
-            DecisionState.NEEDS_OPTIMIZATION: "优化质量",
-            DecisionState.RETRY_WITH_ADJUSTMENT: "调整后重试",
-            DecisionState.REQUIRE_HUMAN: "需要人工干预",
-            DecisionState.FAILED: "处理失败",
-            DecisionState.CRITICAL_FAILURE: "严重失败",
-            DecisionState.ABORT_PROCESS: "中止流程",
+            PipelineState.SUCCESS: "继续流程",
+            PipelineState.VALID: "验证通过",
+            PipelineState.NEEDS_REPAIR: "修复问题",
+            PipelineState.RETRY: "重新开始",
+            PipelineState.NEEDS_HUMAN: "需要人工干预",
+            PipelineState.FAILED: "处理失败",
+            PipelineState.ABORT: "中止流程",
         }
         return descriptions.get(decision_state, "未知决策")
+
+    def get_standard_input_description(self, standard_input: str) -> str:
+        """获取标准输入描述
+
+        Args:
+            standard_input: 标准化的输入
+
+        Returns:
+            str: 输入描述
+        """
+        descriptions = {
+            "CONTINUE": "继续流程",
+            "APPROVE": "批准通过",
+            "RETRY": "重新开始",
+            "REPAIR": "修复问题",
+            "ESCALATE": "升级处理",
+            "ABORT": "中止流程",
+        }
+        return descriptions.get(standard_input, "未知输入")

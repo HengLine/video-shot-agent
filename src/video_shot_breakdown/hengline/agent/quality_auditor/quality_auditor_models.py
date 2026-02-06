@@ -118,6 +118,11 @@ class QualityAuditReport(BaseModel):
         description="审查结论"
     )
 
+    score: float = Field(
+        default=100.0,
+        description="质量评分（0-100）"
+    )
+
     detailed_analysis: Dict[str, Any] = Field(
         default=None,
         description="详细分析报告"

@@ -11,7 +11,7 @@ from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_model
 from video_shot_breakdown.hengline.agent.quality_auditor.base_quality_auditor import BaseQualityAuditor
 from video_shot_breakdown.hengline.agent.quality_auditor.quality_auditor_models import QualityAuditReport
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
-from video_shot_breakdown.logger import info
+from video_shot_breakdown.logger import info, warning
 
 
 class RuleQualityAuditor(BaseQualityAuditor):
@@ -27,10 +27,17 @@ class RuleQualityAuditor(BaseQualityAuditor):
             {"id": "fragment_count", "name": "片段数量", "severity": "info"},
             {"id": "model_supported", "name": "模型支持", "severity": "warning"}
         ]
+        self.last_audit_result = None
+        self.audit_count = 0
 
     def audit(self, instructions: AIVideoInstructions) -> QualityAuditReport:
         """执行基本规则审查"""
         info(f"开始质量审查，片段数: {len(instructions.fragments)}")
+
+        # 如果短时间内重复调用，返回缓存结果
+        if self._should_use_cached_result():
+            warning(f"使用缓存的审查结果，避免重复审查")
+            return self.last_audit_result
 
         # 初始化报告
         report = QualityAuditReport(
@@ -48,8 +55,17 @@ class RuleQualityAuditor(BaseQualityAuditor):
         self._check_fragment_count(instructions, report)
         self._check_model_support(instructions, report)
 
+        # 保存结果
+        self.last_audit_result = report
+        self.audit_count += 1
+
         # 后处理
         return self.post_process(report)
+
+    def _should_use_cached_result(self) -> bool:
+        """检查是否应该使用缓存结果"""
+        # 例如：如果1秒内重复调用，使用缓存
+        return False  # 根据实际需求实现
 
     def _check_fragment_duration(self, instructions: AIVideoInstructions, report: QualityAuditReport) -> None:
         """检查片段时长是否超过限制"""
