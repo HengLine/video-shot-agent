@@ -108,7 +108,6 @@ def _get_default_llm(ai_config, **kwargs):
         temperature=ai_config.temperature,
         timeout=ai_config.timeout,
         max_tokens=ai_config.max_tokens,
-        max_retries=ai_config.max_retries,
     )
 
     fin_config = _fill_default_config(config, **kwargs)
@@ -132,7 +131,6 @@ def _fill_default_config(config: AIConfig = None, **kwargs) -> AIConfig:
         api_key=kwargs.get("api_key", None),
         temperature=kwargs.get("temperature", 0.1),
         max_tokens=kwargs.get("max_tokens", 5000),
-        max_retries=kwargs.get("max_retries", 3),
     )
 
     if not kwargs:
@@ -221,7 +219,6 @@ def _get_default_embedding_client(ai_config, **kwargs):
         model=ai_config.model_name,
         base_url=ai_config.base_url,
         timeout=ai_config.timeout,
-        max_retries=ai_config.max_retries,
         api_key=ai_config.api_key
     )
 

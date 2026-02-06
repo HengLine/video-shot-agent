@@ -80,7 +80,7 @@ class AIConfig:
     api_key: Optional[SecretStr] = None
     temperature: float = 0.1
     max_tokens: int = 5000
-    max_retries: int = 3
+    max_retries: int = 3    # 最大重试次数
     seed: int = Random().randint(1000, 999999999999999)
     json_mode: bool = True  # 强制JSON输出
     timeout: int = 60  # 请求超时时间，单位秒

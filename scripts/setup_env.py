@@ -220,7 +220,7 @@ class AppBaseEnv:
             return False
 
         try:
-            info("===============HengLine 剧本分镜智能体=====================")
+            info("<<<<<<<<<<<<<<<<<<<< HengLine 剧本分镜智能体 >>>>>>>>>>>>>>>>>>>>")
             info("应用启动中，请不要关闭此窗口。如果需要停止应用，请按 Ctrl+C")
 
             # 启动应用
@@ -289,8 +289,8 @@ class AppBaseEnv:
         """主函数 - 协调整个启动流程"""
         print_large_ascii()
         info("==================================================================")
-        info("                   欢迎使用 HengLine 剧本分镜智能体                  ")
-        info("           ⭐https://github.com/HengLine/video-shot-agent         ")
+        info("<                   欢迎使用 HengLine 剧本分镜智能体                 >")
+        info("<           ⭐https://github.com/HengLine/video-shot-agent       >")
         info("==================================================================")
         debug(f"当前工作目录: {os.getcwd()}")
         debug(f"将使用的虚拟环境: {VENV_DIR}")
@@ -324,7 +324,7 @@ class AppBaseEnv:
         # 步骤5: 启动
         self.start_aigc_application(max_retries)
 
-        info("===============HengLine 剧本分镜智能体=====================")
+        info(">>>>>>>>>>>>>>>>> HengLine 剧本分镜智能体 <<<<<<<<<<<<<<<<<")
         info("应用程序已停止运行。按Enter键退出...")
 
     """    需要子类实现的抽象方法，用于启动具体的应用"""

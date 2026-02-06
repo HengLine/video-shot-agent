@@ -8,7 +8,7 @@ formatter:
 
 # 控制台输出
 console:
-  level: INFO
+  level: DEBUG
   class: logging.StreamHandler
   formatter: formatter
   stream: ext://sys.stdout

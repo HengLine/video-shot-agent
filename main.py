@@ -40,7 +40,7 @@ class HengLineApp(AppBaseEnv):
 
     def start_application(self):
         """启动应用的抽象方法"""
-        info("=== 正在启动 HengLine 应用.... ===")
+        info("正在启动 HengLine 应用......")
 
         # 设置信号处理函数
         def signal_handler(sig, frame):
@@ -77,7 +77,7 @@ class HengLineApp(AppBaseEnv):
             #     workers = 1
 
             # 输出启动信息
-            info(f"服务器配置: host={host}, port={port}, reload={reload}, workers={workers}")
+            debug(f"服务器配置: host={host}, port={port}, reload={reload}, workers={workers}")
             info(f"提示: 按 Ctrl+C 可以停止服务器")
 
             # 检查应用文件路径是否正确

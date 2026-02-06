@@ -21,7 +21,7 @@ prompt_converter:
 
     请返回JSON格式：
     {{
-      "prompt": "生成的提示词",
+      "prompt": "生成的提示词（尽量提炼关键字，尤其是特征描述）",
       "negative_prompt": "负面提示词（避免的内容）",
       "style_hint": "风格提示"
     }}

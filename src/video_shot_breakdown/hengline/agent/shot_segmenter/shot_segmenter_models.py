@@ -42,8 +42,7 @@ class ShotInfo(BaseModel):
     start_time: float = Field(default=0.0, description="全局开始时间（秒）")
     duration: float = Field(
         default=3.0,
-        ge=1.0,
-        le=10.0,
+        ge=0.5,
         description="镜头时长（秒）"
     )
 

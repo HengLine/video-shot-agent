@@ -76,8 +76,7 @@ class QualityAuditReport(BaseModel):
     )
 
     # 审查状态
-    status: Literal[AuditStatus.PASSED, AuditStatus.MINOR_ISSUES, AuditStatus.MAJOR_ISSUES,
-        AuditStatus.CRITICAL_ISSUES, AuditStatus.NEEDS_HUMAN, AuditStatus.FAILED, AuditStatus.MODERATE_ISSUES] = Field(
+    status: AuditStatus = Field(
         default=AuditStatus.PASSED,
         description="审查状态：passed=通过, needs_revision=需要调整, failed=失败"
     )
@@ -117,6 +116,11 @@ class QualityAuditReport(BaseModel):
     conclusion: str = Field(
         default="审查通过，可以开始视频生成",
         description="审查结论"
+    )
+
+    score: float = Field(
+        default=100.0,
+        description="质量评分（0-100）"
     )
 
     detailed_analysis: Dict[str, Any] = Field(
