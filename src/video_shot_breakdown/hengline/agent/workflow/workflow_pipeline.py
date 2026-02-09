@@ -11,7 +11,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
 
 from video_shot_breakdown.hengline.agent.script_parser_agent import ScriptParserAgent
-from video_shot_breakdown.logger import debug, error
+from video_shot_breakdown.logger import debug, error, info, warning
 from .workflow_decision import PipelineDecision
 from .workflow_models import AgentStage, PipelineNode, PipelineState
 from .workflow_nodes import WorkflowNodes
@@ -334,58 +334,118 @@ class MultiAgentPipeline:
 
         try:
             # 执行工作流
+            debug(f"调用 workflow.ainvoke，任务ID: {self.task_id}")
+
+            # 执行工作流
             final_state = await self.workflow.ainvoke(
                 initial_state,
                 config={"configurable": {"thread_id": f"process_{id(raw_script)}"}}
             )
 
+            info(f"工作流执行完成，最终状态类型: {type(final_state)}")
+
+            # 处理不同的返回类型
             success = False
             data = None
             errors = []
-            processing_stats = {}
 
-            # 检查 final_state 的类型
+            # 情况1：final_state 是字典（实际观察到的情况）
             if isinstance(final_state, dict):
-                # 如果是字典，尝试从中提取
-                debug("final_state 是字典类型")
-                success = final_state.get("success", False)
-                data = final_state.get("data")
-                errors = final_state.get("errors", [])
+                info("final_state 是字典类型")
 
-                # 尝试提取状态信息
-                state_obj = final_state.get("state")
-                if state_obj:
-                    processing_stats = self._get_completed_stages(state_obj)
-            elif hasattr(final_state, 'final_output'):
-                # 如果是 WorkflowState 对象
-                debug("final_state 是 WorkflowState 对象")
-                success = final_state.final_output is not None
-                data = final_state.final_output
-                errors = final_state.error_messages if hasattr(final_state, 'error_messages') else []
-                processing_stats = self._get_completed_stages(final_state)
+                # 从字典中提取信息
+                data = final_state.get('final_output')
+
+                # 判断是否成功
+                if data is not None:
+                    success = True
+                    info("从字典中找到 final_output，标记为成功")
+                else:
+                    # 检查是否到达结束状态
+                    current_stage = final_state.get('current_stage')
+                    current_node = final_state.get('current_node')
+
+                    if current_stage == 'completed' or current_node == 'generate_output':
+                        success = True
+                        info(f"字典显示工作流完成: stage={current_stage}, node={current_node}")
+
+                        # 构建输出数据
+                        data = {
+                            "task_id": final_state.get('task_id', self.task_id),
+                            "instructions": final_state.get('instructions'),
+                            "fragment_sequence": final_state.get('fragment_sequence'),
+                            "audit_report": final_state.get('audit_report'),
+                            "status": "completed"
+                        }
+
+                # 获取错误信息
+                errors = final_state.get('error_messages', [])
+
+            # 情况2：final_state 是 WorkflowState 对象
+            elif hasattr(final_state, '__dict__'):
+                info("final_state 是 WorkflowState 对象")
+
+                # 检查是否有 final_output
+                if hasattr(final_state, 'final_output') and final_state.final_output is not None:
+                    success = True
+                    data = final_state.final_output
+                    info("从 WorkflowState 中找到 final_output")
+
+                # 检查是否到达结束节点
+                elif (hasattr(final_state, 'current_node') and
+                      hasattr(final_state.current_node, 'value') and
+                      final_state.current_node.value == 'generate_output'):
+                    success = True
+                    info("WorkflowState 到达 generate_output 节点")
+
+                    # 构建输出
+                    data = {
+                        "task_id": getattr(final_state, 'task_id', self.task_id),
+                        "instructions": getattr(final_state, 'instructions', None),
+                        "fragment_sequence": getattr(final_state, 'fragment_sequence', None),
+                        "audit_report": getattr(final_state, 'audit_report', None),
+                        "status": "completed"
+                    }
+
+                # 获取错误信息
+                if hasattr(final_state, 'error_messages'):
+                    errors = final_state.error_messages
+
+            # 情况3：其他类型
             else:
-                # 未知类型
-                debug(f"final_state 是未知类型: {type(final_state)}")
-                # 尝试将其视为字典访问
+                warning(f"final_state 是未知类型: {type(final_state)}")
+                # 尝试转换为字典
                 try:
-                    success = getattr(final_state, 'success', False)
-                    data = getattr(final_state, 'data', None)
-                    errors = getattr(final_state, 'errors', [])
-                    processing_stats = self._get_completed_stages(final_state)
-                except:
-                    # 如果失败，创建默认响应
-                    success = False
-                    data = None
-                    errors = ["无法解析工作流结果"]
-                    processing_stats = {"error": "unknown_state_type"}
+                    if hasattr(final_state, 'dict'):
+                        state_dict = final_state.dict()
+                    elif hasattr(final_state, '__dict__'):
+                        state_dict = final_state.__dict__
+                    else:
+                        state_dict = {}
 
-            return {
+                    data = state_dict.get('final_output')
+                    if data:
+                        success = True
+
+                    errors = state_dict.get('error_messages', [])
+                except:
+                    errors = ["无法解析工作流结果"]
+
+            # 获取处理统计信息
+            processing_stats = self._get_completed_stages(final_state)
+
+            result = {
                 "success": success,
                 "data": data,
                 "errors": errors,
                 "processing_stats": processing_stats,
-                "task_id": self.task_id
+                "task_id": self.task_id,
+                "workflow_status": "completed" if success else "failed"
             }
+
+            info(f"工作流执行结果: success={success}, data_type={type(data)}")
+
+            return result
 
         except Exception as e:
             error(f"执行工作流时出错: {str(e)}")
@@ -398,79 +458,109 @@ class MultiAgentPipeline:
                 "data": None,
                 "processing_stats": {
                     "error": "workflow_exception",
-                    "exception": str(e),
+                    "exception_type": type(e).__name__,
                     "task_id": self.task_id
                 },
-                "task_id": self.task_id
+                "task_id": self.task_id,
+                "workflow_status": "exception"
             }
 
-    def _get_completed_stages(self, state: WorkflowState) -> dict[str, Any]:
-        """获取已完成的阶段列表和统计信息（简化版）"""
-        stages = []
+    def _get_completed_stages(self, state) -> dict[str, Any]:
+        """获取已完成的阶段列表和统计信息（支持字典和对象输入）"""
+        try:
+            # 如果是字典，直接使用
+            if isinstance(state, dict):
+                state_dict = state
+            # 如果是对象，尝试转换为字典
+            elif hasattr(state, 'dict'):
+                state_dict = state.dict()
+            elif hasattr(state, '__dict__'):
+                state_dict = state.__dict__
+            else:
+                # 未知类型，返回空统计
+                return {
+                    "error": "unknown_state_type",
+                    "completed_stages": [],
+                    "stage_count": 0
+                }
 
-        if state.parsed_script:
-            stages.append(AgentStage.PARSER)
-        if state.shot_sequence:
-            stages.append(AgentStage.SEGMENTER)
-        if state.fragment_sequence:
-            stages.append(AgentStage.SPLITTER)
-        if state.instructions:
-            stages.append(AgentStage.CONVERTER)
-        if state.audit_report:
-            stages.append(AgentStage.AUDITOR)
-        if state.continuity_issues is not None:
-            stages.append(AgentStage.CONTINUITY)
+            stages = []
 
-        # 计算各节点的剩余循环次数
-        node_loop_summary = {}
-        for node, max_loops in state.node_max_loops.items():
-            current_loops = state.node_current_loops.get(node, 0)
-            exceeded = state.node_loop_exceeded.get(node, False)
+            # 检查各阶段是否完成
+            parsed_script = state_dict.get('parsed_script')
+            if parsed_script:
+                stages.append("PARSER")
 
-            node_loop_summary[node.value] = {
-                "current": current_loops,
-                "max": max_loops,
-                "remaining": max(0, max_loops - current_loops),
-                "exceeded": exceeded
+            shot_sequence = state_dict.get('shot_sequence')
+            if shot_sequence:
+                stages.append("SEGMENTER")
+
+            fragment_sequence = state_dict.get('fragment_sequence')
+            if fragment_sequence:
+                stages.append("SPLITTER")
+
+            instructions = state_dict.get('instructions')
+            if instructions:
+                stages.append("CONVERTER")
+
+            audit_report = state_dict.get('audit_report')
+            if audit_report:
+                stages.append("AUDITOR")
+
+            continuity_issues = state_dict.get('continuity_issues')
+            if continuity_issues is not None:
+                stages.append("CONTINUITY")
+
+            # 获取当前节点和阶段
+            current_node = state_dict.get('current_node')
+            current_stage = state_dict.get('current_stage')
+
+            # 转换为字符串（如果是枚举）
+            if hasattr(current_node, 'value'):
+                current_node = current_node.value
+            if hasattr(current_stage, 'value'):
+                current_stage = current_stage.value
+
+            # 基本统计信息
+            stats = {
+                "completed_stages": stages,
+                "stage_count": len(stages),
+                "has_final_output": state_dict.get('final_output') is not None,
+                "current_node": current_node,
+                "current_stage": current_stage,
+                "global_loops": state_dict.get('global_current_loops', 0),
+                "global_max_loops": state_dict.get('global_max_loops', 0),
+                "error_count": len(state_dict.get('error_messages', []))
             }
 
-        # 计算各阶段的剩余重试次数
-        stage_retry_summary = {}
-        for node, max_retries in state.stage_max_retries.items():
-            current_retries = state.stage_current_retries.get(node, 0)
+            # 添加审计信息
+            last_audit_result = state_dict.get('last_audit_result')
+            if last_audit_result:
+                stats["audit"] = {
+                    "score": last_audit_result.get('score', 0),
+                    "status": last_audit_result.get('status'),
+                    "passed_checks": last_audit_result.get('passed_checks', 0),
+                    "total_checks": last_audit_result.get('total_checks', 0)
+                }
 
-            stage_retry_summary[node.value] = {
-                "current": current_retries,
-                "max": max_retries,
-                "remaining": max(0, max_retries - current_retries)
+            # 添加节点循环信息
+            node_current_loops = state_dict.get('node_current_loops', {})
+            if node_current_loops:
+                # 转换为字符串键
+                loops_summary = {}
+                for node, count in node_current_loops.items():
+                    if hasattr(node, 'value'):
+                        loops_summary[node.value] = count
+                    else:
+                        loops_summary[str(node)] = count
+                stats["node_loops"] = loops_summary
+
+            return stats
+
+        except Exception as e:
+            error(f"获取完成阶段时出错: {str(e)}")
+            return {
+                "error": f"无法获取阶段信息: {str(e)}",
+                "completed_stages": [],
+                "stage_count": 0
             }
-
-        # 综合统计信息
-        stage_info = {
-            "completed_stages": stages,
-            "stage_count": len(stages),
-
-            # 节点循环统计
-            "node_loops": node_loop_summary,
-            "total_node_loops": sum(state.node_current_loops.values()),
-
-            # 阶段重试统计
-            "stage_retries": stage_retry_summary,
-            "total_retries": state.total_retries,
-
-            # 全局循环统计
-            "global_loops": {
-                "current": state.global_current_loops,
-                "max": state.global_max_loops,
-                "remaining": max(0, state.global_max_loops - state.global_current_loops),
-                "exceeded": state.global_loop_exceeded
-            },
-
-            # 当前状态
-            "current_node": state.current_node.value if state.current_node else None,
-            "last_node": state.last_node.value if state.last_node else None,
-            "has_errors": len(state.error_messages) > 0 if state.error_messages else False,
-            "error_count": len(state.error_messages) if state.error_messages else 0,
-        }
-
-        return stage_info

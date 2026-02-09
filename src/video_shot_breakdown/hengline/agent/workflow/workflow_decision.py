@@ -340,31 +340,52 @@ class PipelineDecision:
                 warning(f"审计报告为空，但{retry_reason}")
                 return PipelineState.FAILED
 
-        # 记录审计结果到状态，便于追踪
+        # 记录审计结果到状态
         if hasattr(state, 'audit_history'):
             state.audit_history.append({
                 "timestamp": datetime.now().isoformat(),
                 "status": report.status.value,
                 "score": report.score,
-                "stats": report.stats
+                "passed_checks": report.passed_checks,
+                "total_checks": report.total_checks
             })
 
-        # 记录审计结果到状态（防止重复）
+        # 保存最后的审计结果
         state.last_audit_result = {
             "status": report.status.value,
             "score": report.score,
-            "timestamp": datetime.now().isoformat()
+            "passed_checks": report.passed_checks,
+            "total_checks": report.total_checks,
+            "stats": getattr(report, 'stats', {})
         }
 
-        # 审计状态到决策状态的映射（修复版）
+        info(f"审计报告详细: 状态={report.status.value}, 分数={report.score}%, 通过={report.passed_checks}/{report.total_checks}")
+
+        # 修复：即使状态是 FAILED，如果分数足够高，也可以继续
+        if report.status == AuditStatus.FAILED:
+            if report.score >= 80.0:  # 分数高于80%视为可接受
+                info(f"审计状态为 FAILED 但分数 {report.score}% 较高，视为 VALID 继续")
+                return PipelineState.VALID
+            elif report.score >= 60.0 and can_retry:  # 分数60-80%可重试
+                state = self._increment_stage_retry(state, PipelineNode.AUDIT_QUALITY)
+                info(f"审计状态为 FAILED，分数 {report.score}% 中等，重试")
+                return PipelineState.RETRY
+            else:
+                # 分数太低，需要修复或人工干预
+                if can_retry:
+                    state = self._increment_stage_retry(state, PipelineNode.AUDIT_QUALITY)
+                    return PipelineState.RETRY
+                else:
+                    return PipelineState.NEEDS_REPAIR
+
+        # 审计状态到决策状态的映射
         decision_map = {
             AuditStatus.PASSED: PipelineState.SUCCESS,
             AuditStatus.MINOR_ISSUES: PipelineState.VALID,
             AuditStatus.MODERATE_ISSUES: PipelineState.NEEDS_REPAIR,
             AuditStatus.MAJOR_ISSUES: PipelineState.NEEDS_REPAIR,
-            AuditStatus.CRITICAL_ISSUES: PipelineState.RETRY if can_retry else PipelineState.NEEDS_REPAIR,
+            AuditStatus.CRITICAL_ISSUES: PipelineState.RETRY if can_retry else PipelineState.NEEDS_HUMAN,
             AuditStatus.NEEDS_HUMAN: PipelineState.NEEDS_HUMAN,
-            AuditStatus.FAILED: PipelineState.RETRY if can_retry else PipelineState.NEEDS_REPAIR
         }
 
         decision = decision_map.get(report.status, PipelineState.RETRY if can_retry else PipelineState.FAILED)
@@ -372,7 +393,7 @@ class PipelineDecision:
         # 如果决定重试，增加重试计数
         if decision == PipelineState.RETRY:
             state = self._increment_stage_retry(state, PipelineNode.AUDIT_QUALITY)
-            info(f"质量审查需要重试: 审计状态={report.status.value}, 分数={report.score}%")
+            info(f"质量审查需要重试: 审计状态={report.status.value}, 已重试{state.stage_current_retries.get(PipelineNode.AUDIT_QUALITY, 0)}次")
 
         info(f"质量审查决策: 审计状态={report.status.value}, 决策={decision.value}, 分数={report.score}%")
 

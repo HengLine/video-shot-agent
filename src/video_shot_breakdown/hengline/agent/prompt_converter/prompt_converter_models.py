@@ -92,3 +92,7 @@ class AIVideoInstructions(BaseModel):
             "生成后检查片段衔接"
         ]
     )
+
+    def to_dict(self) -> dict:
+        """转换为字典表示"""
+        return self.model_dump()

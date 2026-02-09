@@ -62,7 +62,7 @@ class QualityAuditorState(BaseModel):
 class OutputState(BaseModel):
     """工作流输出状态"""
     final_output: Optional[Dict] = None  # 最终输出结果
-    execution_plan: Optional[Dict] = None  # 执行计划说明
+    # execution_plan: Optional[Dict] = None  # 执行计划说明
     error: Optional[str] = None  # 错误信息
     error_source: Optional[PipelineNode] = None  # 错误来源节点
 

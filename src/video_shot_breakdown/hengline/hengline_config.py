@@ -14,7 +14,7 @@ class HengLineConfig(AIConfig):
     enable_llm: bool = True    # 开启 LLM 解析，否则使用规则解析
     enable_continuity_check: bool = False   # 开启连续性检查
     # 流程控制
-    max_total_loops: int = 30  # 最大总循环次数
+    max_total_loops: int = 20  # 最大总循环次数
     loop_warning_issued: bool = False  # 是否已发出循环警告
     global_loop_exceeded: bool = False  # 全局循环超限标记
 

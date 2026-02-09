@@ -365,29 +365,39 @@ class WorkflowNodes:
         输入：所有阶段的结果
         输出：final_output (完整处理结果)
         """
-        state.current_stage = AgentStage.END
+        info("进入生成输出节点")
 
-        fragments = state.instructions.fragments if state.instructions else []
+        try:
+            # 生成最终输出
+            output_data = {
+                "task_id": state.task_id,
+                "script_analysis": state.parsed_script.model_dump() if state.parsed_script else None,
+                "shot_sequence": state.shot_sequence.model_dump() if state.shot_sequence else None,
+                "fragment_sequence": state.fragment_sequence.model_dump() if state.fragment_sequence else None,
+                "instructions": state.instructions.model_dump() if state.instructions else None,
+                "audit_report": state.audit_report.model_dump() if state.audit_report else None,
+                "continuity_issues": state.continuity_issues,
+                "created_at": datetime.now().isoformat(),
+                "completed_at": datetime.now().isoformat(),
+                "status": "completed"
+            }
 
-        state.final_output = {
-            "status": "completed",
-            "metadata": {
-                "processed_at": datetime.now().isoformat(),
-                "total_fragments": len(fragments),
-                "total_duration": sum(f.duration for f in fragments)
-            },
-            "fragments": fragments,
-            "audit_report": state.audit_report,
-            "continuity_report": {
-                "issues": state.continuity_issues,
-                "issue_count": len(state.continuity_issues)
-            },
-            "execution_instructions": [
-                "1. 按顺序生成每个片段视频",
-                "2. 使用相同的风格参数保持一致性",
-                "3. 按fragment_id顺序拼接"
-            ]
-        }
+            # 设置最终输出
+            state.final_output = output_data
+
+            # 更新阶段为 END
+            state.current_stage = AgentStage.END
+            state.current_node = PipelineNode.GENERATE_OUTPUT
+
+            info(f"生成输出完成，数据大小: {len(str(output_data))} 字符，阶段更新为 END")
+
+        except Exception as e:
+            error(f"生成输出时出错: {str(e)}")
+            state.error_messages.append(f"生成输出失败: {str(e)}")
+            state.current_stage = AgentStage.ERROR_HANDLER
+            state.current_node = PipelineNode.GENERATE_OUTPUT
+            state.error_source = PipelineNode.GENERATE_OUTPUT
+
         return state
 
     def human_intervention_node(self, state: WorkflowState) -> WorkflowState:

@@ -43,28 +43,6 @@ llm:
     max_retries: 3
     retry_delay: 1
 
-  # 支持的LLM提供商特定配置
-  providers:
-    openai:
-      base_url: "https://api.openai.com/v1"
-      model_name: "gpt-4o"
-      max_tokens: 2000
-
-    deepseek:
-      base_url: "https://api.deepseek.com"
-      model_name: "deepseek-chat"
-      max_tokens: 4000
-
-    wenxin:
-      base_url: "https://aip.baidubce.com"
-      model_name: "ERNIE-4.0-8K"
-      max_tokens: 8000
-
-    ollama:
-      base_url: "${OLLAMA_BASE_URL:http://localhost:11434}"
-      model_name: "${OLLAMA_MODEL:llama2:13b}"
-      max_tokens: 4000
-
 #################### 嵌入模型配置 #####################
 embedding:
   default:
@@ -85,22 +63,6 @@ embedding:
     device: "cpu"
     timeout: 60
     max_retries: 3
-
-  # 支持的嵌入模型提供商配置
-  providers:
-    openai:
-      base_url: "https://api.openai.com/v1"
-      model_name: "text-embedding-3-small"
-      dimensions: 1536
-
-    huggingface:
-      model_name: "BAAI/bge-small-zh-v1.5"
-      device: "cpu"
-      normalize_embeddings: true
-
-    ollama:
-      model_name: "nomic-embed-text"
-      base_url: "http://localhost:11434"
 
 #################### 分镜配置 #####################
 storyboard:
