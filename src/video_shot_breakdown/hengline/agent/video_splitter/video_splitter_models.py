@@ -5,6 +5,7 @@
 @Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/19 23:02
 """
+import time
 from datetime import datetime
 from typing import List, Any, Dict
 
@@ -13,6 +14,15 @@ from pydantic import Field, BaseModel
 
 class VideoFragment(BaseModel):
     """MVP视频片段模型"""
+    metadata: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "split_by": "rule",
+            "segment_index": 0,
+            "total_segments": 1,
+            "timestamp": time.time()
+        }
+    )
+
     id: str = Field(..., description="片段唯一ID，格式：frag_001_001")
 
     # 核心引用信息
