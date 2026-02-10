@@ -117,10 +117,10 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             fragments=fragments,
             metadata={
                 "split_method": "llm_adaptive",
-                "ai_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == "ai"),
-                "rule_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == "rule"),
+                "ai_split_count": round(sum(1 for f in fragments if f.metadata.get("split_by", "") == "ai"), 2),
+                "rule_split_count": round(sum(1 for f in fragments if f.metadata.get("split_by", "") == "rule"), 2),
                 "total_fragments": len(fragments),
-                "average_duration": sum(f.duration for f in fragments) / len(fragments) if fragments else 0
+                "average_duration": round(sum(f.duration for f in fragments) / len(fragments), 2) if fragments else 0
             }
         )
 

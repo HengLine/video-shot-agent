@@ -13,7 +13,7 @@ from video_shot_breakdown.hengline.agent.base_models import ScriptType
 from video_shot_breakdown.hengline.agent.script_parser.base_script_parser import BaseScriptParser
 from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import ParsedScript
 from video_shot_breakdown.hengline.client.client_config import AIConfig
-from video_shot_breakdown.logger import info, warning, error
+from video_shot_breakdown.logger import info, warning, error, debug
 from video_shot_breakdown.hengline.tools.json_parser_tool import parse_json_response
 
 
@@ -60,8 +60,8 @@ class LLMScriptParser(BaseScriptParser, BaseAgent):
         # 构建用户提示词
         user_prompt = self._build_user_prompt(script_text, script_format)
 
-        info(f"AI系统提示词（摘要）: {system_prompt[:150]}...")
-        info(f"AI用户提示词（摘要）: {user_prompt[:150]}...")
+        debug(f"AI系统提示词（摘要）: {system_prompt[:150]}...")
+        debug(f"AI用户提示词（摘要）: {user_prompt[:150]}...")
 
         # 调用LLM
         parsed_data = self._call_llm_parse_with_retry(self.llm, system_prompt, user_prompt)
