@@ -101,3 +101,6 @@ class FragmentSequence(BaseModel):
             "split_ratio": 0.0  # 拆分比例
         }
     )
+
+    def to_dict(self):
+        return self.model_dump()

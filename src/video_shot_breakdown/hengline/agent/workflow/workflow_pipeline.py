@@ -15,6 +15,7 @@ from video_shot_breakdown.logger import debug, error, info, warning
 from .workflow_decision import PipelineDecision
 from .workflow_models import AgentStage, PipelineNode, PipelineState
 from .workflow_nodes import WorkflowNodes
+from .workflow_output_fixer import WorkflowOutputFixer
 from .workflow_states import WorkflowState
 from ..prompt_converter_agent import PromptConverterAgent
 from ..quality_auditor_agent import QualityAuditorAgent
@@ -60,7 +61,10 @@ class MultiAgentPipeline:
             quality_auditor=self.quality_auditor,
             llm=self.llm
         )
+        # 工作流决策函数
         self.decision_funcs = PipelineDecision()
+        # 初始化修复器
+        self.output_fixer = WorkflowOutputFixer()
 
     def _build_workflow(self):
         """初始化基于LangGraph的工作流"""
@@ -334,105 +338,23 @@ class MultiAgentPipeline:
 
         try:
             # 执行工作流
-            debug(f"调用 workflow.ainvoke，任务ID: {self.task_id}")
+            debug(f"调用 workflow invoke()，任务ID: {self.task_id}")
 
-            # 执行工作流
-            final_state = await self.workflow.ainvoke(
-                initial_state,
-                config={"configurable": {"thread_id": f"process_{id(raw_script)}"}}
-            )
+            # final_state = await enhanced_workflow_invoke_async(
+            #     self.workflow,
+            #     initial_state
+            # )
 
-            info(f"工作流执行完成，最终状态类型: {type(final_state)}")
+            final_result = await self._enhanced_workflow_execution(initial_state)
+            info(f"工作流执行完成，最终状态类型: {type(final_result)}")
 
-            # 处理不同的返回类型
-            success = False
-            data = None
-            errors = []
-
-            # 情况1：final_state 是字典（实际观察到的情况）
-            if isinstance(final_state, dict):
-                info("final_state 是字典类型")
-
-                # 从字典中提取信息
-                data = final_state.get('final_output')
-
-                # 判断是否成功
-                if data is not None:
-                    success = True
-                    info("从字典中找到 final_output，标记为成功")
-                else:
-                    # 检查是否到达结束状态
-                    current_stage = final_state.get('current_stage')
-                    current_node = final_state.get('current_node')
-
-                    if current_stage == 'completed' or current_node == 'generate_output':
-                        success = True
-                        info(f"字典显示工作流完成: stage={current_stage}, node={current_node}")
-
-                        # 构建输出数据
-                        data = {
-                            "task_id": final_state.get('task_id', self.task_id),
-                            "instructions": final_state.get('instructions'),
-                            "fragment_sequence": final_state.get('fragment_sequence'),
-                            "audit_report": final_state.get('audit_report'),
-                            "status": "completed"
-                        }
-
-                # 获取错误信息
-                errors = final_state.get('error_messages', [])
-
-            # 情况2：final_state 是 WorkflowState 对象
-            elif hasattr(final_state, '__dict__'):
-                info("final_state 是 WorkflowState 对象")
-
-                # 检查是否有 final_output
-                if hasattr(final_state, 'final_output') and final_state.final_output is not None:
-                    success = True
-                    data = final_state.final_output
-                    info("从 WorkflowState 中找到 final_output")
-
-                # 检查是否到达结束节点
-                elif (hasattr(final_state, 'current_node') and
-                      hasattr(final_state.current_node, 'value') and
-                      final_state.current_node.value == 'generate_output'):
-                    success = True
-                    info("WorkflowState 到达 generate_output 节点")
-
-                    # 构建输出
-                    data = {
-                        "task_id": getattr(final_state, 'task_id', self.task_id),
-                        "instructions": getattr(final_state, 'instructions', None),
-                        "fragment_sequence": getattr(final_state, 'fragment_sequence', None),
-                        "audit_report": getattr(final_state, 'audit_report', None),
-                        "status": "completed"
-                    }
-
-                # 获取错误信息
-                if hasattr(final_state, 'error_messages'):
-                    errors = final_state.error_messages
-
-            # 情况3：其他类型
-            else:
-                warning(f"final_state 是未知类型: {type(final_state)}")
-                # 尝试转换为字典
-                try:
-                    if hasattr(final_state, 'dict'):
-                        state_dict = final_state.dict()
-                    elif hasattr(final_state, '__dict__'):
-                        state_dict = final_state.__dict__
-                    else:
-                        state_dict = {}
-
-                    data = state_dict.get('final_output')
-                    if data:
-                        success = True
-
-                    errors = state_dict.get('error_messages', [])
-                except:
-                    errors = ["无法解析工作流结果"]
+            # 处理返回结果
+            success = final_result.get("success", False)
+            data = final_result.get("data")
+            errors = final_result.get("errors", [])
 
             # 获取处理统计信息
-            processing_stats = self._get_completed_stages(final_state)
+            processing_stats = final_result.get("processing_stats", {})
 
             result = {
                 "success": success,
@@ -443,7 +365,11 @@ class MultiAgentPipeline:
                 "workflow_status": "completed" if success else "failed"
             }
 
-            info(f"工作流执行结果: success={success}, data_type={type(data)}")
+            info(f"工作流执行结果: success={success}, has_data={data is not None}")
+
+            # 如果需要，可以添加额外的验证
+            if success and data:
+                self._validate_final_output(data)
 
             return result
 
@@ -563,4 +489,179 @@ class MultiAgentPipeline:
                 "error": f"无法获取阶段信息: {str(e)}",
                 "completed_stages": [],
                 "stage_count": 0
+            }
+
+    async def _enhanced_workflow_execution(self, initial_state: WorkflowState) -> Dict[str, Any]:
+        """
+        增强的工作流执行方法
+
+        这个方法封装了修复逻辑，确保返回正确的片段序列
+        """
+        try:
+            debug("开始增强的工作流执行...")
+
+            # 方法A：使用修复器实例（推荐）
+            final_result = await self.output_fixer.enhanced_workflow_invoke(
+                self.workflow,
+                initial_state
+            )
+
+            # 方法B：如果修复器需要调整配置
+            # config_dict = {"configurable": {"thread_id": f"process_{id(initial_state)}"}}
+            # final_result = await self.output_fixer.enhanced_workflow_invoke_with_config(
+            #     self.workflow,
+            #     initial_state,
+            #     config_dict
+            # )
+
+            # 验证修复结果
+            if self._validate_fixed_result(final_result):
+                info("工作流输出修复验证通过")
+            else:
+                warning("工作流输出修复验证有问题，但继续返回结果")
+
+            return final_result
+
+        except Exception as e:
+            error(f"增强工作流执行失败: {str(e)}")
+
+            # 尝试原始调用作为回退
+            warning("尝试原始workflow调用作为回退...")
+            try:
+                raw_state = await self.workflow.ainvoke(
+                    initial_state,
+                    config={"configurable": {"thread_id": f"process_{id(initial_state)}"}}
+                )
+
+                # 转换为结果格式
+                return self._convert_raw_state_to_result(raw_state, initial_state)
+
+            except Exception as e2:
+                error(f"原始调用也失败: {str(e2)}")
+                raise e
+
+    def _validate_fixed_result(self, result: Dict[str, Any]) -> bool:
+        """验证修复后的结果"""
+        try:
+            if not result.get("success", False):
+                warning("结果标记为不成功")
+                return False
+
+            data = result.get("data", {})
+            if not isinstance(data, dict):
+                warning(f"data字段不是字典: {type(data)}")
+                return False
+
+            # 检查是否有fragment_sequence
+            fragment_sequence = data.get("fragment_sequence")
+            if not fragment_sequence:
+                warning("结果中没有fragment_sequence")
+                return False
+
+            # 检查片段数量
+            fragments = fragment_sequence.get("fragments", [])
+            if not isinstance(fragments, list):
+                warning(f"fragments不是列表: {type(fragments)}")
+                return False
+
+            # 检查是否有片段
+            if len(fragments) == 0:
+                warning("fragments列表为空")
+                return False
+
+            # 检查元数据
+            metadata = fragment_sequence.get("metadata", {})
+            if metadata.get("fixed_by_output_fixer"):
+                debug("结果已被修复器修复")
+
+            # 检查片段ID是否唯一
+            fragment_ids = [f.get("id") for f in fragments if isinstance(f, dict) and "id" in f]
+            unique_ids = set(fragment_ids)
+            if len(fragment_ids) != len(unique_ids):
+                warning(f"片段ID不唯一: {len(fragment_ids)}个片段, {len(unique_ids)}个唯一ID")
+
+            info(f"验证通过: {len(fragments)}个片段")
+            return True
+
+        except Exception as e:
+            error(f"验证结果时出错: {str(e)}")
+            return False
+
+    def _validate_final_output(self, data: Dict[str, Any]):
+        """验证最终输出"""
+        try:
+            if not isinstance(data, dict):
+                return
+
+            # 验证片段序列
+            fragment_sequence = data.get("fragment_sequence")
+            if fragment_sequence:
+                fragments = fragment_sequence.get("fragments", [])
+                shot_count = fragment_sequence.get("source_info", {}).get("shot_count", 0)
+
+                info(f"最终输出验证: {shot_count}个镜头 -> {len(fragments)}个片段")
+
+                # 如果片段数等于镜头数，可能有问题（除非真的没有分割）
+                if len(fragments) == shot_count and shot_count > 0:
+                    warning(f"片段数({len(fragments)})等于镜头数({shot_count})，可能没有正确分割")
+
+                    # 检查是否有AI分割标记
+                    metadata = fragment_sequence.get("metadata", {})
+                    ai_split_count = metadata.get("ai_split_count", 0)
+                    if ai_split_count == 0:
+                        warning("没有AI分割记录，可能使用了错误的片段数据")
+        except Exception as e:
+            error(f"验证最终输出时出错: {str(e)}")
+
+    def _convert_raw_state_to_result(self, raw_state: Any, initial_state: WorkflowState) -> Dict[str, Any]:
+        """将原始状态转换为结果格式"""
+        try:
+            # 这是原来的转换逻辑
+            if isinstance(raw_state, dict):
+                state_dict = raw_state
+            elif hasattr(raw_state, 'dict'):
+                state_dict = raw_state.dict()
+            elif hasattr(raw_state, '__dict__'):
+                state_dict = raw_state.__dict__
+            else:
+                return {"success": False, "error": "无法解析状态"}
+
+            # 提取信息
+            success = False
+            data = state_dict.get('final_output')
+
+            if data is not None:
+                success = True
+            else:
+                current_stage = state_dict.get('current_stage')
+                current_node = state_dict.get('current_node')
+
+                if current_stage == 'completed' or current_node == 'generate_output':
+                    success = True
+                    data = {
+                        "task_id": state_dict.get('task_id', initial_state.task_id),
+                        "instructions": state_dict.get('instructions'),
+                        "fragment_sequence": state_dict.get('fragment_sequence'),
+                        "audit_report": state_dict.get('audit_report'),
+                        "status": "completed"
+                    }
+
+            # 获取处理统计
+            processing_stats = self._get_completed_stages(state_dict)
+
+            return {
+                "success": success,
+                "data": data,
+                "errors": state_dict.get('error_messages', []),
+                "processing_stats": processing_stats,
+                "task_id": initial_state.task_id,
+                "workflow_status": "completed" if success else "failed"
+            }
+
+        except Exception as e:
+            error(f"转换原始状态时出错: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "task_id": initial_state.task_id
             }
