@@ -1,5 +1,4 @@
 
-@Github: https://github.com/HengLine/video-shot-agent
 from video_shot_breakdown.utils.file_utils import load_from_obj, save_to_json
 
 
@@ -9,7 +8,7 @@ def _call_llm(self, prompt: str) -> str:
     实际使用时需要替换为真实的API调用
     """
     # 这里模拟API调用，实际应使用真实的API
-    print(f"[AI Estimator] 调用 {self.config.model.value} 模型")
+    print(f"[AI Estimator] 调用 {self.config.model_name.value} 模型")
     print(f"[提示词长度] {len(prompt)} 字符")
 
     # 根据提示词内容生成不同的模拟响应

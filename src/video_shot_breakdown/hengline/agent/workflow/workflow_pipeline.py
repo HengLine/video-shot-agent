@@ -385,7 +385,6 @@ class MultiAgentPipeline:
                 "processing_stats": {
                     "error": "workflow_exception",
                     "exception_type": type(e).__name__,
-                    "task_id": self.task_id
                 },
                 "task_id": self.task_id,
                 "workflow_status": "exception"

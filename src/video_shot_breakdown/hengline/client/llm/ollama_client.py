@@ -24,7 +24,7 @@ class OllamaClient(BaseClient):
     def llm_model(self) -> BaseLanguageModel:
         return ChatOllama(
             base_url=self.base_url,
-            model=self.config.model,
+            model=self.config.model_name,
             temperature=self.config.temperature,
             num_predict=self.config.max_tokens * 4,
             keep_alive=self.config.timeout * 5,
@@ -44,7 +44,7 @@ class OllamaClient(BaseClient):
 
     def llm_embed(self) -> Embeddings:
         return OllamaEmbeddings(
-            model=self.config.model,
+            model=self.config.model_name,
             keep_alive=self.config.timeout * 5,
             num_thread=8,
             base_url=self.base_url

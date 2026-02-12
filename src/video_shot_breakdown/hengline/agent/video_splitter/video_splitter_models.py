@@ -17,8 +17,6 @@ class VideoFragment(BaseModel):
     metadata: Dict[str, Any] = Field(
         default_factory=lambda: {
             "split_by": "rule",
-            "segment_index": 0,
-            "total_segments": 1,
             "timestamp": time.time()
         }
     )

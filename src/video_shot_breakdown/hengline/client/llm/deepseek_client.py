@@ -23,7 +23,7 @@ class DeepSeekClient(BaseClient):
 
     def llm_model(self) -> BaseLanguageModel:
         return ChatOpenAI(
-            model=self.config.model,
+            model=self.config.model_name,
             temperature=self.config.temperature,
             api_key=self.config.api_key,
             base_url=self.base_url,

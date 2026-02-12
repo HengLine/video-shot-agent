@@ -5,9 +5,11 @@
 @Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/28 12:25
 """
+from dataclasses import dataclass
+
 from video_shot_breakdown.hengline.client.client_config import AIConfig
 
-
+@dataclass
 class HengLineConfig(AIConfig):
     """用户请求的参数"""
     prev_continuity_state = None        # 前一个分镜的连续性状态，用于保持连续性
