@@ -24,7 +24,7 @@ class QwenClient(BaseClient):
 
     def llm_model(self) -> BaseLanguageModel:
         return ChatTongyi(
-            model=self.config.model,
+            model=self.config.model_name,
             model_kwargs=self._get_model_kwargs(),
             api_key=self.config.api_key,
             max_retries=self.config.max_retries,
@@ -33,7 +33,7 @@ class QwenClient(BaseClient):
 
     def llm_embed(self) -> Embeddings:
         return DashScopeEmbeddings(
-            model=self.config.model,
+            model=self.config.model_name,
             max_retries=self.config.max_retries,
             dashscope_api_key=self.config.api_key
         )

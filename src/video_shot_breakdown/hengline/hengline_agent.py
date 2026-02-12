@@ -15,7 +15,7 @@ from video_shot_breakdown.hengline.hengline_config import HengLineConfig
 # 对外暴露的主函数，供 LangGraph 或 A2A 调用
 async def generate_storyboard(
         script_text: str,
-        task_id: Optional[str] = str(uuid.uuid4()),
+        task_id: Optional[str] = str(uuid.uuid4().hex),
         config: Optional[HengLineConfig] = HengLineConfig()
 ) -> Dict:
     """
@@ -30,7 +30,7 @@ async def generate_storyboard(
         包含分镜列表的完整结果
     """
     # 创建并运行多智能体管道
-    workflow = MultiAgentPipeline(config=config.get_llm_by_config(), task_id=task_id)
+    workflow = MultiAgentPipeline(config=config, task_id=task_id)
     return await  workflow.run_process(
         raw_script=script_text,
         config=HengLineConfig()

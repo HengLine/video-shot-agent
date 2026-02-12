@@ -102,7 +102,7 @@ def _get_default_llm(ai_config, **kwargs):
     info(f"使用AI提供商: {provider}, 模型: {ai_config.model_name}")
 
     config = AIConfig(
-        model=ai_config.model_name,
+        model_name=ai_config.model_name,
         api_key=ai_config.api_key,
         base_url=ai_config.base_url,
         temperature=ai_config.temperature,
@@ -126,7 +126,7 @@ def _get_default_llm(ai_config, **kwargs):
 def _fill_default_config(config: AIConfig = None, **kwargs) -> AIConfig:
     """填充默认配置"""
     config = config or AIConfig(
-        model=kwargs.get('model', 'gpt-4o'),
+        model_name=kwargs.get('model_name', 'gpt-4o'),
         base_url=kwargs.get('base_url', ""),
         api_key=kwargs.get("api_key", None),
         temperature=kwargs.get("temperature", 0.1),
@@ -216,7 +216,7 @@ def _get_default_embedding_client(ai_config, **kwargs):
     info(f"使用AI提供商: {provider}, 嵌入模型: {ai_config.model_name}")
 
     config = AIConfig(
-        model=ai_config.model_name,
+        model_name=ai_config.model_name,
         base_url=ai_config.base_url,
         timeout=ai_config.timeout,
         api_key=ai_config.api_key
