@@ -104,20 +104,6 @@ LLM__FALLBACK__MODEL_NAME=qwen3:4b
 LLM__FALLBACK__TEMPERATURE=0.1
 LLM__FALLBACK__TIMEOUT=300
 LLM__FALLBACK__MAX_TOKENS=5000
-
-
-########################## 嵌入模型配置 #########################
-# 系统支持的厂商（openai, qwen, HuggingFace, ollama），当默认模型不可用时使用备用厂商
-
-# ================ 嵌入模型默认配置 ================
-EMBED__DEFAULT__BASE_URL=https://api.openai.com/v1
-EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-# 中文常用模型：gte-large-zh，bge-large-zh-v1.5，text-embedding-3-small
-EMBED__DEFAULT__MODEL_NAME=text-embedding-3-small
-EMBED__DEFAULT__DEVICE=gpu
-EMBED__DEFAULT__NORMALIZE_EMBEDDINGS=true
-EMBED__DEFAULT__DIMENSIONS=1536
-EMBED__DEFAULT__TIMEOUT=60
 ```
 
 ### 3. 启动应用
@@ -158,29 +144,70 @@ curl --location --request GET 'http://localhost:8000/api/v1/status/hengline20260
 
 ## 嵌入智能体方式
 
+**安装依赖**：
+
+```sh
+pip install video-shot-breakdown
+
+# 或者包含特定依赖
+pip install video-shot-breakdown[all]  # 全部依赖
+pip install video-shot-breakdown[llm]  # 仅LLM相关
+pip install video-shot-breakdown[web]  # 仅Web相关
+```
+
+**环境配置**：
+
+> 1. 复制示例文件：cp .env.example .env
+>
+> 2. 编辑 .env 文件，填入真实配置
+>
+> ```properties
+> # .env - 实际配置文件
+> # ================= 应用配置 =================
+> APP__ENVIRONMENT=production
+> APP__LANGUAGE=zh
+> 
+> # ================= LLM默认配置 =================
+> LLM__DEFAULT__BASE_URL=https://api.openai.com/v1
+> LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+> LLM__DEFAULT__MODEL_NAME=gpt-4-turbo-preview
+> LLM__DEFAULT__TEMPERATURE=0.7
+> LLM__DEFAULT__TIMEOUT=30
+> LLM__DEFAULT__MAX_RETRIES=3
+> LLM__DEFAULT__MAX_TOKENS=4000
+> ```
+
+
+
 ### 1. 作为Python库使用
 
-以下为同步方式
-
 ```python
-from hengline.hengline_agent import generate_storyboard
+async def basic_usage():
+    """基础用法示例"""
+    script = """
+    场景：现代办公室
+    时间：下午3点
+    人物：小李（程序员）
+    动作：小李正在写代码，突然接到电话，表情惊讶
+    """
+    
+    # 创建自定义配置 LLM
+    custom_config = HengLineConfig(
+        model_name="gpt-4",
+        base_url="http://localhost:11434",  # 假设本地部署了 Ollama
+        temperature=0.2
+    )
 
-# 基本使用：传入中文剧本文本
-script_text = """
-深夜11点，城市公寓客厅，窗外大雨滂沱。
-林然裹着旧羊毛毯蜷在沙发里，电视静音播放着黑白老电影。
-茶几上半杯凉茶已凝出水雾，旁边摊开一本旧相册。
-手机突然震动，屏幕亮起"未知号码"。
-她盯着看了三秒，指尖悬停...
-"""
+    # 简单调用
+    result = await generate_storyboard(
+        script_text=script,
+        config=custom_config
+    )
+    print(f"生成完成，任务ID: {result.get('task_id')}")
+    print(f"生成结果: {result.get('success', False)}")
+    print(f"分镜片段: {result.get('data', {})}")
 
-# 生成分镜
-result = generate_storyboard(script_text)
-print(f" 解析结果 {result['success']} ")
-for shot in result['data']:
-    print(f"\n分镜 {shot['fragments']}:")
-    print(f"审查报告: {shot['audit_report']}")
-    print(f"metadata: {shot['metadata']}")
+    return result
 ```
 
 ### 2. 集成到Web应用（API）
@@ -188,76 +215,109 @@ for shot in result['data']:
 可以通过 HTTP API 将剧本分镜智能体集成到各种 Web 应用中：
 
 ```python
-from flask import Flask, request, jsonify
-from hengline.generate_agent import generate_storyboard
-
-app = Flask(__name__)
-
-@app.route('/api/v1/generate', methods=['POST'])
-def generate():
-    data = request.json
-    result = generate_storyboard(
-        script_text=data['script_text'],
+@app.post("/api/generate-storyboard")
+async def generate_storyboard_endpoint(script_text: str):
+    """
+    生成视频分镜的Web API端点
+    """
+    
+    # 创建自定义配置 LLM
+    custom_config = HengLineConfig(
+        model_name="gpt-4",
+        base_url="http://localhost:11434",  # 假设本地部署了 Ollama
+        temperature=0.2
     )
-    return jsonify(result)
+    
+    try:
+        return await generate_storyboard(
+            script_text=script_text,
+            config=custom_config
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"生成失败: {str(e)}")
 ```
 
-获取任务结果
+> 响应：
+>
+> ```json
+> {
+>     "success": true,
+>     "data": {
+>         "instructions": {},
+>         "continuity_issues": [],
+>         "audit_report": {}
+>     },
+>     "errors": {},
+>     "task_id": "HL202602101908249720",
+>     "workflow_status": "completed"
+> }
+> ```
 
-```python
 
-```
-
-API接口调用
-
-```bash
-curl -X POST http://localhost:8000/api/v1/generate \
-  -H "Content-Type: application/json" \
-  -d '{"script_text": "深夜11点，城市公寓客厅..."}'
-```
-
-> - `script_text`：中文剧本文本（必填）
-> - `max_fragment_duration`：每段分镜目标最大时长（秒），默认：`5`
 
 ### 3. 集成到LangGraph节点
 
 可以将剧本分镜智能体作为 LangGraph 工作流中的一个节点：
 
 ```python
-from langgraph.graph import Graph, StateGraph, END
-from hengline.hengline_agent import generate_storyboard
+# 定义状态结构
+class StoryboardState(BaseModel):
+    script_text: str = Field(description="输入剧本文本")
+    task_id: str = Field(default=None, description="任务ID")
+    storyboard_result: Dict[str, Any] = Field(default=None, description="分镜生成结果")
+    next_step: str = Field(default="", description="下一步操作指示")
 
-# 定义工作流状态
-class StoryWorkflowState(BaseModel):
-    self.script = ""
-    self.storyboard = None
-    self.status = "pending"
 
 # 创建分镜生成节点
-def generate_storyboard_node(state:StoryWorkflowState) -> StoryWorkflowState:
+async def storyboard_generator_node(state: StoryboardState) -> Dict[str, Any]:
+    """
+    LangGraph 工作流中的分镜生成节点
+    """
     try:
-        state.storyboard = generate_storyboard(
-            script_text=state.script
+        result = await generate_storyboard(
+            script_text=state.script_text,
+            task_id=state.task_id
         )
-        state.status = "completed"
+
+        return {
+            "storyboard_result": result,
+            "next_step": "storyboard_generated"
+        }
     except Exception as e:
-        state.status = f"error: {str(e)}"
-    return state
+        return {
+            "storyboard_result": {"error": str(e)},
+            "next_step": "error"
+        }
 
-# 构建LangGraph工作流
-graph = StateGraph(StoryWorkflowState)
-graph.add_node("storyboard_generator", generate_storyboard_node)
-graph.set_entry_point("storyboard_generator")
-graph.add_edge("storyboard_generator", END)
 
-# 编译并运行工作流
-app = graph.compile()
+# 构建工作流示例
+def create_storyboard_workflow():
+    workflow = StateGraph(StoryboardState)
 
-# 执行工作流
-result = app.invoke({
-    "script": "深夜11点，城市公寓客厅，窗外大雨滂沱...",
-    "status": "pending"
-})
+    # 添加节点
+    workflow.add_node("generate_storyboard", storyboard_generator_node)
+
+    # 设置入口点
+    workflow.set_entry_point("generate_storyboard")
+    workflow.add_edge("generate_storyboard", END)
+
+    return workflow.compile()
+
+
+# 使用示例
+async def run_langgraph_example():
+    app = create_storyboard_workflow()
+
+    # 初始化状态
+    initial_state = StoryboardState(
+        script_text="一个男孩在公园里放风筝，天空很蓝...",
+        task_id="storyboard_task_001"
+    )
+
+    # 运行工作流
+    final_state = await app.ainvoke(initial_state)
+
+    return final_state
 ```
 
 ### 4. 集成到A2A系统
@@ -267,7 +327,47 @@ result = app.invoke({
 如：上游是剧本创作智能体，下游是 文生视频+剪辑 智能。
 
 ```python
+@dataclass
+class A2ATask:
+    """A2A任务数据类"""
+    task_id: str
+    script_content: str
+    priority: int = 1
+    metadata: Dict[str, Any] = None
 
+
+class StoryboardA2AAgent:
+    """分镜生成的A2A代理"""
+
+    def __init__(self, agent_id: str):
+        self.agent_id = agent_id
+        self.task_queue = []
+
+    async def process_task(self, task: A2ATask) -> Dict[str, Any]:
+        """
+        处理A2A任务
+        """
+        try:
+            # 调用分镜生成智能体
+            result = await generate_storyboard(
+                script_text=task.script_content,
+                task_id=task.task_id
+            )
+
+            return {
+                "agent_id": self.agent_id,
+                "task_id": task.task_id,
+                "status": "completed",
+                "result": result,
+                "metadata": task.metadata or {}
+            }
+        except Exception as e:
+            return {
+                "agent_id": self.agent_id,
+                "task_id": task.task_id,
+                "status": "failed",
+                "error": str(e)
+            }
 ```
 
 
