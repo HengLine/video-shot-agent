@@ -147,12 +147,12 @@ curl --location --request GET 'http://localhost:8000/api/v1/status/hengline20260
 **安装依赖**：
 
 ```sh
-pip install video-shot-breakdown
+pip install hengshot
 
 # 或者包含特定依赖
-pip install video-shot-breakdown[all]  # 全部依赖
-pip install video-shot-breakdown[llm]  # 仅LLM相关
-pip install video-shot-breakdown[web]  # 仅Web相关
+pip install hengshot[all]  # 全部依赖
+pip install hengshot[llm]  # 仅LLM相关
+pip install hengshot[web]  # 仅Web相关
 ```
 
 **环境配置**：

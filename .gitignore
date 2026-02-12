@@ -2,7 +2,7 @@
 logs/
 outputs/
 uploads/
-video_shot_agent.egg-info/
+*.egg-info/
 .venv/
 .env/
 data/
