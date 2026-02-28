@@ -9,16 +9,17 @@ from pathlib import Path
 from typing import Dict, Any
 
 import yaml
-from langchain_core.prompts import ChatPromptTemplate
 
+import video_shot_breakdown
+from video_shot_breakdown.hengline import prompts
 from video_shot_breakdown.logger import error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 
 class PromptManager:
-    def __init__(self):
+    def __init__(self, version: str = "v1.x", language: str = "zh"):
         # 默认使用当前文件的父目录
-        self.prompt_dir = Path(__file__).parent / "zh/v1.0"
+        self.prompt_dir = Path(__file__).parent / version / language
         # 缓存已加载的提示词模板 - 最大缓存1024个提示词
         self._prompt_cache: Dict[str, Dict[str, Any]] = {}
         self._all_prompts_loaded = False
@@ -136,16 +137,5 @@ class PromptManager:
         """获取剧本解析提示词模板"""
         return self.get_prompt(name)
 
-    def get_shot_generator_prompt(self) -> ChatPromptTemplate | None:
-        """获取镜头生成提示词模板"""
-        # 提取模板内容
-        template_content = self.get_prompt("shot_generator_prompt")
-        # 分镜生成提示词模板 - 从YAML加载或使用默认
-        return ChatPromptTemplate.from_template(template_content)
 
-    def get_qa_review_prompt(self):
-        """获取QA审核提示词模板"""
-        return self.get_prompt("qa_review_prompt")
-
-
-prompt_manager = PromptManager()
+prompt_manager = PromptManager(version=prompts.__version__, language=video_shot_breakdown.__language__)

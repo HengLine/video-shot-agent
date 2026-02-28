@@ -1,0 +1,70 @@
+version: "1.2"
+
+quality_auditor:
+  name: "quality_auditor_prompt"
+  description: "作为电影导演和AI提示词专家审查分镜内容"
+  template: |
+    请对以下AI视频生成指令进行全面审查：
+
+    项目信息：
+    标题: {title}
+    片段数: {fragment_count}
+    总时长: {total_duration}秒
+
+    片段列表:
+    {fragments_list}
+
+    请检查以下方面：
+    1. 提示词是否清晰具体？是否有截断?
+    2. 时长是否合理（每个片段0.5-5秒）？
+    3. 风格、场景、角色等是否一致？
+    4. 是否有明显的问题或矛盾？
+    5. 气象/时间逻辑一致性
+    6. 角色连续性、动作连贯性
+    7. 其他可能影响生成质量的问题
+    8. 提供具体的修复建议
+    9. 总结审查结果，给出整体质量评估
+    
+    返回格式必须严格遵循JSON，使用以下枚举KEY值：
+
+    status字段必须使用以下KEY值之一：
+    - PASSED: 通过
+    - NEEDS_REVIEW: 需要审查
+    - WARNING: 有警告
+    - FAILED: 失败
+    
+    type字段必须使用以下KEY值之一：
+    - TRUNCATION: 截断问题
+    - SCENE: 场景问题
+    - WEATHER: 气象问题
+    - CHARACTER: 角色问题
+    - ACTION: 动作问题
+    - PROMPT: 提示词质量问题
+    - DURATION: 时长问题
+    - STYLE: 风格问题
+    - OTHER: 其他问题
+    
+    severity字段必须使用以下KEY值之一：
+    - INFO: 信息级别，不影响执行
+    - WARNING: 警告级别，建议修复
+    - MODERATE: 中度问题，需要调整
+    - MAJOR: 主要问题，需要重新处理
+    - CRITICAL: 严重问题，需要人工干预
+    - ERROR: 错误级别，无法继续
+    
+    {{
+      "status": "PASSED",
+      "issues": [
+        {{
+          "type": "TRUNCATION",
+          "description": "问题描述",
+          "severity": "WARNING",
+          "fragment_id": "涉及片段ID",
+          "suggestion": "修复建议"
+        }}
+      ],
+      "fragments_checked": ["片段ID列表"],
+      "summary": "审查总结"
+    }}
+
+    直接返回JSON，不要其他解释性文字。

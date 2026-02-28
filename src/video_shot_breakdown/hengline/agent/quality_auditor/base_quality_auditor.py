@@ -116,7 +116,7 @@ class BaseQualityAuditor(ABC):
             "total_checks": total_checks,
             "passed_checks": passed_checks,
             "failed_checks": failed_checks,
-            "pass_rate": passed_checks / total_checks if total_checks > 0 else 1.0
+            "pass_rate": round(passed_checks / total_checks, 2) if total_checks > 0 else 1.0
         }
 
     def _determine_audit_status(self,
@@ -193,7 +193,7 @@ class BaseQualityAuditor(ABC):
         # 最终得分（不能低于0）
         final_score = max(0.0, base_score - total_penalty)
 
-        return final_score
+        return round(final_score, 2)
 
     def _generate_conclusion(self, status: AuditStatus, violation_counts: Dict[SeverityLevel, int]) -> str:
         """生成审查结论"""
