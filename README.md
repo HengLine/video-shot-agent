@@ -16,6 +16,10 @@
 
 **注意**：本智能体不会参与剧本创作，目前版本不会调用模型生成视频，亦不会合成视频（未来版本会支持），以上流程中标注处就是本智能体的任务。
 
+详细设计参照文档：[**剧本分镜智能体的架构设计与实现细节**](https://pengline.github.io/2025/10/0194020a663c408fb500dd7532349519/)
+
+
+
 
 ## 核心功能
 
@@ -25,7 +29,7 @@
 - **高质量分镜生成**：生成详细的中文画面描述和英文AI视频提示词
 - **多模型支持**：兼容OpenAI、Qwen、DeepSeek、Ollama等多种AI提供商
 
-详细设计参照文档：[**剧本分镜智能体的架构设计与实现细节**](https://pengline.github.io/2025/10/0194020a663c408fb500dd7532349519/)
+
 
 ## 快速上手
 
@@ -142,17 +146,54 @@ curl --location --request GET 'http://localhost:8000/api/v1/status/hengline20260
 
 
 
-## 嵌入智能体方式
+## 输入输出示例
+
+输入：中文剧本
+
+```json
+{
+    "script": "深夜11点，城市公寓客厅，窗外大雨滂沱。林然裹着旧羊毛毯蜷在沙发里，电视静音播放着黑白老电影。茶几上半杯凉茶已凝出水雾，旁边摊开一本旧相册。手机突然震动，屏幕亮起“未知号码”。她盯着看了三秒，指尖悬停在接听键上方，喉头轻轻滚动。终于，她按下接听，将手机贴到耳边。电话那头沉默两秒，传来一个沙哑的男声：“是我。”  林然的手指瞬间收紧，指节泛白，呼吸停滞了一瞬。  她声音微颤：“……陈默？你还好吗？”  对方停顿片刻，低声说：“我回来了。” 林然猛地坐直，瞳孔收缩，泪水在眼眶中打转。她张了张嘴，却发不出声音，只有毛毯从肩头滑落。”"
+}
+```
+
+输出：结构化分镜结果
+
+```json
+{
+  "fragments": [
+    {
+      "fragment_id": "frag_001",
+      "prompt": "Cinematic wide shot of a rainy-night city apartment living room: rain-streaked window blurs vibrant neon signs outside into soft, glowing color smudges; interior lit solely by a single warm yellow floor lamp casting gentle light on a dusty vintage record player, faded movie posters on the walls, and stacked leather-bound notebooks; shallow depth of field, moody chiaroscuro lighting, film grain texture, 35mm cinematic color grading, atmospheric haze, hyper-detailed realism, slow ambient camera drift",
+      "negative_prompt": "bright lighting, daylight, people, text, logos, modern furniture, clean surfaces, sharp focus everywhere, cartoonish style, low resolution, motion blur artifacts, lens flare, overexposure, cluttered composition",
+      "duration": 4.0,
+      "model": "runway_gen2",
+      "style": "cinematic noir ambiance with nostalgic analog warmth",
+      "requires_special_attention": false
+    },
+    {
+      "fragment_id": "frag_002",
+      "prompt": "Cinematic medium shot: Lin Ran curled up on a light gray fabric sofa, bare feet resting on a textured wool rug, knees covered by a faded indigo blanket with worn edges; she wears a creamy white cotton robe, hair slightly damp at the ends, her profile softly illuminated by warm floor lamp light revealing tired, serene contours; outside the window, a faint lightning flash briefly illuminates her still, delicate eyelashes — shallow depth of field, soft cinematic lighting, film grain texture, 35mm anamorphic lens aesthetic, natural skin tones, ultra-detailed fabric and textile realism, subtle ambient occlusion, moody yet intimate atmosphere.",
+      "negative_prompt": "blurry, deformed hands, extra limbs, text, logos, cartoonish style, low resolution, oversaturated colors, harsh shadows, noisy grain, CGI look, anime style, smiling, motion blur, talking, open eyes blinking, daylight, cluttered background",
+      "duration": 3.0,
+      "model": "runway_gen2",
+      "style": "Cinematic, moody, intimate, photorealistic, 35mm film aesthetic",
+      "requires_special_attention": false
+    }
+    ......
+  ]
+}
+```
+
+
+
+## 智能体集成示例
 
 **安装依赖**：
 
 ```sh
-pip install hengshot
-
-# 或者包含特定依赖
-pip install hengshot[all]  # 全部依赖
-pip install hengshot[llm]  # 仅LLM相关
-pip install hengshot[web]  # 仅Web相关
+# 下载 whl 包，选择指定版本（v0.1.1-beta）
+# https://github.com/HengLine/video-shot-agent/releases/download/v0.1.1-beta/hengshot-0.1.1-py3-none-any.whl
+pip install hengshot-0.1.1-py3-none-any.whl
 ```
 
 **环境配置**：
@@ -236,22 +277,6 @@ async def generate_storyboard_endpoint(script_text: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"生成失败: {str(e)}")
 ```
-
-> 响应：
->
-> ```json
-> {
->     "success": true,
->     "data": {
->         "instructions": {},
->         "continuity_issues": [],
->         "audit_report": {}
->     },
->     "errors": {},
->     "task_id": "HL202602101908249720",
->     "workflow_status": "completed"
-> }
-> ```
 
 
 
@@ -372,55 +397,6 @@ class StoryboardA2AAgent:
 
 
 
-## 输入输出示例
-
-输入：中文剧本
-
-```json
-{
-    "script": "深夜11点，城市公寓客厅，窗外大雨滂沱。林然裹着旧羊毛毯蜷在沙发里，电视静音播放着黑白老电影。茶几上半杯凉茶已凝出水雾，旁边摊开一本旧相册。手机突然震动，屏幕亮起“未知号码”。她盯着看了三秒，指尖悬停在接听键上方，喉头轻轻滚动。终于，她按下接听，将手机贴到耳边。电话那头沉默两秒，传来一个沙哑的男声：“是我。”  林然的手指瞬间收紧，指节泛白，呼吸停滞了一瞬。  她声音微颤：“……陈默？你还好吗？”  对方停顿片刻，低声说：“我回来了。” 林然猛地坐直，瞳孔收缩，泪水在眼眶中打转。她张了张嘴，却发不出声音，只有毛毯从肩头滑落。”"
-}
-```
-
-输出：结构化分镜结果
-
-```json
-{
-  "fragments": [
-    {
-      "fragment_id": "frag_001",
-      "prompt": "Cinematic wide shot of a rainy-night city apartment living room: rain-streaked window blurs vibrant neon signs outside into soft, glowing color smudges; interior lit solely by a single warm yellow floor lamp casting gentle light on a dusty vintage record player, faded movie posters on the walls, and stacked leather-bound notebooks; shallow depth of field, moody chiaroscuro lighting, film grain texture, 35mm cinematic color grading, atmospheric haze, hyper-detailed realism, slow ambient camera drift",
-      "negative_prompt": "bright lighting, daylight, people, text, logos, modern furniture, clean surfaces, sharp focus everywhere, cartoonish style, low resolution, motion blur artifacts, lens flare, overexposure, cluttered composition",
-      "duration": 4.0,
-      "model": "runway_gen2",
-      "style": "cinematic noir ambiance with nostalgic analog warmth",
-      "requires_special_attention": false
-    },
-    {
-      "fragment_id": "frag_002",
-      "prompt": "Cinematic medium shot: Lin Ran curled up on a light gray fabric sofa, bare feet resting on a textured wool rug, knees covered by a faded indigo blanket with worn edges; she wears a creamy white cotton robe, hair slightly damp at the ends, her profile softly illuminated by warm floor lamp light revealing tired, serene contours; outside the window, a faint lightning flash briefly illuminates her still, delicate eyelashes — shallow depth of field, soft cinematic lighting, film grain texture, 35mm anamorphic lens aesthetic, natural skin tones, ultra-detailed fabric and textile realism, subtle ambient occlusion, moody yet intimate atmosphere.",
-      "negative_prompt": "blurry, deformed hands, extra limbs, text, logos, cartoonish style, low resolution, oversaturated colors, harsh shadows, noisy grain, CGI look, anime style, smiling, motion blur, talking, open eyes blinking, daylight, cluttered background",
-      "duration": 3.0,
-      "model": "runway_gen2",
-      "style": "Cinematic, moody, intimate, photorealistic, 35mm film aesthetic",
-      "requires_special_attention": false
-    }
-    ......
-  ],
-  "global_settings": {
-    "style_consistency": true,
-    "use_common_negative_prompt": true
-  },
-  "execution_suggestions": [
-    "按顺序生成片段",
-    "保持相同种子值以获得一致性",
-    "生成后检查片段衔接"
-  ]
-}
-```
-
-
-
 ## 版本与展望
 
 > 1. **依赖外部API**：LLM版本需要稳定的网络连接
@@ -439,27 +415,58 @@ class StoryboardA2AAgent:
 
 ### 短期计划（v1.x）
 
-1. **智能合并策略**：优化超过5秒镜头的拆分逻辑，保持一致性、连续性
-2. **连续性检查**：添加角色服装、位置的基本一致性检查
-3. **多模型支持**：优化Sora、Pika等模型的提示词生成
-4. **规则处理**：支持基于本地规则的处理，结合 LLM + 规则两种方式
-5. **英文版本**:  对英文剧本的支持
+1. **智能分割**：优化长镜头分割逻辑，保持动作连贯性
+2. **连续性检查**：角色服装、位置、道具的一致性验证
+3. **多模型适配**：针对Sora、Pika等模型的提示词优化
+4. **规则+LLM混合**：支持本地规则处理，两种方式结合
+5. **英文剧本**：完整支持英文输入
+6. **错误恢复**：节点失败时智能降级
+7. **配置扩展**：更细粒度的参数控制
+8. **质量评分**：为每个片段输出置信度评分
+9. **调试模式**：保存中间结果，便于问题定位
 
 ### 中期计划（v2.x）
 
-1. **高级镜头语言**：支持更复杂的镜头类型和运动
-2. **情感分析**：基于剧本内容自动调整视频风格
-3. **超长剧本**：通过状态记忆，实现超长剧本解析（文档剧本）
-4. **自动优化**：根据生成结果自动调整提示词
-5. **批量处理**：支持多个剧本的批量处理
-6. **Web界面**：提供可视化操作界面
+1. **高级镜头语言**：支持复杂镜头运动（推拉摇移跟）
+2. **情感分析**：根据剧本情感自动调整视觉风格
+3. **超长剧本**：分块处理+上下文记忆
+4. **自动优化**：从历史结果学习成功模式
+5. **批量处理**：多剧本队列处理
+6. **Web界面**：可视化操作
+7. **素材库集成**：支持角色/场景参考图
+8. **多格式导出**：故事板、时间线XML、数据集格式
+9. **状态记忆系统**：基于ID的Embedding+状态追踪，支持超长剧本分段处理
+10. **结果下载**：支持导出完整分镜结果文件
 
 ### 长期计划（v3.x）
 
-1. **多模态输入**：支持结合图片、音频的剧本
-2. **实时预览**：生成低分辨率预览视频
-3. **智能修复**：自动检测和修复连续性错误
-4. **生态系统集成**：与主流视频编辑软件集成
+1. **多模态输入**：支持图片+音频+文本混合输入
+2. **实时预览**：低分辨率快速预览
+3. **智能修复**：自动检测并修复连续性问题
+4. **生态集成**：Premiere/FCP/DaVinci插件
+5. **协作功能**：多人协同+版本控制
+6. **学习进化**：从用户反馈中自动改进
+7. **商业化**：用量统计、团队管理、企业SLA
+8. **剧本仓库**：历史剧本管理+版本追溯
+9. **增量处理**：仅处理修改部分，复用已有结果
+
+
+
+### 终极目标
+
+1. **任意剧本适配**：任何长度、任何语言、任何类型
+2. **零信息损失**：剧本100%内容被视觉化呈现
+3. **专业级输出**：达到专业导演分镜水准
+4. **实时交互**：边写剧本边生成预览
+5. **风格定制**：可指定任何导演风格/电影美学
+6. **自动优化循环**：每次使用都在进化
+7. **剧本-片段双向追溯**：每个片段可追溯回原文位置，支持交叉验证
+8. **语义对齐度检测**：评估生成片段与原文的匹配程度
+9. **多轮修正机制**：根据检测结果自动调整再生成
+10. **剧本理解深度**：潜台词、隐喻、象征的视觉化映射
+11. **风格一致性引擎**：全剧视觉风格统一（色调、构图、节奏）
+12. **自动分镜评分**：从专业导演视角评估分镜质量
+13. **人工反馈闭环**：用户调整结果反馈给模型持续优化
 
 
 
@@ -470,4 +477,4 @@ class StoryboardA2AAgent:
 1. **报告问题**：在使用中遇到的问题
 2. **功能建议**：希望添加的新功能
 3. **代码优化**：性能优化或代码重构
-4. **文档改进**：补充或修正文档
+4. **文档改进**：补充或修正文档x1
