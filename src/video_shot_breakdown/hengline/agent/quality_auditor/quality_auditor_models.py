@@ -34,6 +34,24 @@ class AuditStatus(str, Enum):
     FAILED = "failed"  # 完全失败
     NEEDS_HUMAN = "needs_human"  # 需要人工决策
 
+    NEEDS_REVIEW = "needs_review" # 需要审查
+    WARNING = "warning"           # 有警告
+
+
+
+class IssueType(str, Enum):
+    """问题类型枚举 - 统一规范"""
+    TRUNCATION = "截断"          # 提示词截断
+    SCENE = "场景"                # 场景引用错误
+    WEATHER = "气象"              # 气象矛盾
+    CHARACTER = "角色"            # 角色不一致
+    ACTION = "动作"               # 动作不连贯
+    PROMPT = "提示词"             # 提示词质量问题
+    DURATION = "时长"             # 时长不合理
+    STYLE = "风格"                # 风格不一致
+    OTHER = "其他"                # 其他问题
+
+
 class BasicViolation(BaseModel):
     """MVP违规记录"""
     rule_id: str = Field(..., description="规则ID")

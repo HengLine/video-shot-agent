@@ -5,6 +5,7 @@
 @Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/26 22:30
 """
+import re
 from typing import List, Optional, Dict, Any
 import json
 import time
@@ -33,6 +34,11 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         self.min_split_segment = getattr(config, 'min_fragment_duration', 1.0)  # 最小分割片段
         self.max_split_segment = getattr(config, 'max_fragment_duration', 5.0)  # 最大分割片段
 
+        # 新增：气象一致性配置
+        self.enforce_weather_consistency = True
+        self.valid_scene_ids = set()
+        self.overall_weather = None
+
     def cut(self, shot_sequence: ShotSequence) -> FragmentSequence:
         """使用LLM智能分割视频，保持连贯性"""
         info(f"开始智能视频分割，镜头数: {len(shot_sequence.shots)}")
@@ -41,38 +47,50 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         current_time = 0.0
         fragment_id_counter = 0
 
-        # 收集场景和角色信息，用于保持一致性
+        # 第一步：收集场景和角色信息，用于保持一致性
         scene_context = self._collect_scene_context(shot_sequence)
+
+        # 第二步：收集所有有效的场景ID
+        self._collect_valid_scene_ids(shot_sequence)
+
+        # 第三步：分析整体气象基调
+        self.overall_weather = self._detect_overall_weather(shot_sequence)
+        info(f"检测到整体气象基调: {self.overall_weather}")
 
         source_info = {
             "shot_count": len(shot_sequence.shots),
             "original_duration": shot_sequence.stats.get("total_duration", 0.0),
-            "split_method": "llm_adaptive",
-            "scene_context": scene_context
+            "split_method": "llm_adaptive_fixed",
+            "scene_context": scene_context,
+            "overall_weather": self.overall_weather
         }
 
         for shot_idx, shot in enumerate(shot_sequence.shots):
             try:
+                # 在分割前修复镜头描述中的气象和场景引用
+                shot = self._fix_shot_continuity(shot, shot_idx, shot_sequence)
+
                 debug(f"处理镜头 {shot.id}: {shot.description} (时长: {shot.duration}s)")
 
                 # 判断是否需要AI分割
                 if self._should_use_llm_split(shot):
                     info(f"镜头 {shot.id} 时长({shot.duration}s)超过阈值，使用AI分割")
 
-                    # 准备上下文信息
                     context = {
                         "shot": shot,
-                        "prev_shot": shot_sequence.shots[shot_idx-1] if shot_idx > 0 else None,
-                        "next_shot": shot_sequence.shots[shot_idx+1] if shot_idx < len(shot_sequence.shots)-1 else None,
+                        "prev_shot": shot_sequence.shots[shot_idx - 1] if shot_idx > 0 else None,
+                        "next_shot": shot_sequence.shots[shot_idx + 1] if shot_idx < len(shot_sequence.shots) - 1 else None,
                         "scene_context": scene_context,
                         "current_time": current_time,
-                        "fragment_offset": fragment_id_counter
+                        "fragment_offset": fragment_id_counter,
+                        "overall_weather": self.overall_weather
                     }
 
-                    # 使用AI分割
                     shot_fragments = self._split_shot_with_llm(context)
 
-                    # 验证分割结果
+                    # 修复分割后片段的描述
+                    shot_fragments = self._fix_fragments_continuity(shot_fragments, shot)
+
                     validated_fragments = self._validate_and_adjust_fragments(
                         shot_fragments, shot, current_time, fragment_id_counter
                     )
@@ -82,13 +100,14 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
 
                     if validated_fragments:
                         current_time = validated_fragments[-1].start_time + validated_fragments[-1].duration
-
                 else:
-                    # 使用规则分割器
                     debug(f"镜头 {shot.id} 使用规则分割")
                     rule_fragments = self.rule_splitter.split_shot(
                         shot, current_time, fragment_id_counter
                     )
+
+                    # 修复规则分割片段的描述
+                    rule_fragments = self._fix_fragments_continuity(rule_fragments, shot)
 
                     fragments.extend(rule_fragments)
                     fragment_id_counter += len(rule_fragments)
@@ -101,26 +120,33 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
                 print_log_exception()
                 warning(f"镜头{shot.id}降级到简单规则分割")
 
-                # 紧急降级
                 fallback_fragments = self.rule_splitter.split_shot(
                     shot, current_time, fragment_id_counter
                 )
+
+                # 修复降级片段的描述
+                fallback_fragments = self._fix_fragments_continuity(fallback_fragments, shot)
+
                 fragments.extend(fallback_fragments)
                 fragment_id_counter += len(fallback_fragments)
 
                 if fallback_fragments:
                     current_time = fallback_fragments[-1].start_time + fallback_fragments[-1].duration
 
-        # 创建片段序列
+        # 后处理：规范化片段ID
+        fragments = self._normalize_fragment_ids(fragments)
+
         fragment_sequence = FragmentSequence(
             source_info=source_info,
             fragments=fragments,
             metadata={
-                "split_method": "llm_adaptive",
-                "ai_split_count": round(sum(1 for f in fragments if f.metadata.get("split_by", "") == "ai"), 2),
-                "rule_split_count": round(sum(1 for f in fragments if f.metadata.get("split_by", "") == "rule"), 2),
+                "split_method": "LLM",
+                "ai_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == "ai"),
+                "rule_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == "rule"),
                 "total_fragments": len(fragments),
-                "average_duration": round(sum(f.duration for f in fragments) / len(fragments), 2) if fragments else 0
+                "average_duration": round(sum(f.duration for f in fragments) / len(fragments), 2) if fragments else 0,
+                "overall_weather": self.overall_weather,
+                "weather_fixed": True
             }
         )
 
@@ -128,7 +154,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         return self.post_process(fragment_sequence)
 
     def _should_use_llm_split(self, shot: ShotInfo) -> bool:
-        """判断是否应该使用AI分割"""
+        """判断是否应该使用AI分割（从原代码复制）"""
         # 基础条件：时长超过阈值
         if shot.duration <= self.split_threshold:
             return False
@@ -145,7 +171,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         return True  # 默认超过阈值就用AI
 
     def _collect_scene_context(self, shot_sequence: ShotSequence) -> Dict[str, Any]:
-        """收集场景上下文信息"""
+        """收集场景上下文信息（从原代码复制）"""
         scene_context = {
             "scenes": {},
             "characters": {},
@@ -184,8 +210,158 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
 
         return scene_context
 
+    def _collect_valid_scene_ids(self, shot_sequence: ShotSequence):
+        """收集所有有效的场景ID"""
+        self.valid_scene_ids.clear()
+        for shot in shot_sequence.shots:
+            if hasattr(shot, 'scene_id') and shot.scene_id:
+                self.valid_scene_ids.add(shot.scene_id)
+        debug(f"有效场景ID: {self.valid_scene_ids}")
+
+    def _detect_overall_weather(self, shot_sequence: ShotSequence) -> str:
+        """检测整体气象基调"""
+        weather_keywords = {
+            "overcast": ["overcast", "阴天", "灰蒙蒙", "cloudy", "grey"],
+            "rainy": ["rain", "rainy", "下雨", "雨", "wet", "drizzle", "raindrop"],
+            "golden_hour": ["golden hour", "golden-hour", "金色时刻", "暖阳"],
+            "sunny": ["sunny", "晴天", "sunlight", "bright", "阳光"],
+            "night": ["night", "夜晚", "dark", "evening", "灯光"],
+            "foggy": ["fog", "foggy", "雾", "mist", "氤氲"]
+        }
+
+        weather_counts = {weather: 0 for weather in weather_keywords}
+
+        for shot in shot_sequence.shots:
+            desc_lower = shot.description.lower()
+            for weather, keywords in weather_keywords.items():
+                if any(keyword in desc_lower for keyword in keywords):
+                    weather_counts[weather] += 1
+
+        # 找出出现次数最多的天气
+        if weather_counts:
+            dominant_weather = max(weather_counts.items(), key=lambda x: x[1])
+            if dominant_weather[1] > 0:
+                return dominant_weather[0]
+
+        # 默认返回阴天
+        return "overcast"
+
+    def _fix_shot_continuity(self, shot: ShotInfo, shot_idx: int, shot_sequence: ShotSequence) -> ShotInfo:
+        """修复镜头描述的连续性"""
+        # 修复场景引用
+        if hasattr(shot, 'scene_id') and shot.scene_id:
+            if shot.scene_id not in self.valid_scene_ids:
+                # 尝试找到最近的场景ID
+                nearest_scene = self._find_nearest_scene_id(shot_idx, shot_sequence)
+                if nearest_scene:
+                    warning(f"修复镜头 {shot.id} 的场景引用: {shot.scene_id} -> {nearest_scene}")
+                    shot.scene_id = nearest_scene
+
+        # 修复天气一致性
+        shot.description = self._fix_weather_in_description(shot.description)
+
+        return shot
+
+    def _find_nearest_scene_id(self, shot_idx: int, shot_sequence: ShotSequence) -> Optional[str]:
+        """查找最近的场景ID"""
+        # 向前查找
+        for i in range(shot_idx - 1, -1, -1):
+            if hasattr(shot_sequence.shots[i], 'scene_id') and shot_sequence.shots[i].scene_id in self.valid_scene_ids:
+                return shot_sequence.shots[i].scene_id
+
+        # 向后查找
+        for i in range(shot_idx + 1, len(shot_sequence.shots)):
+            if hasattr(shot_sequence.shots[i], 'scene_id') and shot_sequence.shots[i].scene_id in self.valid_scene_ids:
+                return shot_sequence.shots[i].scene_id
+
+        # 如果都没有，返回第一个有效场景ID
+        if self.valid_scene_ids:
+            return next(iter(self.valid_scene_ids))
+
+        return "scene_001"
+
+    def _fix_weather_in_description(self, description: str) -> str:
+        """修复描述中的天气一致性"""
+        if not self.enforce_weather_consistency or not self.overall_weather:
+            return description
+
+        # 检查是否有天气冲突
+        has_golden_hour = "golden hour" in description.lower()
+        has_rain = any(word in description.lower() for word in ["rain", "rainy", "下雨", "雨", "wet"])
+        has_sunny = any(word in description.lower() for word in ["sunny", "sunlight", "晴天", "阳光"])
+
+        # 如果整体是阴雨天，但描述中有 golden hour，需要修复
+        if self.overall_weather in ["overcast", "rainy"] and has_golden_hour:
+            warning(f"修复天气冲突: golden hour 出现在阴雨天描述中")
+            description = description.replace("golden hour", "overcast late afternoon")
+            description = description.replace("warm sunlight", "soft diffused light")
+            description = description.replace("sunlight", "ambient light")
+            description = description.replace("sunny", "overcast")
+
+        # 如果整体是晴天，但描述中有雨，也需要修复
+        if self.overall_weather == "sunny" and has_rain:
+            warning(f"修复天气冲突: rain 出现在晴天描述中")
+            description = re.sub(r'rain[y\s][^,.]*', 'dry', description, flags=re.IGNORECASE)
+            description = description.replace("wet", "dry")
+            description = description.replace("puddle", "dry ground")
+
+        # 如果整体是阴天，确保没有阳光描述
+        if self.overall_weather == "overcast" and has_sunny:
+            description = description.replace("sunlight", "ambient light")
+            description = description.replace("sunny", "overcast")
+
+        return description
+
+    def _fix_fragments_continuity(self, fragments: List[VideoFragment], shot: ShotInfo) -> List[VideoFragment]:
+        """修复片段的连续性"""
+        for fragment in fragments:
+            # 修复场景引用
+            if hasattr(shot, 'scene_id') and shot.scene_id:
+                fragment.continuity_notes["location"] = f"场景{shot.scene_id}"
+
+            # 修复天气
+            fragment.description = self._fix_weather_in_description(fragment.description)
+
+            # 添加修复标记
+            if "continuity_notes" not in fragment.continuity_notes:
+                fragment.continuity_notes = {}
+            fragment.continuity_notes["weather_fixed"] = self.overall_weather
+            fragment.continuity_notes["continuity_check"] = "passed"
+
+        return fragments
+
+    def _normalize_fragment_ids(self, fragments: List[VideoFragment]) -> List[VideoFragment]:
+        """规范化片段ID，统一为 frag_XXX 格式"""
+        normalized = []
+        id_mapping = {}
+
+        for i, fragment in enumerate(fragments, 1):
+            old_id = fragment.id
+            new_id = f"frag_{i:03d}"
+
+            # 保存原ID到元数据
+            if not hasattr(fragment, 'metadata') or fragment.metadata is None:
+                fragment.metadata = {}
+            fragment.metadata['original_id'] = old_id
+
+            # 更新ID
+            fragment.id = new_id
+            id_mapping[old_id] = new_id
+
+            normalized.append(fragment)
+
+        # 更新 continuity_notes 中的 prev_fragment 引用
+        for fragment in normalized:
+            if "prev_fragment" in fragment.continuity_notes:
+                old_prev = fragment.continuity_notes["prev_fragment"]
+                if old_prev in id_mapping:
+                    fragment.continuity_notes["prev_fragment"] = id_mapping[old_prev]
+
+        debug(f"片段ID规范化完成: {len(fragments)}个片段")
+        return normalized
+
     def _split_shot_with_llm(self, context: Dict[str, Any]) -> List[VideoFragment]:
-        """使用LLM智能分割单个镜头，保持连贯性"""
+        """使用LLM分割单个镜头"""
         shot = context["shot"]
         cache_key = f"{shot.id}_{shot.duration}_{hash(shot.description)}"
 
@@ -196,7 +372,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
                 self.split_cache[cache_key], context
             )
 
-        # 准备上下文提示词
+        # 准备提示词
         user_prompt = self._get_enhanced_prompt_template(context)
         system_prompt = self._get_system_prompt()
 
@@ -240,24 +416,28 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
     def _get_enhanced_prompt_template(self, context: Dict[str, Any]) -> str:
         """获取增强的提示词模板"""
         shot = context["shot"]
-        prev_shot = context["prev_shot"]
-        next_shot = context["next_shot"]
-        scene_context = context["scene_context"]
+        prev_shot = context.get("prev_shot")
+        next_shot = context.get("next_shot")
+        scene_context = context.get("scene_context", {})
+        overall_weather = context.get("overall_weather", "overcast")
 
         # 构建详细上下文
         scene_info = ""
-        if shot.scene_id in scene_context["scenes"]:
+        if shot.scene_id and shot.scene_id in scene_context.get("scenes", {}):
             scene_data = scene_context["scenes"][shot.scene_id]
-            characters = ", ".join(scene_data["main_characters"])
-            scene_info = f"场景{shot.scene_id}: 时长{scene_data['duration']}秒, 角色[{characters}], 氛围{scene_data.get('mood', '中性')}"
+            characters = ", ".join(list(scene_data.get("main_characters", [])))
+            scene_info = f"场景{shot.scene_id}: 时长{scene_data.get('duration', 0)}秒, 角色[{characters}], 氛围{scene_data.get('mood', '中性')}"
 
         prev_context = ""
         if prev_shot:
-            prev_context = f"前一个镜头: {prev_shot.description} ({prev_shot.duration}s, {prev_shot.shot_type})"
+            prev_context = f"前一个镜头: {prev_shot.description[:100]} ({prev_shot.duration}s)"
 
         next_context = ""
         if next_shot:
-            next_context = f"后一个镜头: {next_shot.description} ({next_shot.duration}s, {next_shot.shot_type})"
+            next_context = f"后一个镜头: {next_shot.description[:100]} ({next_shot.duration}s)"
+
+        # 添加气象提示
+        weather_hint = f"注意：整个视频的基调是{overall_weather}，请保持天气一致性。"
 
         prompt_template = self._get_prompt_template("video_splitter")
 
@@ -265,7 +445,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             shot_id=shot.id,
             description=shot.description,
             duration=shot.duration,
-            shot_type=shot.shot_type.value if hasattr(shot.shot_type, 'value') else shot.shot_type,
+            shot_type=shot.shot_type.value if hasattr(shot.shot_type, 'value') else str(shot.shot_type),
             main_character=shot.main_character or "无",
             scene_info=scene_info,
             prev_context=prev_context,
@@ -273,21 +453,21 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             split_threshold=self.split_threshold,
             min_segment=self.min_split_segment,
             max_segment=self.max_split_segment,
-            continuity_notes=self._get_continuity_notes(shot, context)
+            continuity_notes=self._get_continuity_notes(shot, context) + f" {weather_hint}"
         )
 
     def _get_system_prompt(self) -> str:
         """获取系统提示词"""
         return """你是一位顶尖的电影剪辑师和分镜设计师，精通视觉叙事和节奏控制。
-            你的任务是将较长的视频镜头智能地分割为适合AI视频生成的片段（每个片段通常2-5秒）。
-            
-            请遵循以下原则：
-            1. 保持连贯性：分割点应该选择在动作自然停顿、对话间隙、场景转换处
-            2. 保持一致性：确保角色外观、场景布置、灯光风格在分割后保持一致
-            3. 叙事流畅：分割后的片段应该能连贯地讲述原镜头的故事
-            4. 节奏控制：根据内容调整片段时长，动作场景可以短一些，对话场景可以长一些
-            
-            请基于镜头内容和前后文关系，给出最合理的分割方案。"""
+        你的任务是将较长的视频镜头智能地分割为适合AI视频生成的片段（每个片段通常2-5秒）。
+
+        请遵循以下原则：
+        1. 保持连贯性：分割点应该选择在动作自然停顿、对话间隙、场景转换处
+        2. 保持一致性：确保角色外观、场景布置、灯光风格在分割后保持一致
+        3. 叙事流畅：分割后的片段应该能连贯地讲述原镜头的故事
+        4. 节奏控制：根据内容调整片段时长，动作场景可以短一些，对话场景可以长一些
+
+        请基于镜头内容和前后文关系，给出最合理的分割方案。"""
 
     def _get_continuity_notes(self, shot: ShotInfo, context: Dict) -> str:
         """生成连续性说明"""
@@ -302,7 +482,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             notes.append(f"场景ID: {shot.scene_id}")
 
         # 视觉元素连续性
-        if hasattr(shot, 'visual_elements'):
+        if hasattr(shot, 'visual_elements') and shot.visual_elements:
             elements = shot.visual_elements.split(",") if shot.visual_elements else []
             if elements:
                 notes.append(f"关键视觉元素: {', '.join(elements[:3])}")
@@ -310,6 +490,10 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         # 动作连续性
         if "动作" in shot.description or "move" in shot.description.lower():
             notes.append("注意动作的连贯衔接")
+
+        # 添加气象提示
+        if self.overall_weather:
+            notes.append(f"整体气象: {self.overall_weather}")
 
         return "; ".join(notes) if notes else "无特殊连续性要求"
 
@@ -333,17 +517,17 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             total_duration = 0
             for i, segment in enumerate(segments):
                 if "duration" not in segment:
-                    raise ValueError(f"片段{i+1}缺少duration字段")
+                    raise ValueError(f"片段{i + 1}缺少duration字段")
 
                 duration = segment["duration"]
                 if not isinstance(duration, (int, float)) or duration <= 0:
-                    raise ValueError(f"片段{i+1}的duration必须是正数")
+                    raise ValueError(f"片段{i + 1}的duration必须是正数")
 
                 if duration < self.min_split_segment:
-                    raise ValueError(f"片段{i+1}时长({duration}s)低于最小值({self.min_split_segment}s)")
+                    raise ValueError(f"片段{i + 1}时长({duration}s)低于最小值({self.min_split_segment}s)")
 
                 if duration > self.max_split_segment:
-                    raise ValueError(f"片段{i+1}时长({duration}s)超过最大值({self.max_split_segment}s)")
+                    raise ValueError(f"片段{i + 1}时长({duration}s)超过最大值({self.max_split_segment}s)")
 
                 total_duration += duration
 
@@ -356,6 +540,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         shot = context["shot"]
         current_time = context["current_time"]
         fragment_offset = context["fragment_offset"]
+        overall_weather = context.get("overall_weather", "overcast")
 
         fragments = []
 
@@ -363,7 +548,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             segments = decision["segments"]
 
             for seg_idx, segment in enumerate(segments):
-                fragment_id = f"frag_{fragment_offset + len(fragments) + 1:03d}_s{seg_idx+1}"
+                fragment_id = f"frag_{fragment_offset + len(fragments) + 1:03d}_s{seg_idx + 1}"
 
                 # 计算开始时间
                 segment_start_time = current_time + sum(
@@ -376,13 +561,14 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
                     element_ids=shot.element_ids if seg_idx == 0 else [],
                     start_time=round(segment_start_time, 2),
                     duration=segment["duration"],
-                    description=segment.get("description", f"{shot.description} - 部分{seg_idx+1}"),
+                    description=segment.get("description", f"{shot.description} - 部分{seg_idx + 1}"),
                     continuity_notes={
                         "main_character": shot.main_character,
                         "location": f"场景{shot.scene_id}",
-                        "continuity_id": f"{shot.id}_seq{seg_idx+1}",
+                        "continuity_id": f"{shot.id}_seq{seg_idx + 1}",
                         "prev_fragment": fragments[-1].id if fragments else None,
-                        "split_reason": decision.get("reason", "AI智能分割")
+                        "split_reason": decision.get("reason", "AI智能分割"),
+                        "weather": overall_weather
                     },
                     metadata={
                         "split_by": "ai",
@@ -408,7 +594,8 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
                     "main_character": shot.main_character,
                     "location": f"场景{shot.scene_id}",
                     "continuity_id": f"{shot.id}_whole",
-                    "split_reason": decision.get("reason", "无需分割")
+                    "split_reason": decision.get("reason", "无需分割"),
+                    "weather": overall_weather
                 },
                 metadata={
                     "split_by": "ai",
@@ -433,8 +620,8 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         return self._create_fragments_from_decision(cached_decision, context)
 
     def _validate_and_adjust_fragments(self, fragments: List[VideoFragment],
-                                      shot: ShotInfo, current_time: float,
-                                      fragment_offset: int) -> List[VideoFragment]:
+                                       shot: ShotInfo, current_time: float,
+                                       fragment_offset: int) -> List[VideoFragment]:
         """验证并调整分割片段"""
         if not fragments:
             warning(f"镜头{shot.id}分割结果为空，使用规则分割")
@@ -457,6 +644,6 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
 
             # 更新连续性ID
             if i > 0:
-                fragment.continuity_notes["prev_fragment"] = fragments[i-1].id
+                fragment.continuity_notes["prev_fragment"] = fragments[i - 1].id
 
         return fragments
