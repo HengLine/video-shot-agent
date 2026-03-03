@@ -97,5 +97,5 @@ class BasePromptConverter(ABC):
 
         return base_template.format(
             description=description,
-            style=style
+            style=style.value
         )

@@ -33,7 +33,6 @@ class ElementType(str, Enum):
     UNKNOWN = "unknown"
 
 
-@unique
 class AgentMode(Enum):
     """agent 实现的模式"""
     LLM = "llm"  # 基于 LLM 实现

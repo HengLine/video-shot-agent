@@ -7,6 +7,7 @@
 """
 from dataclasses import dataclass
 
+from video_shot_breakdown.hengline.agent.base_models import VideoStyle, AIPlatform
 from video_shot_breakdown.hengline.client.client_config import AIConfig
 
 @dataclass
@@ -29,16 +30,16 @@ class HengLineConfig(AIConfig):
     default_shot_duration: float = 3.0
 
     # ======================视频分割
-    llm_split_threshold: float = 5.0  # 超过5秒触发AI分割
+    llm_split_threshold: float = 5.5  # 超过5秒触发AI分割
     max_fragment_duration: float = 5.0  # 最大分割片段时长
     min_fragment_duration: float = 1.0  # 最小片段时长
     split_strategy: str = "simple"  # 简单拆分策略
     ai_splitter_enabled: bool = True  # 是否启用AI分割器
 
     # ======================指令转换
-    target_model: str = "runway_gen2"
+    target_model: AIPlatform = AIPlatform.RUNWAY_GEN2
     default_negative_prompt: str = "blurry, distorted, low quality, cartoonish, bad anatomy"
-    default_style: str = "cinematic"
+    default_style: VideoStyle = VideoStyle.CINEMATIC
     max_prompt_length: int = 1000
     min_prompt_length: int = 10
 

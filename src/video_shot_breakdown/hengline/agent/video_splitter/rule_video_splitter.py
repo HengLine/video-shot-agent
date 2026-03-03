@@ -20,7 +20,7 @@ class RuleVideoSplitter(BaseVideoSplitter):
     def __init__(self, config: Optional[HengLineConfig]):
         super().__init__(config)
         # 简单规则：镜头时长>5秒就拆分
-        self.split_threshold = self.config.max_fragment_duration
+        self.split_threshold = getattr(config, 'llm_split_threshold', 5.5)  # 超过5秒触发分割
 
     def cut(self, shot_sequence: ShotSequence) -> FragmentSequence:
         """简单规则分割：镜头时长>5秒就拆分"""

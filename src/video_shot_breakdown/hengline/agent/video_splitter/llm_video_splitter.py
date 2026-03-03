@@ -11,6 +11,7 @@ import json
 import time
 
 from video_shot_breakdown.hengline.agent.base_agent import BaseAgent
+from video_shot_breakdown.hengline.agent.base_models import AgentMode
 from video_shot_breakdown.hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo
 from video_shot_breakdown.hengline.agent.video_splitter.base_video_splitter import BaseVideoSplitter
 from video_shot_breakdown.hengline.agent.video_splitter.rule_video_splitter import RuleVideoSplitter
@@ -30,7 +31,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         self.split_cache = {}  # 缓存分割决策，避免重复计算
 
         # 分割阈值配置
-        self.split_threshold = getattr(config, 'llm_split_threshold', 5.0)  # 超过5秒触发AI分割
+        self.split_threshold = getattr(config, 'llm_split_threshold', 5.5)  # 超过5秒触发AI分割
         self.min_split_segment = getattr(config, 'min_fragment_duration', 1.0)  # 最小分割片段
         self.max_split_segment = getattr(config, 'max_fragment_duration', 5.0)  # 最大分割片段
 
@@ -140,9 +141,9 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             source_info=source_info,
             fragments=fragments,
             metadata={
-                "split_method": "LLM",
-                "ai_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == "ai"),
-                "rule_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == "rule"),
+                "split_method": AgentMode.LLM.value,
+                "ai_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == AgentMode.LLM.value),
+                "rule_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == AgentMode.RULE.value),
                 "total_fragments": len(fragments),
                 "average_duration": round(sum(f.duration for f in fragments) / len(fragments), 2) if fragments else 0,
                 "overall_weather": self.overall_weather,
@@ -521,10 +522,27 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             if abs(total_duration - shot.duration) > 1.0:  # 允许1秒误差
                 warning(f"分割总时长({total_duration}s)与镜头时长({shot.duration}s)不匹配")
 
+
     def _create_fragments_from_decision(self, decision: Dict, context: Dict) -> List[VideoFragment]:
         """
-        根据LLM决策创建片段
-        核心改动：使用原始描述，不让LLM重新生成描述
+        根据LLM决策创建片段 - 完整使用segments和continuity_plan参数
+
+        Args:
+            decision: LLM返回的决策，包含：
+                - needs_split: bool
+                - reason: str
+                - segments: List[{
+                    "duration": float,
+                    "description": str,
+                    "key_frames": List[str],
+                    "continuity_hints": List[str]
+                }]
+                - continuity_plan: {
+                    "character_consistency": str,
+                    "scene_consistency": str,
+                    "transition_suggestions": List[str]
+                }
+            context: 上下文信息
         """
         shot = context["shot"]
         current_time = context["current_time"]
@@ -535,72 +553,124 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
 
         if decision.get("needs_split", False):
             segments = decision["segments"]
-
-            # 保存原始描述
-            original_desc = shot.description
+            continuity_plan = decision.get("continuity_plan", {})
 
             for seg_idx, segment in enumerate(segments):
+                # 1. 基础信息
                 fragment_id = f"frag_{fragment_offset + len(fragments) + 1:03d}_s{seg_idx + 1}"
 
-                # 计算开始时间
+                # 2. 计算开始时间
                 segment_start_time = current_time + sum(
                     s.get("duration", 0) for s in segments[:seg_idx]
                 )
 
+                # 3. 获取片段描述（LLM生成的）
+                description = segment.get("description")
+                if not description:
+                    # 如果LLM没返回description（降级情况）
+                    description = f"{shot.description} (部分{seg_idx + 1}/{len(segments)})"
+                    warning(f"片段{seg_idx + 1}缺少description字段，使用默认标记")
+
+                # 4. 构建 continuity_notes（整合continuity_plan和segment信息）
+                continuity_notes = {
+                    # 基础信息
+                    "main_character": shot.main_character,
+                    "location": f"场景{shot.scene_id}",
+                    "weather": overall_weather,
+
+                    # 分割信息
+                    "continuity_id": f"{shot.id}_seq{seg_idx + 1}",
+                    "prev_fragment": fragments[-1].id if fragments else None,
+                    "split_reason": decision.get("reason", "AI智能分割"),
+                    "segment_part": f"{seg_idx + 1}/{len(segments)}",
+
+                    # 连续性计划（全局）
+                    "character_consistency": continuity_plan.get("character_consistency", ""),
+                    "scene_consistency": continuity_plan.get("scene_consistency", ""),
+                    "transition_suggestions": continuity_plan.get("transition_suggestions", []),
+
+                    # 片段特定的连续性提示
+                    "continuity_hints": segment.get("continuity_hints", [])
+                }
+
+                # 5. 构建 metadata（存储所有辅助信息）
+                metadata = {
+                    "split_by": AgentMode.LLM.value,
+                    "original_shot": shot.id,
+                    "original_description": shot.description,
+                    "segment_index": seg_idx,
+                    "total_segments": len(segments),
+                    "ai_decision": decision.get("reason", ""),
+                    "timestamp": time.time(),
+
+                    # 存储关键帧信息
+                    "key_frames": segment.get("key_frames", []),
+
+                    # 存储连续性计划完整内容
+                    "continuity_plan": continuity_plan
+                }
+
+                # 6. 元素ID分配
+                # 第一个片段继承所有元素，后续片段只继承部分
+                element_ids = shot.element_ids if seg_idx == 0 else []
+                if seg_idx > 0 and shot.element_ids:
+                    # 可以在metadata中标记元素关联
+                    metadata["inherited_from"] = shot.element_ids
+
+                # 7. 创建VideoFragment
                 fragment = VideoFragment(
                     id=fragment_id,
                     shot_id=shot.id,
-                    element_ids=shot.element_ids if seg_idx == 0 else [],
+                    element_ids=element_ids,
                     start_time=round(segment_start_time, 2),
                     duration=segment["duration"],
-                    # 关键修改：使用原始描述，而不是segment.get("description")
-                    description=original_desc,
-                    continuity_notes={
-                        "main_character": shot.main_character,
-                        "location": f"场景{shot.scene_id}",
-                        "continuity_id": f"{shot.id}_seq{seg_idx + 1}",
-                        "prev_fragment": fragments[-1].id if fragments else None,
-                        "split_reason": decision.get("reason", "AI智能分割"),
-                        "weather": overall_weather,
-                        "segment_hint": f"部分{seg_idx + 1}/{len(segments)}"
-                    },
-                    metadata={
-                        "split_by": "ai",
-                        "original_shot": shot.id,
-                        "original_description": original_desc,  # 保存原始描述
-                        "segment_index": seg_idx,
-                        "total_segments": len(segments),
-                        "ai_decision": decision.get("reason", ""),
-                        "timestamp": time.time()
-                    }
+                    description=description,
+                    continuity_notes=continuity_notes,
+                    metadata=metadata,
+                    # 如果后续片段需要特殊处理
+                    requires_special_attention=(seg_idx > 0)
                 )
                 fragments.append(fragment)
+
         else:
-            # 不分割 - 直接使用原始描述
+            # 不分割的情况 - 直接使用原始描述
             fragment_id = f"frag_{fragment_offset + 1:03d}"
+
+            # 即使不分割，也可以存储连续性计划
+            continuity_plan = decision.get("continuity_plan", {})
+
+            continuity_notes = {
+                "main_character": shot.main_character,
+                "location": f"场景{shot.scene_id}",
+                "weather": overall_weather,
+                "continuity_id": f"{shot.id}_whole",
+                "split_reason": decision.get("reason", "无需分割"),
+                "character_consistency": continuity_plan.get("character_consistency", ""),
+                "scene_consistency": continuity_plan.get("scene_consistency", ""),
+                "transition_suggestions": continuity_plan.get("transition_suggestions", [])
+            }
+
+            metadata = {
+                "split_by": AgentMode.LLM.value,
+                "original_shot": shot.id,
+                "original_description": shot.description,
+                "segment_index": 0,
+                "total_segments": 1,
+                "ai_decision": decision.get("reason", ""),
+                "timestamp": time.time(),
+                "continuity_plan": continuity_plan
+            }
+
             fragment = VideoFragment(
                 id=fragment_id,
                 shot_id=shot.id,
                 element_ids=shot.element_ids,
                 start_time=current_time,
                 duration=min(shot.duration, self.max_split_segment),
-                description=shot.description,  # 直接使用原始描述
-                continuity_notes={
-                    "main_character": shot.main_character,
-                    "location": f"场景{shot.scene_id}",
-                    "continuity_id": f"{shot.id}_whole",
-                    "split_reason": decision.get("reason", "无需分割"),
-                    "weather": overall_weather
-                },
-                metadata={
-                    "split_by": "ai",
-                    "original_shot": shot.id,
-                    "original_description": shot.description,
-                    "segment_index": 0,
-                    "total_segments": 1,
-                    "ai_decision": decision.get("reason", ""),
-                    "timestamp": time.time()
-                }
+                description=shot.description,
+                continuity_notes=continuity_notes,
+                metadata=metadata,
+                requires_special_attention=False
             )
             fragments.append(fragment)
 

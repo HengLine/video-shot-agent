@@ -5,6 +5,8 @@
 @Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/26 17:35
 """
+import json
+import re
 from typing import Optional, List
 
 from video_shot_breakdown.hengline.agent.base_agent import BaseAgent
@@ -22,6 +24,7 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
     def __init__(self, llm_client, config: Optional[HengLineConfig]):
         super().__init__(config)
         self.llm_client = llm_client
+        self.prop_registry = {}  # 通用道具注册表 {prop_key: {name, first_shot, occurrences}}
 
     def split(self, parsed_script: ParsedScript) -> ShotSequence:
         """使用LLM拆分剧本"""
@@ -29,6 +32,8 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
 
         all_shots = []
         current_time = 0.0
+        # 每个新剧本重置道具追踪器
+        self.prop_registry = {}
 
         # 设置剧本引用
         script_ref = {
@@ -63,6 +68,67 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
         # 后处理
         return self._post_process(shot_sequence)
 
+
+    def _register_prop(self, prop_name: str, prop_value: str, shot_id: str):
+        """注册或验证道具一致性"""
+        prop_key = f"{prop_name}:{prop_value}"  # 用名称+值作为key
+
+        if prop_key not in self.prop_registry:
+            # 首次出现，注册
+            self.prop_registry[prop_key] = {
+                "name": prop_name,
+                "value": prop_value,
+                "first_shot": shot_id,
+                "occurrences": [shot_id]
+            }
+            return prop_value
+        else:
+            # 已存在，记录出现
+            self.prop_registry[prop_key]["occurrences"].append(shot_id)
+            return self.prop_registry[prop_key]["value"]  # 返回已注册的值
+
+    def _extract_props_from_description(self, description: str, shot_id: str) -> str:
+        """从描述中提取所有可能的道具并验证一致性"""
+        # 1. 提取书名号内的内容（《》）
+        book_pattern = r'《([^》]+)》'
+        book_matches = re.findall(book_pattern, description)
+        for book_title in book_matches:
+            consistent_title = self._register_prop("book_title", book_title, shot_id)
+            if consistent_title != book_title:
+                description = description.replace(f"《{book_title}》", f"《{consistent_title}》")
+
+        # 2. 提取引号内的关键文字（" "或' '）
+        quote_pattern = r'["\']([ ^ "\']+)["\']'
+        quote_matches = re.findall(quote_pattern, description)
+        for quote_text in quote_matches:
+            if len(quote_text) > 10:  # 较长文本可能是台词
+                consistent_quote = self._register_prop("dialogue", quote_text, shot_id)
+                if consistent_quote != quote_text:
+                    description = description.replace(f'"{quote_text}"', f'"{consistent_quote}"')
+                    description = description.replace(f"'{quote_text}'", f"'{consistent_quote}'")
+
+        # 3. 提取可能的道具名称（基于上下文）
+        prop_indicators = ["拿着", "捧着", "抱着", "翻开", "合上", "递", "放", "holding", "carrying", "with a"]
+        words = description.split()
+        for i, word in enumerate(words):
+            if any(indicator in word for indicator in prop_indicators) and i + 1 < len(words):
+                potential_prop = words[i + 1].strip('，。,.!?；')
+                if len(potential_prop) > 1 and potential_prop not in ["他", "她", "它", "the", "a", "an"]:
+                    # 注册道具
+                    consistent_prop = self._register_prop("prop_name", potential_prop, shot_id)
+                    if consistent_prop != potential_prop:
+                        description = description.replace(potential_prop, consistent_prop)
+
+        # 4. 提取数字日期（如"下周三"）
+        date_pattern = r'(下周[一二三四五六日]|next\s+\w+)'
+        date_matches = re.findall(date_pattern, description)
+        for date_text in date_matches:
+            consistent_date = self._register_prop("date", date_text, shot_id)
+            if consistent_date != date_text:
+                description = description.replace(date_text, consistent_date)
+
+        return description
+
     def _split_scene_with_llm(self, scene: SceneInfo, start_time: float, shot_offset: int) -> List[ShotInfo]:
         """使用LLM拆分单个场景"""
         # 准备元素列表文本
@@ -90,18 +156,26 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
         return shots_data
 
     def _parse_ai_response(self, response: str, scene_id: str, start_time: float, shot_offset: int) -> List[ShotInfo]:
-        """解析LLM响应"""
-        import json
+        """解析LLM响应并验证道具一致性"""
         shots_data = json.loads(response)
 
         shots = []
         current_time = start_time
 
         for i, shot_data in enumerate(shots_data):
+            shot_id = self._generate_shot_id(shot_offset + i)
+
+            # 提取并验证道具一致性
+            original_desc = shot_data.get("description", "")
+            validated_desc = self._extract_props_from_description(original_desc, shot_id)
+
+            if original_desc != validated_desc:
+                info(f"道具一致性修正：shot {shot_id} 描述已统一")
+
             shot = ShotInfo(
-                id=self._generate_shot_id(shot_offset + i),
+                id=shot_id,
                 scene_id=scene_id,
-                description=shot_data.get("description", ""),
+                description=validated_desc,  # 使用验证后的描述
                 start_time=round(current_time, 2),
                 duration=shot_data.get("duration", 3.0),
                 shot_type=ShotType(shot_data.get("shot_type", "medium_shot")),

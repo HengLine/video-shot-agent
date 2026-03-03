@@ -99,7 +99,7 @@ class TemplatePromptConverter(BasePromptConverter):
             prompt=full_prompt,
             negative_prompt=self.config.default_negative_prompt,
             duration=fragment.duration,
-            model=self.config.target_model,
+            model=self.config.target_model.value,
             style=style_hint,
             requires_special_attention=fragment.requires_special_attention
         )

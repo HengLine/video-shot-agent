@@ -5,7 +5,7 @@
 @Github: https://github.com/HengLine/video-shot-agent
 @Time: 2026/1/26 23:36
 """
-from typing import Optional
+from typing import Optional, Dict
 
 from video_shot_breakdown.hengline.agent.base_agent import BaseAgent
 from video_shot_breakdown.hengline.agent.prompt_converter.base_prompt_converter import BasePromptConverter
@@ -13,6 +13,7 @@ from video_shot_breakdown.hengline.agent.prompt_converter.prompt_converter_model
 from video_shot_breakdown.hengline.agent.prompt_converter.template_prompt_converter import TemplatePromptConverter
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
+from video_shot_breakdown.hengline.language_manage import get_language
 from video_shot_breakdown.logger import info, error
 
 
@@ -36,7 +37,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
 
         for fragment in fragment_sequence.fragments:
             try:
-                prompt = self._convert_fragment_with_llm(fragment)
+                prompt = self._convert_fragment_with_llm(fragment, fragment_sequence.source_info)
                 prompts.append(prompt)
             except Exception as e:
                 error(f"片段{fragment.id}转换失败: {str(e)}")
@@ -51,8 +52,12 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
         )
         return self.post_process(instructions)
 
-    def _convert_fragment_with_llm(self, fragment: VideoFragment) -> AIVideoPrompt:
-        """使用LLM转换单个片段"""
+    def _convert_fragment_with_llm(self, fragment: VideoFragment, source_info: Dict) -> AIVideoPrompt:
+        """使用LLM转换单个片段 - 生成双语提示词（英文+原始语言）"""
+
+        # 检测原始剧本语言
+        original_language = self._detect_original_language(fragment)
+
         # 准备提示词
         user_prompt = self._get_prompt_template("prompt_converter_user")
 
@@ -62,24 +67,39 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
             duration=fragment.duration,
             character=fragment.continuity_notes.get("main_character", ""),
             location=fragment.continuity_notes.get("location", ""),
-            dm_model=self.config.target_model,
-            video_style=self.config.default_style,
+            original_language=original_language,
+            overall_weather=source_info.get("overall_weather", ""),
+            dm_model=self.config.target_model.value,
+            video_style=self.config.default_style.value,
             max_length=self.config.max_prompt_length,
             min_length=self.config.min_prompt_length
         )
 
         # 调用LLM
         system_prompt = self._get_prompt_template("prompt_converter_system")
-
-        # 调用LLM
         result = self._call_llm_parse_with_retry(self.llm_client, system_prompt, prompt_template)
 
-        # 创建提示词对象
+        # 获取生成的提示词
+        english_prompt = result.get("prompt", "")
+        original_prompt = result.get("original_prompt", "")
+
+        # 合并双语提示词：英文在前，原始语言在后
+        combined_prompt = f"{english_prompt}\n\n{original_prompt}"
+
         return AIVideoPrompt(
             fragment_id=fragment.id,
-            prompt=result.get("prompt", fragment.description),
+            prompt=combined_prompt,
             negative_prompt=result.get("negative_prompt", self.config.default_negative_prompt),
             duration=fragment.duration,
-            model=self.config.target_model,
+            model=self.config.target_model.value,
             style=result.get("style_hint")
         )
+
+    def _detect_original_language(self, fragment: VideoFragment) -> str:
+        """检测原始剧本语言"""
+        # 可以从fragment的metadata中获取
+        if hasattr(fragment, 'metadata') and fragment.metadata:
+            return fragment.metadata.get("original_language", "zh")
+
+        # 默认中文
+        return get_language().value
