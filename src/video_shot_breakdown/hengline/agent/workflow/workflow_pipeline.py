@@ -602,13 +602,13 @@ class MultiAgentPipeline:
 
                 # 如果片段数等于镜头数，可能有问题（除非真的没有分割）
                 if len(fragments) == shot_count and shot_count > 0:
-                    warning(f"片段数({len(fragments)})等于镜头数({shot_count})，可能没有正确分割")
+                    info(f"片段数({len(fragments)})等于镜头数({shot_count})，没有分割记录")
 
                     # 检查是否有AI分割标记
                     metadata = fragment_sequence.get("metadata", {})
                     ai_split_count = metadata.get("ai_split_count", 0)
-                    if ai_split_count == 0:
-                        warning("没有AI分割记录，可能使用了错误的片段数据")
+                    # if ai_split_count == 0:
+                    #     warning("没有AI分割记录，可能使用了错误的片段数据")
         except Exception as e:
             error(f"验证最终输出时出错: {str(e)}")
 
