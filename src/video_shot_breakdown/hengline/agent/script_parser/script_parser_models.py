@@ -109,50 +109,42 @@ class SceneInfo(BaseModel):
     )
 
 ########################### 全局元数据模型 - 存储全剧关键信息，供后续阶段使用 ###############################
-class KeyProp(BaseModel):
-    """关键道具信息"""
-    name: str
-    description: str
-    appears_in: List[str] = []
+class PropItem(BaseModel):
+    """关键道具项"""
+    name: str = Field(description="道具名称，如《飞鸟集》、借阅卡")
+    description: str = Field(description="道具的详细描述")
+    appears_in: List[str] = Field(default_factory=list, description="出现的场景ID列表")
+    color: Optional[str] = Field(None, description="道具颜色（如适用）")
+    importance: str = Field("high", description="重要性: high/medium/low")
 
 
 class CharacterOutfit(BaseModel):
-    """角色服装信息"""
-    character: str
-    description: str
-    color: Optional[str] = None
+    """角色服装"""
+    character: str = Field(description="角色名")
+    description: str = Field(description="服装详细描述")
+    color: Optional[str] = Field(None, description="主色调")
+    style: Optional[str] = Field(None, description="款式风格")
+    material: Optional[str] = Field(None, description="材质")
 
 
-class KeyDialogue(BaseModel):
-    """关键台词"""
-    character: str
-    content: str
-    scene_id: str
-    importance: str = "medium"  # high/medium/low
-
-
-class KeyDate(BaseModel):
-    """重要日期"""
-    date: str
-    context: str
-    scene_id: str
-
-
-class KeyLocation(BaseModel):
-    """重要地点"""
-    name: str
-    description: str
-    appears_in: List[str] = []
+class LocationItem(BaseModel):
+    """关键地点"""
+    name: str = Field(description="地点名称")
+    description: str = Field(description="地点描述")
+    appears_in: List[str] = Field(default_factory=list, description="出现的场景ID列表")
+    visual_cues: List[str] = Field(default_factory=list, description="视觉特征，如'红色招牌'、'绿色长椅'")
 
 
 class GlobalMetadata(BaseModel):
-    """全局元数据 - 存储全剧关键信息"""
-    key_props: List[KeyProp] = []
-    character_outfits: List[CharacterOutfit] = []
-    key_dialogues: List[KeyDialogue] = []
-    key_dates: List[KeyDate] = []
-    key_locations: List[KeyLocation] = []
-    continuity_notes: str = ""
+    """全局元数据 - 贯穿全文需要保持一致的元素"""
+    # 关键道具
+    key_props: List[PropItem] = Field(default_factory=list, description="贯穿全文的重要道具")
+    # 角色服装
+    character_outfits: List[CharacterOutfit] = Field(default_factory=list, description="角色专属服装")
+    # 关键地点
+    key_locations: List[LocationItem] = Field(default_factory=list, description="主要场景地点")
+    # 连续性要点
+    continuity_notes: str = Field("", description="需要特别注意的连续性要点")
 
 
 ############################ 剧本解析结果模型 - 包含核心数据和统计信息 ###############################
@@ -198,6 +190,7 @@ class ParsedScript(BaseModel):
         description="解析统计数据"
     )
 
+    # 全局元数据 - 贯穿全文需要保持一致的元素，如关键道具、角色服装、重要地点等
     global_metadata: GlobalMetadata = Field(default_factory=GlobalMetadata)
 
     def to_dict(self) -> dict:

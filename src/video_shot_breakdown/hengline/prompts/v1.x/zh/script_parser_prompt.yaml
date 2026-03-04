@@ -23,7 +23,7 @@ script_parser_system:
             "name": "角色唯一标识名，使用剧本中首次出现的完整名称",
             "gender": "男/女",
             "role": "角色类型（主角、配角、旁白等）",
-            "description": "角色描述信息，如外貌、年龄等",
+            "description": "角色视觉化描述信息，如外貌、年龄等",
             "key_traits": ["特征1", "特征2"]
           }}
         ],
@@ -31,21 +31,21 @@ script_parser_system:
           {{
             "id": "场景唯一ID，格式：scene_001",
             "location": "场景地点",
-            "description": "场景描述（如有）",
-            "time_of_day": "场景时间（早晨、中午、夜晚等）",
+            "description": "场景视觉化描述（如有）",
+            "time_of_day": "早晨/中午/下午/傍晚/夜晚",
             "elements": [
               {{
-                "id": "对话、动作、场景描述等的唯一ID，格式：elem_001",
+                "id": "elem_001",
                 "type": "dialogue/action/scene",
                 "sequence": "在剧本中的唯一顺序，如：1",
-                "duration": "对话、动作、场景描述等的预估持续时间（秒），注意说话/动作的语气和对象：愤怒时语气较快、老人行动就慢。格式：3.5",
-                "confidence": "解析置信度，0-1之间的浮点数",
-                "content": "元素内容文本，沉默时为空字符串",
+                "duration": 3.5,
+                "confidence": 0.95,
+                "content": "元素原始内容（台词原文或动作描述，沉默时为空字符串）",
                 "character": "角色名，必须与 characters[].name 的值保持一致",
                 "target_character": "目标角色名，必须与 characters[].name 的值保持一致，若没有则为 null",
-                "description": "详细描述",
-                "intensity": 动作或语气等的强度等级，0-1之间的浮点数。0表示极低的强度：静止、细微变化，1表示极端强度：生死攸关,
-                "emotion": "neutral"
+                "description": "视觉化描述，供AI生成画面使用",
+                "intensity": "动作或语气等的强度等级，0-1之间的浮点数。0.1-0.3: 轻微动作/语气；0.4-0.6: 中等强度；0.7-0.9: 强烈；1.0: 极端强度",
+                "emotion": "情绪标签，可选值：neutral/happy/sad/angry/fear/surprise/disgust/anxious/calm/tender"
               }}
             ]
           }}
@@ -54,36 +54,26 @@ script_parser_system:
           "key_props": [
             {{
               "name": "道具名称（如《飞鸟集》、借阅卡、电影票根）",
-              "description": "道具的详细描述和重要性",
-              "appears_in": ["scene_001", "scene_002"]  # 出现的场景
+              "description": "道具的视觉化详细描述",
+              "color": "道具颜色",
+              "importance": "重要性: high/medium/low",
+              "appears_in": ["scene_001", "scene_002"]
             }}
           ],
           "character_outfits": [
             {{
               "character": "角色名",
               "description": "角色的专属服装描述（如：明黄色防水外卖服）",
-              "color": "服装主色调"
-            }}
-          ],
-          "key_dialogues": [
-            {{
-              "character": "角色名",
-              "content": "重要台词原文",
-              "scene_id": "scene_001",
-              "importance": "high/medium/low"
-            }}
-          ],
-          "key_dates": [
-            {{
-              "date": "日期信息（如下周三）",
-              "context": "出现的上下文",
-              "scene_id": "scene_004"
+              "color": "服装主色调",
+              "material": "材质",
+              "style": "款式风格"
             }}
           ],
           "key_locations": [
             {{
               "name": "地点名称",
               "description": "地点描述",
+              "visual_cues": "视觉特征，如'红色招牌'、'绿色长椅'",
               "appears_in": ["scene_001", "scene_002"]
             }}
           ],
@@ -124,12 +114,22 @@ script_parser_system:
       9. 置信度评估：根据解析的明确程度和上下文一致性评估置信度，0表示完全不确定，1表示完全确定
     
     全局信息提取规则：
-      1. key_props：识别所有对剧情有重要作用的具体物品
-      2. character_outfits：提取每个角色的专属服装特征
-      3. key_dialogues：识别推动剧情发展的核心台词
-      4. key_dates：提取所有重要的时间信息
-      5. key_locations：识别主要场景地点
-      6. continuity_notes：总结需要保持一致的视觉元素
+      global_metadata 的作用是为后续环节提供贯穿全文的上下文增强，只提取需要在所有片段中保持一致的元素：
+      1. key_props：识别所有贯穿全文或对剧情有重要作用的具体物品
+         - 例如：书《飞鸟集》（出现在多个场景）、借阅卡（核心道具）、电影票根（结尾关键）
+         - 不需要：一次性道具、普通物品
+      
+      2. character_outfits：提取每个角色的专属、统一的服装特征
+         - 例如：陈阳的"黄色雨衣"（贯穿全文）、林小雨的"素色外套"
+         - 不需要：临时更换的服装、非特征性描述
+      
+      3. key_locations：识别主要、重复出现的场景地点
+         - 例如：咖啡店外长椅（主要场景）、屋檐下（结尾场景）
+         - 不需要：一闪而过的背景地点
+      
+      4. continuity_notes：总结需要保持一致的视觉元素
+         - 例如："雨衣颜色必须统一"、"书名必须始终为《飞鸟集》"
+         - 基于剧本中的重复强调或明显需要保持一致的要素
 
 # 自然语言转结构化分镜，提示词模板
 natural_language_script:
@@ -214,4 +214,4 @@ script_parser_user:
       5. 角色的服装特征在description字段中准确体现
       6. 关键道具信息（书名、借阅卡、票根等）在description字段中完整保留
       7. 台词内容完整，不可省略
-      8. global_metadata 完整包含所有关键信息
+      8. global_metadata 只包含贯穿全文的核心元素（道具、服装、地点、连续性要点）

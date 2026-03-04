@@ -423,8 +423,8 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
         scene_context = context.get("scene_context", {})
         overall_weather = context.get("overall_weather", "overcast")
 
-        # 格式化全局metadata
-        global_context = self._format_global_metadata(global_metadata)
+        # 使用中等格式，并传入当前场景ID过滤道具
+        global_context = self._format_global_metadata(global_metadata, scene_id=shot.scene_id, format_type="split")
 
         # 构建详细上下文
         scene_info = ""
@@ -455,10 +455,10 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             split_threshold=self.split_threshold,
             min_segment=self.min_split_segment,
             max_segment=self.max_split_segment,
-            overall_weather=overall_weather,
             continuity_notes=self._get_continuity_notes(shot, context),
             global_context=global_context  # 传递格式化的全局信息
         )
+
 
     def _extract_key_props_from_sequence(self, shot_sequence: ShotSequence) -> str:
         """从整个镜头序列中提取关键道具和信息"""
@@ -589,7 +589,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
 
         # 添加气象提示
         if self.overall_weather:
-            notes.append(f"整体气象: {self.overall_weather}")
+            notes.append(f"整体气象基调是: {self.overall_weather}，请保持天气一致性")
 
         return "; ".join(notes) if notes else "无特殊连续性要求"
 

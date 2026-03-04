@@ -7,7 +7,7 @@
 """
 import time
 from abc import ABC
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import GlobalMetadata
 from video_shot_breakdown.hengline.client.client_factory import llm_chat_complete
@@ -61,87 +61,132 @@ class BaseAgent(ABC):
                     raise Exception(f"LLM调用失败: {e}")
                 time.sleep(1)
 
-    def _format_global_metadata(self, global_metadata: GlobalMetadata) -> str:
-        """将全局metadata格式化为易读的文本"""
+
+    def _format_global_metadata(self, global_metadata: GlobalMetadata,
+                                scene_id: Optional[str] = None,
+                                format_type: str = "prompt") -> str:
+        """
+        统一的全局元数据格式化函数
+
+        Args:
+            global_metadata: GlobalMetadata对象
+            scene_id: 当前场景ID，用于过滤相关道具
+            format_type: 输出格式类型
+                - "prompt": 提示词转换器使用（简洁单行）
+                - "split": 视频分割器使用（中等详细）
+                - "shot": 镜头分割器使用（最详细）
+
+        Returns:
+            格式化的字符串
+        """
         if not global_metadata:
-            return "无特殊关键信息"
+            return ""
 
         sections = []
 
-        # 关键道具
-        if hasattr(global_metadata, 'key_props') and global_metadata.key_props:
-            props = [f"{p.name}（{p.description}）" for p in global_metadata.key_props[:5]]
-            sections.append(f"核心道具：{', '.join(props)}")
+        # === 1. 角色服装（所有格式都需要） ===
+        if global_metadata.character_outfits:
+            if format_type == "prompt":
+                # 简洁格式：陈阳(黄色), 林小雨(浅灰)
+                outfits = []
+                for outfit in global_metadata.character_outfits:
+                    color_info = f"({outfit.color})" if outfit.color else ""
+                    outfits.append(f"{outfit.character}{color_info}")
+                sections.append(f"角色服装：{', '.join(outfits)}")
 
-        # 角色服装
-        if hasattr(global_metadata, 'character_outfits') and global_metadata.character_outfits:
-            outfits = [f"{o.character}：{o.description}" for o in global_metadata.character_outfits]
-            sections.append(f"角色服装：{', '.join(outfits)}")
+            elif format_type == "split":
+                # 中等格式：陈阳：黄色雨衣，林小雨：浅灰风衣
+                outfits = []
+                for outfit in global_metadata.character_outfits:
+                    color_info = f"{outfit.color}色" if outfit.color else ""
+                    outfits.append(f"{outfit.character}：{color_info}{outfit.description}")
+                sections.append("【角色服装要求】\n" + "\n".join(f"  - {o}" for o in outfits))
 
-        # 关键台词
-        if hasattr(global_metadata, 'key_dialogues') and global_metadata.key_dialogues:
-            dialogues = [f"{d.character}：\"{d.content}\"" for d in global_metadata.key_dialogues[:3]]
-            sections.append(f"关键台词：{'; '.join(dialogues)}")
+            else:  # shot
+                # 详细格式：包含材质、款式
+                outfits = []
+                for outfit in global_metadata.character_outfits:
+                    details = []
+                    if outfit.color:
+                        details.append(f"{outfit.color}色")
+                    if outfit.style:
+                        details.append(outfit.style)
+                    if outfit.material:
+                        details.append(outfit.material)
+                    detail_str = "、".join(details)
+                    outfits.append(f"  - {outfit.character}：{outfit.description}（{detail_str}）")
+                sections.append("【角色服装统一要求】\n" + "\n".join(outfits))
 
-        # 重要日期
-        if hasattr(global_metadata, 'key_dates') and global_metadata.key_dates:
-            dates = [f"{d.date}（{d.context}）" for d in global_metadata.key_dates]
-            sections.append(f"重要日期：{', '.join(dates)}")
+        # === 2. 关键道具（根据场景过滤） ===
+        if global_metadata.key_props:
+            # 根据scene_id过滤相关道具
+            relevant_props = global_metadata.key_props
+            if scene_id:
+                relevant_props = [p for p in global_metadata.key_props if scene_id in p.appears_in]
 
-        # 重要场景
-        if hasattr(global_metadata, 'key_locations') and global_metadata.key_locations:
-            locations = [l.name for l in global_metadata.key_locations]
-            sections.append(f"重要场景：{', '.join(locations)}")
+            if relevant_props:
+                if format_type == "prompt":
+                    # 简洁格式：只列名称
+                    props = [p.name for p in relevant_props[:3]]
+                    sections.append(f"关键道具：{', '.join(props)}")
 
-        # 连续性要点
-        if hasattr(global_metadata, 'continuity_notes') and global_metadata.continuity_notes:
-            sections.append(f"连续性要点：{global_metadata.continuity_notes}")
+                elif format_type == "split":
+                    # 中等格式：带颜色和描述
+                    props = []
+                    for prop in relevant_props:
+                        color_info = f"（{prop.color}）" if prop.color else ""
+                        props.append(f"  - {prop.name}{color_info}：{prop.description}")
+                    section_title = "【本场景相关道具】" if scene_id else "【关键道具】"
+                    sections.append(f"{section_title}\n" + "\n".join(props))
 
-        return "\n    ".join(sections) if sections else "无特殊关键信息"
+                else:  # shot
+                    # 详细格式：包含重要性
+                    props = []
+                    for prop in relevant_props:
+                        color_info = f"（{prop.color}）" if prop.color else ""
+                        importance = "⭐" if prop.importance == "high" else "📌"
+                        props.append(f"  {importance} {prop.name}{color_info}：{prop.description}")
+                    sections.append("【关键道具一致性】\n" + "\n".join(props))
 
-    def _format_global_context(self, global_metadata: GlobalMetadata, scene_context: Dict) -> str:
-        """格式化全局上下文信息"""
-        sections = []
+        # === 3. 关键地点 ===
+        if global_metadata.key_locations:
+            if format_type == "prompt":
+                # 简洁格式：只列名称
+                locs = [loc.name for loc in global_metadata.key_locations[:2]]
+                sections.append(f"主要场景：{', '.join(locs)}")
 
-        # 1. 关键道具
-        if "key_props" in global_metadata and global_metadata["key_props"]:
-            props = []
-            for prop in global_metadata["key_props"][:5]:
-                if isinstance(prop, dict):
-                    props.append(f"{prop.get('name', '')}: {prop.get('description', '')}")
-                else:
-                    props.append(str(prop))
-            if props:
-                sections.append(f"关键道具：{'; '.join(props)}")
+            elif format_type == "split":
+                # 中等格式
+                locs = []
+                for loc in global_metadata.key_locations:
+                    cues = "，" + "、".join(loc.visual_cues) if loc.visual_cues else ""
+                    locs.append(f"  - {loc.name}：{loc.description}{cues}")
+                sections.append("【主要场景】\n" + "\n".join(locs))
 
-        # 2. 关键台词
-        if "key_dialogues" in global_metadata and global_metadata["key_dialogues"]:
-            dialogues = []
-            for d in global_metadata["key_dialogues"][:3]:
-                if isinstance(d, dict):
-                    dialogues.append(f"{d.get('character', '')}: \"{d.get('content', '')}\"")
-                else:
-                    dialogues.append(str(d))
-            if dialogues:
-                sections.append(f"关键台词：{'; '.join(dialogues)}")
+            else:  # shot
+                # 详细格式
+                locs = []
+                for loc in global_metadata.key_locations:
+                    appears = f"[出现在: {', '.join(loc.appears_in)}]" if loc.appears_in else ""
+                    cues = "，视觉特征：" + "、".join(loc.visual_cues) if loc.visual_cues else ""
+                    locs.append(f"  - {loc.name}{appears}：{loc.description}{cues}")
+                sections.append("【主要场景】\n" + "\n".join(locs))
 
-        # 3. 重要日期
-        if "key_dates" in global_metadata and global_metadata["key_dates"]:
-            dates = [str(d) for d in global_metadata["key_dates"][:3]]
-            if dates:
-                sections.append(f"重要日期：{', '.join(dates)}")
+        # === 4. 连续性要点 ===
+        if global_metadata.continuity_notes:
+            if format_type == "prompt":
+                # 简洁格式：只取前50字
+                notes = global_metadata.continuity_notes[:50] + "..." if len(global_metadata.continuity_notes) > 50 else global_metadata.continuity_notes
+                sections.append(f"注意：{notes}")
 
-        # 4. 场景上下文摘要
-        if scene_context and "scenes" in scene_context:
-            scene_summary = []
-            for scene_id, scene_data in list(scene_context["scenes"].items())[:3]:
-                chars = ", ".join(list(scene_data.get("main_characters", [])))
-                scene_summary.append(f"{scene_id}: {chars}")
-            if scene_summary:
-                sections.append(f"场景角色：{'; '.join(scene_summary)}")
+            elif format_type == "split":
+                sections.append(f"【特别注意】\n{global_metadata.continuity_notes}")
 
-        # 5. 连续性要点
-        if "continuity_notes" in global_metadata:
-            sections.append(f"连续性要点：{global_metadata['continuity_notes']}")
+            else:  # shot
+                sections.append(f"【连续性要点】\n{global_metadata.continuity_notes}")
 
-        return "\n    ".join(sections) if sections else "无特殊全局信息"
+        # 根据format_type返回不同分隔符
+        if format_type == "prompt":
+            return " | ".join(sections)  # 单行，用分隔符
+        else:
+            return "\n\n".join(sections)  # 多行，用空行分隔

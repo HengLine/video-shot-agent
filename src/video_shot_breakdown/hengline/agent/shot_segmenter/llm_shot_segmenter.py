@@ -45,7 +45,7 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
         # 为每个场景调用LLM
         for scene_idx, scene in enumerate(parsed_script.scenes):
             try:
-                scene_shots = self._split_scene_with_llm(scene, current_time, len(all_shots))
+                scene_shots = self._split_scene_with_llm(scene, current_time, len(all_shots), global_metadata)
                 all_shots.extend(scene_shots)
 
                 # 更新当前时间
@@ -129,8 +129,12 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
 
         return description
 
-    def _split_scene_with_llm(self, scene: SceneInfo, start_time: float, shot_offset: int) -> List[ShotInfo]:
+    def _split_scene_with_llm(self, scene: SceneInfo, start_time: float, shot_offset: int, global_metadata: GlobalMetadata) -> List[ShotInfo]:
         """使用LLM拆分单个场景"""
+
+        # 使用详细格式
+        global_context = self._format_global_metadata(global_metadata, scene_id=scene.id, format_type="shot")
+
         # 准备元素列表文本
         elements_list = "\n".join([
             f"{i + 1}. [{elem.type}] {elem.character or '场景'}: {elem.content[:50]}... (时长: {elem.duration}秒)"
@@ -138,11 +142,13 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
         ])
 
         # 准备提示词
-        user_prompt = self._get_prompt_template("shot_segmenter_user").format(
+        prompt_template = self._get_prompt_template("shot_segmenter_user")
+        user_prompt = prompt_template.format(
             location=scene.location,
             time_of_day=scene.time_of_day or "未指定",
             description=scene.description or "无描述",
-            elements_list=elements_list
+            elements_list=elements_list,
+            global_context=global_context
         )
 
         system_prompt = self._get_prompt_template("shot_segmenter_system")

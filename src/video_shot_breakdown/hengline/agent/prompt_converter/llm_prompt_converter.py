@@ -59,10 +59,8 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
         # 检测原始剧本语言
         original_language = self._detect_original_language(fragment)
 
-        scene_context = source_info.get("scene_context", {})
-
-        # 格式化全局信息
-        global_context = self._format_global_context(global_metadata, scene_context)
+        # 使用简洁格式
+        global_context = self._format_global_metadata(global_metadata, format_type="prompt")
 
         # 准备提示词
         user_prompt = self._get_prompt_template("prompt_converter_user")
