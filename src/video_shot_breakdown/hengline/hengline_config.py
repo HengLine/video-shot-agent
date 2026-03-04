@@ -30,7 +30,7 @@ class HengLineConfig(AIConfig):
     default_shot_duration: float = 3.0
 
     # ======================视频分割
-    llm_split_threshold: float = 5.5  # 超过5秒触发AI分割
+    duration_split_threshold: float = 5.5  # 超过5秒触发分割
     max_fragment_duration: float = 5.0  # 最大分割片段时长
     min_fragment_duration: float = 1.0  # 最小片段时长
     split_strategy: str = "simple"  # 简单拆分策略

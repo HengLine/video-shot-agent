@@ -8,7 +8,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import GlobalMetadata
+from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import ParsedScript
 from video_shot_breakdown.hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
@@ -27,7 +27,7 @@ class BaseVideoSplitter(ABC):
         debug(f"初始化视频分割器: {self.__class__.__name__}")
 
     @abstractmethod
-    def cut(self, shot_sequence: ShotSequence, global_metadata: GlobalMetadata) -> FragmentSequence:
+    def cut(self, shot_sequence: ShotSequence, parsed_script: ParsedScript) -> FragmentSequence:
         """将镜头序列分割为片段（抽象方法）"""
         pass
 
@@ -75,8 +75,8 @@ class BaseVideoSplitter(ABC):
 
         # 检查时长限制
         for i, frag in enumerate(fragments):
-            if frag.duration > self.config.max_fragment_duration:
-                error(f"片段{i + 1}超时: {frag.duration}秒 > {self.config.max_fragment_duration}秒")
+            if frag.duration > self.config.duration_split_threshold:
+                error(f"片段{i + 1}超时: {frag.duration}秒 > {self.config.duration_split_threshold}秒")
                 return False
 
             if frag.duration < self.config.min_fragment_duration:

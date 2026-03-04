@@ -131,7 +131,7 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoop
     # === 镜头拆分配置 ===
     max_shot_duration: float = 30.0  # 镜头允许的时长范围
     min_shot_duration: float = 1.0
-    max_fragment_duration: float = 5.5  # 每个分镜的最大持续时间（秒）
+    max_fragment_duration: float = 5.0  # 每个分镜的最大持续时间（秒）
     min_fragment_duration: float = 1.0  # 最小片段时长
     max_prompt_length: int = 1000
     min_prompt_length: int = 10

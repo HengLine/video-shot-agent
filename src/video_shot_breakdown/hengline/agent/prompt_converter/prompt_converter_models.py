@@ -10,6 +10,27 @@ from typing import Dict, Any, List, Optional
 
 from pydantic import Field, BaseModel
 
+class AIAudioPrompt(BaseModel):
+    """MVP AI音频提示词模型"""
+    # 核心提示词
+    prompt: str = Field(..., description="正向提示词文本")
+    negative_prompt: str = Field(
+        default="noisy, low quality, distorted, robotic, bad audio",
+        description="负面提示词"
+    )
+
+    # 模型选择
+    model: str = Field(
+        default="",
+        description="AI音频模型："
+    )
+
+    # 简化的风格提示
+    style: Optional[str] = Field(
+        default=None,
+        description="音频风格"
+    )
+
 
 class AIVideoPrompt(BaseModel):
     """MVP AI视频提示词模型"""
@@ -45,6 +66,11 @@ class AIVideoPrompt(BaseModel):
     requires_special_attention: bool = Field(
         default=False,
         description="需要特殊处理的标记"
+    )
+
+    audio_prompt: Optional[AIAudioPrompt] = Field(
+        default=None,
+        description="关联的音频提示词（如果有）"
     )
 
 

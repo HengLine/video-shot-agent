@@ -33,6 +33,7 @@ script_parser_system:
             "location": "场景地点",
             "description": "场景视觉化描述（如有）",
             "time_of_day": "早晨/中午/下午/傍晚/夜晚",
+            "weather": "晴天/雨天/阴天/雪天/暖阳/灰蒙蒙等（如有）",
             "elements": [
               {{
                 "id": "elem_001",
@@ -53,7 +54,7 @@ script_parser_system:
         "global_metadata": {{
           "key_props": [
             {{
-              "name": "道具名称（如《飞鸟集》、借阅卡、电影票根）",
+              "name": "道具名称（如《飞鸟集》、借阅卡、电影票根等）",
               "description": "道具的视觉化详细描述",
               "color": "道具颜色",
               "importance": "重要性: high/medium/low",
@@ -73,7 +74,7 @@ script_parser_system:
             {{
               "name": "地点名称",
               "description": "地点描述",
-              "visual_cues": "视觉特征，如'红色招牌'、'绿色长椅'",
+              "visual_cues": ["红色招牌", "绿色长椅"],
               "appears_in": ["scene_001", "scene_002"]
             }}
           ],

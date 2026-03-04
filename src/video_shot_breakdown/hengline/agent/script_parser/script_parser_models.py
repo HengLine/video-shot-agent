@@ -102,6 +102,12 @@ class SceneInfo(BaseModel):
         description="时间（如有）：day/night/dawn/dusk"
     )
 
+    # 天气信息
+    weather: Optional[str] = Field(
+        default=None,
+        description="天气（如有）：sunny/rainy/snowy/cloudy"
+    )
+
     # 扁平化的元素数组（按sequence排序）
     elements: List[BaseElement] = Field(
         default_factory=list,
@@ -146,6 +152,9 @@ class GlobalMetadata(BaseModel):
     # 连续性要点
     continuity_notes: str = Field("", description="需要特别注意的连续性要点")
 
+    def to_dict(self) -> dict:
+        """转换为字典表示"""
+        return self.model_dump()
 
 ############################ 剧本解析结果模型 - 包含核心数据和统计信息 ###############################
 class ParsedScript(BaseModel):
@@ -178,6 +187,9 @@ class ParsedScript(BaseModel):
         description="场景列表，按出现顺序排列"
     )
 
+    # 全局元数据 - 贯穿全文需要保持一致的元素，如关键道具、角色服装、重要地点等
+    global_metadata: GlobalMetadata = Field(default_factory=GlobalMetadata)
+
     # 统计数据
     stats: Dict[str, Any] = Field(
         default_factory=lambda: {
@@ -190,14 +202,11 @@ class ParsedScript(BaseModel):
         description="解析统计数据"
     )
 
-    # 全局元数据 - 贯穿全文需要保持一致的元素，如关键道具、角色服装、重要地点等
-    global_metadata: GlobalMetadata = Field(default_factory=GlobalMetadata)
-
     def to_dict(self) -> dict:
         """转换为字典表示"""
         return self.model_dump()
 
-    def get_Elements_by_type(self, element_type: ElementType) -> List[BaseElement]:
+    def get_elements_by_type(self, element_type: ElementType) -> List[BaseElement]:
         return [
             elem
             for scene in self.scenes
@@ -207,3 +216,15 @@ class ParsedScript(BaseModel):
 
     def is_valid(self):
         return len(self.scenes) > 0
+
+    def get_scene_by_id(self, scene_id: str) -> Optional[SceneInfo]:
+        for scene in self.scenes:
+            if scene.id == scene_id:
+                return scene
+        return None
+
+    def get_character_by_name(self, name: str) -> Optional[CharacterInfo]:
+        for character in self.characters:
+            if character.name == name:
+                return character
+        return None

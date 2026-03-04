@@ -42,6 +42,7 @@ shot_segmenter_user:
     场景信息：
       地点：{location}
       时间：{time_of_day}
+      天气：{weather}
       描述：{description}
     
     元素列表（包含完整内容）：

@@ -9,7 +9,7 @@ import time
 from abc import ABC
 from typing import Any, Dict, Optional
 
-from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import GlobalMetadata
+from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import GlobalMetadata, ParsedScript
 from video_shot_breakdown.hengline.client.client_factory import llm_chat_complete
 from video_shot_breakdown.hengline.prompts.prompts_manager import prompt_manager
 from video_shot_breakdown.hengline.tools.json_parser_tool import parse_json_response
@@ -61,6 +61,86 @@ class BaseAgent(ABC):
                     raise Exception(f"LLM调用失败: {e}")
                 time.sleep(1)
 
+    def _get_scene_info(self, scene_id: str, parsed_script: ParsedScript) -> str:
+        """从ParsedScript获取场景信息"""
+        if not parsed_script:
+            return ""
+
+        for scene in parsed_script.scenes:
+            if scene.id == scene_id:
+                characters = []
+                for elem in scene.elements:
+                    if elem.character and elem.character not in characters:
+                        characters.append(elem.character)
+
+                weather = scene.weather or "未知"
+                time_of_day = scene.time_of_day or "未知"
+
+                return f"场景{scene_id}: {scene.location}, 角色[{', '.join(characters)}], 天气{weather}, 时间{time_of_day}"
+        return ""
+
+    def _format_global_context(self, global_metadata: GlobalMetadata, scene_id: Optional[str] = None) -> str:
+        """格式化全局上下文 - 从global_metadata获取"""
+        if not global_metadata:
+            return ""
+
+        sections = []
+
+        # 1. 关键道具
+        if global_metadata.key_props:
+            relevant_props = global_metadata.key_props
+            if scene_id:
+                relevant_props = [p for p in global_metadata.key_props if scene_id in p.appears_in]
+
+            if relevant_props:
+                props = []
+                for prop in relevant_props:
+                    color_info = f"（{prop.color}）" if prop.color else ""
+                    props.append(f"  - {prop.name}{color_info}：{prop.description}")
+                sections.append("【本场景关键道具】\n" + "\n".join(props))
+            else:
+                props = []
+                for prop in global_metadata.key_props:
+                    if prop.importance == "high":
+                        props.append(f"⭐ {prop.name}：{prop.description}")
+                    else:
+                        props.append(f"📌 {prop.name}：{prop.description}")
+                sections.append("【关键道具】\n" + "\n".join(props))
+
+        # 2. 角色服装
+        if global_metadata.character_outfits:
+            outfits = []
+            for outfit in global_metadata.character_outfits:
+                color_info = f"{outfit.color}色" if outfit.color else ""
+                style_info = f"、{outfit.style}" if outfit.style else ""
+                material_info = f"、{outfit.material}" if outfit.material else ""
+                outfits.append(f"  - {outfit.character}：{color_info}{outfit.description}{style_info}{material_info}")
+            sections.append("【角色服装要求】\n" + "\n".join(outfits))
+
+        # 3. 关键地点
+        if global_metadata.key_locations:
+            relevant_locs = global_metadata.key_locations
+            if scene_id:
+                relevant_locs = [loc for loc in global_metadata.key_locations if scene_id in loc.appears_in]
+
+            if relevant_locs:
+                locs = []
+                for loc in relevant_locs:
+                    cues = "，" + "、".join(loc.visual_cues) if loc.visual_cues else ""
+                    locs.append(f"  - {loc.name}：{loc.description}{cues}")
+                sections.append("【本场景地点】\n" + "\n".join(locs))
+            else:
+                locs = []
+                for loc in global_metadata.key_locations:
+                    cues = "，" + "、".join(loc.visual_cues) if loc.visual_cues else ""
+                    locs.append(f"  - {loc.name}：{loc.description}{cues}")
+                sections.append("【主要场景】\n" + "\n".join(locs))
+
+        # 4. 连续性要点
+        if global_metadata.continuity_notes:
+            sections.append(f"【特别注意，连续性要求】\n{global_metadata.continuity_notes}")
+
+        return "\n\n".join(sections)
 
     def _format_global_metadata(self, global_metadata: GlobalMetadata,
                                 scene_id: Optional[str] = None,

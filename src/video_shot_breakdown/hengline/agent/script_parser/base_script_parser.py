@@ -10,9 +10,10 @@ from datetime import datetime
 from typing import Dict, Any
 
 from video_shot_breakdown.hengline.agent.base_models import ScriptType, ElementType
-from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import ParsedScript, SceneInfo, CharacterInfo, BaseElement
-from video_shot_breakdown.logger import info, warning
+from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import ParsedScript, SceneInfo, CharacterInfo, BaseElement, GlobalMetadata, PropItem, CharacterOutfit, \
+    LocationItem
 from video_shot_breakdown.hengline.tools.script_assessor_tool import ComplexityAssessor
+from video_shot_breakdown.logger import info, warning
 
 
 class BaseScriptParser(ABC):
@@ -117,6 +118,7 @@ class BaseScriptParser(ABC):
                 location=scene_data.get("location", "未知地点"),
                 description=scene_data.get("description"),
                 time_of_day=scene_data.get("time_of_day"),
+                weather=scene_data.get("weather"),
                 elements=elements
             )
             scenes.append(scene)
@@ -133,11 +135,46 @@ class BaseScriptParser(ABC):
             for char_data in data.get("characters", [])
         ]
 
+        _global_metadata = data.get("global_metadata", {})
+        global_metadata = GlobalMetadata(
+            key_props=[
+                PropItem(
+                    name=prop_data.get("name", "未知道具"),
+                    description=prop_data.get("description", ""),
+                    importance=prop_data.get("importance", "medium"),
+                    color=prop_data.get("color", ""),
+                    appears_in=prop_data.get("appears_in", [])
+                )
+                for prop_data in _global_metadata.get("key_props", [])
+            ],
+            character_outfits=[
+                CharacterOutfit(
+                    character=outfit_data.get("character", "未知角色"),
+                    description=outfit_data.get("description", ""),
+                    style=outfit_data.get("style", ""),
+                    color=outfit_data.get("color", ""),
+                    material=outfit_data.get("material", "")
+                )
+                for outfit_data in _global_metadata.get("character_outfits", [])
+            ],
+            key_locations=[
+                LocationItem(
+                    name=loc_data.get("name", "未知地点"),
+                    description=loc_data.get("description", ""),
+                    appears_in=loc_data.get("appears_in", []),
+                    visual_cues=loc_data.get("visual_cues", [])
+                )
+                for loc_data in _global_metadata.get("key_locations", [])
+            ],
+            continuity_notes =_global_metadata.get("continuity_notes", "")
+        )
+
         # 返回完整解析结果
         return ParsedScript(
             title=data.get("title"),
             characters=characters,
             scenes=scenes,
+            global_metadata=global_metadata,
             metadata={
                 "parsed_at": datetime.now().isoformat(),
                 "version": "mvp_1.0",
