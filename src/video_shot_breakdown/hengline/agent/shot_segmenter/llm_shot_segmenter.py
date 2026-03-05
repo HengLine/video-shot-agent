@@ -73,7 +73,7 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
 
         # 准备元素列表文本
         elements_list = "\n".join([
-            f"{i + 1}. [{elem.type}] {elem.character or '场景'}: {elem.content[:200]}... (时长: {elem.duration}秒)"
+            f"{i + 1}. [{elem.type}] {elem.character or '场景'}: {elem.content} (时长: {elem.duration}秒)"
             for i, elem in enumerate(scene.elements)
         ])
 
@@ -117,7 +117,7 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
                 shot_type=ShotType(shot_data.get("shot_type", "medium_shot")),
                 main_character=shot_data.get("main_character"),
                 element_ids=shot_data.get("element_ids", []),
-                confidence=0.8  # LLM结果默认置信度
+                confidence=shot_data.get("confidence", 0.8)
             )
 
             shots.append(shot)

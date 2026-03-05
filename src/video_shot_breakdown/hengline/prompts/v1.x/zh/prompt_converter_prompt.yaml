@@ -64,24 +64,29 @@ prompt_converter_user:
 
     【重要提示】
     - 视频提示词必须完整保留所有台词和视觉元素
-    - 音频提示词必须基于角色信息生成合适的音色参数
+    - 音频提示词必须基于角色信息生成合适的音色参数，确保音频时长与视频时长严格一致
     - 确保音频时长严格等于 {duration}秒
+    - 提示词内容必须在两种语言中完全一致，表达相同的视觉元素、动作和情感
+    - 提示词中不得包含任何敏感词汇或不适当内容
+    - 提示词应尽量具体、清晰，避免使用过于抽象或模糊的描述
+    - 提示词长度应适中，既要包含足够的细节，又要保持简洁明了（{min_length}-{max_length}单词最佳）
+    - 视频提示词和音频提示词应相互补充，确保整体内容的一致性和完整性
     
-    返回JSON格式（必须包含video和audio两个部分）：
+    返回JSON格式：
     {{
-      "prompt": "生成的英文视频提示词，必须完整保留原始描述中的所有关键信息，台词逐字保留，角色服装特征准确传达，道具细节完整保留",
+      "prompt": "生成的英文视频提示词，基于{dm_model}模型，{video_style}风格",
       "original_prompt": "{original_language}视频提示词",
       "negative_prompt": "视频负面提示词",
       "style_hint": "视频风格提示",
       "audio": {{
-        "prompt": "音频提示词文本，必须基于提供的角色信息、音频上下文和片段时长，生成完整的音频参数，确保音频时长与视频时长严格一致",
+        "prompt": "音频提示词文本，必须基于合适的模型",
         "original_prompt": "{original_language}音频提示词",
         "negative_prompt": "音频负面提示词",
         "model_type": "XTTSv2/AudioLDM_3/Bark/ElevenLabs/Azure_TTS/OpenAI_TTS",
         "voice_type": "character_dialogue/narration/announcer/creative",
         "audio_style": "cinematic/realistic/anime/commercial",
-        "voice_character": "说话角色（可选，必须与剧本中的保持一致）",
-        "voice_description": "音色文字描述（如：年轻女性，20岁，温柔清澈）",
+        "voice_character": "说话角色（可选）",
+        "voice_description": "音色文字描述（英文）",
         "speed": 1.0,
         "pitch_shift": 0,
         "emotion": "neutral/happy/sad/angry/tender",
@@ -91,8 +96,8 @@ prompt_converter_user:
         "format": "wav/mp3/flac",
         "sample_rate": 24000,
         "seed": "随机种子。用于重现相同结果",
-        "scene_context": "场景描述"
+        "scene_context": "场景描述（英文）"
       }}
     }}
 
-    直接返回JSON，不要添加其他任何解释性文字和特殊符号。
+    直接返回合法的JSON，不要添加其他任何解释性文字和特殊符号。
