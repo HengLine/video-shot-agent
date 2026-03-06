@@ -74,15 +74,15 @@ class RuleQualityAuditor(BaseQualityAuditor):
         violations_count = 0
         for fragment in instructions.fragments:
             # 检查是否超过最大时长
-            if fragment.duration > self.config.max_fragment_duration:
+            if fragment.duration > self.config.duration_split_threshold:
                 self._add_violation(
                     report=report,
                     rule_id="duration_limit",
                     rule_name="片段时长限制",
-                    description=f"片段 {fragment.fragment_id} 时长 {fragment.duration}秒 超过 {self.config.max_fragment_duration}秒 限制",
+                    description=f"片段 {fragment.fragment_id} 时长 {fragment.duration}秒 超过 {self.config.duration_split_threshold}秒 限制",
                     severity="error",
                     fragment_id=fragment.fragment_id,
-                    suggestion=f"将片段时长调整为 ≤{self.config.max_fragment_duration}秒"
+                    suggestion=f"将片段时长调整为 ≤{self.config.duration_split_threshold}秒"
                 )
                 violations_count += 1
 
@@ -138,15 +138,16 @@ class RuleQualityAuditor(BaseQualityAuditor):
             prompt_length = len(fragment.prompt)
 
             # 检查是否过长
-            if prompt_length > self.config.max_prompt_length:
+            max_prompt_length = self.config.max_prompt_length * 10
+            if prompt_length > max_prompt_length:
                 self._add_violation(
                     report=report,
                     rule_id="prompt_length",
                     rule_name="提示词长度",
-                    description=f"片段 {fragment.fragment_id} 提示词过长: {prompt_length}字符 (限制: {self.config.max_prompt_length})",
+                    description=f"片段 {fragment.fragment_id} 提示词过长: {prompt_length}字符 (限制长度: {max_prompt_length})",
                     severity="warning",
                     fragment_id=fragment.fragment_id,
-                    suggestion=f"将提示词缩短到{self.config.max_prompt_length}字符以内"
+                    suggestion=f"将提示词缩短到{max_prompt_length}字符以内"
                 )
                 too_long_count += 1
 

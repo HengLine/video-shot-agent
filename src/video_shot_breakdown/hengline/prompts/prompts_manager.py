@@ -10,16 +10,16 @@ from typing import Dict, Any
 
 import yaml
 
-import video_shot_breakdown
 from video_shot_breakdown.hengline import prompts
+from video_shot_breakdown.hengline.language_manage import Language, get_language
 from video_shot_breakdown.logger import error
 from video_shot_breakdown.utils.log_utils import print_log_exception
 
 
 class PromptManager:
-    def __init__(self, version: str = "v1.x", language: str = "zh"):
+    def __init__(self, version: str = "v1.x", language: Language = Language.ZH):
         # 默认使用当前文件的父目录
-        self.prompt_dir = Path(__file__).parent / version / language
+        self.prompt_dir = Path(__file__).parent / version / language.value
         # 缓存已加载的提示词模板 - 最大缓存1024个提示词
         self._prompt_cache: Dict[str, Dict[str, Any]] = {}
         self._all_prompts_loaded = False
@@ -138,4 +138,4 @@ class PromptManager:
         return self.get_prompt(name)
 
 
-prompt_manager = PromptManager(version=prompts.__version__, language=video_shot_breakdown.__language__)
+prompt_manager = PromptManager(version=prompts.__version__, language=get_language())

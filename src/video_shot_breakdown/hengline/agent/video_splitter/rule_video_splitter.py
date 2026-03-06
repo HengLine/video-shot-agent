@@ -7,6 +7,7 @@
 """
 from typing import List, Optional
 
+from video_shot_breakdown.hengline.agent.script_parser.script_parser_models import ParsedScript
 from video_shot_breakdown.hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo, ShotType
 from video_shot_breakdown.hengline.agent.video_splitter.base_video_splitter import BaseVideoSplitter
 from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
@@ -20,9 +21,9 @@ class RuleVideoSplitter(BaseVideoSplitter):
     def __init__(self, config: Optional[HengLineConfig]):
         super().__init__(config)
         # 简单规则：镜头时长>5秒就拆分
-        self.split_threshold = self.config.max_fragment_duration
+        self.split_threshold = getattr(config, 'duration_split_threshold', 5.5)  # 超过5秒触发分割
 
-    def cut(self, shot_sequence: ShotSequence) -> FragmentSequence:
+    def cut(self, shot_sequence: ShotSequence, parsed_script: ParsedScript) -> FragmentSequence:
         """简单规则分割：镜头时长>5秒就拆分"""
         info(f"开始视频分割，镜头数: {len(shot_sequence.shots)}")
 
@@ -68,7 +69,8 @@ class RuleVideoSplitter(BaseVideoSplitter):
                 element_ids=shot.element_ids,
                 start_time=start_time,
                 duration=shot.duration,
-                description=self._generate_fragment_description(shot),
+                # description=self._generate_fragment_description(shot),
+                description=shot.description,
                 continuity_notes={
                     "main_character": shot.main_character,
                     "location": f"场景{shot.scene_id}",
@@ -116,9 +118,9 @@ class RuleVideoSplitter(BaseVideoSplitter):
         # 添加镜头类型信息
         type_mapping = ShotType.get_type_mapping()
 
-        shot_type_desc = type_mapping.get(shot.shot_type.value, shot.shot_type.value)
+        shot_type_desc = type_mapping.get(shot.shot_type, shot.shot_type.value)
 
-        if len(base_desc) > 40:
-            base_desc = base_desc[:37] + "..."
+        # if len(base_desc) > 40:
+        #     base_desc = base_desc[:37] + "..."
 
         return f"{shot_type_desc}：{base_desc}"

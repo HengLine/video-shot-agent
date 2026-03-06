@@ -11,17 +11,19 @@ from typing import List, Any, Dict
 
 from pydantic import Field, BaseModel
 
+from video_shot_breakdown.hengline.agent.base_models import AgentMode
+
 
 class VideoFragment(BaseModel):
     """MVP视频片段模型"""
     metadata: Dict[str, Any] = Field(
         default_factory=lambda: {
-            "split_by": "rule",
+            "split_by": AgentMode.RULE.value,
             "timestamp": time.time()
         }
     )
 
-    id: str = Field(..., description="片段唯一ID，格式：frag_001_001")
+    id: str = Field(..., description="片段唯一ID，格式：frag_001")
 
     # 核心引用信息
     shot_id: str = Field(..., description="所属镜头ID")

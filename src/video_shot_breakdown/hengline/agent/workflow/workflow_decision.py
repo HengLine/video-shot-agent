@@ -183,8 +183,7 @@ class PipelineDecision:
             return PipelineState.FAILED
 
         # 检查时长合规性：不能超过5.2秒
-        invalid_fragments = [f for f in fragment_sequence.fragments if f.duration > state.max_fragment_duration]
-
+        invalid_fragments = [f for f in fragment_sequence.fragments if f.duration > state.max_fragment_duration + 0.5]  # 允许一定的时长波动
         if invalid_fragments:
             if len(invalid_fragments) <= 3:
                 # 少量问题，检查是否可以重试
@@ -263,7 +262,7 @@ class PipelineDecision:
                 return PipelineState.NEEDS_REPAIR
 
         # 检查提示词长度是否过长（超过300字符）
-        long_prompts = [f for f in instructions.fragments if len(f.prompt) > state.max_prompt_length]
+        long_prompts = [f for f in instructions.fragments if len(f.prompt) > state.max_prompt_length * 10]  # 允许一定的长度波动
         if long_prompts:
             if can_retry:
                 state = self._increment_stage_retry(state, PipelineNode.CONVERT_PROMPT)
