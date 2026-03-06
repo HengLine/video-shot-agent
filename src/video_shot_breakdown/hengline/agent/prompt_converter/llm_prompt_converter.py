@@ -25,6 +25,7 @@ from video_shot_breakdown.hengline.agent.video_splitter.video_splitter_models im
 from video_shot_breakdown.hengline.hengline_config import HengLineConfig
 from video_shot_breakdown.hengline.language_manage import get_language
 from video_shot_breakdown.logger import info, error
+from video_shot_breakdown.utils.log_utils import print_log_exception
 
 
 class LLMPromptConverter(BasePromptConverter, BaseAgent):
@@ -36,6 +37,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
         self.parsed_script = None
         self.global_metadata = None
         self.last_audio_id = None
+        self.element_map = {}  # 元素ID到原始内容的映射
 
     def convert(self, fragment_sequence: FragmentSequence, parsed_script: ParsedScript) -> AIVideoInstructions:
         """使用LLM转换提示词 - 同时生成视频和音频提示词"""
@@ -44,6 +46,9 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
         # 保存ParsedScript供后续使用
         self.parsed_script = parsed_script
         self.global_metadata = parsed_script.global_metadata
+
+        # === 构建全局元素映射 ===
+        self._build_element_map()
 
         prompts = []
         project_info = {
@@ -57,6 +62,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
                 prompt = self._convert_fragment_with_llm(fragment)
                 prompts.append(prompt)
             except Exception as e:
+                print_log_exception()
                 error(f"片段{fragment.id}转换失败: {str(e)}")
                 # 降级到模板转换
                 template_converter = TemplatePromptConverter(self.config)
@@ -68,6 +74,24 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
             fragments=prompts
         )
         return self.post_process(instructions)
+
+    def _build_element_map(self):
+        """构建元素ID到原始内容的映射"""
+        if not self.parsed_script:
+            return
+
+        for scene in self.parsed_script.scenes:
+            for elem in scene.elements:
+                self.element_map[elem.id] = {
+                    "type": elem.type,
+                    "character": elem.character,
+                    "content": elem.content,
+                    "description": elem.description,
+                    "scene_id": scene.id,
+                    "sequence": elem.sequence,
+                    "emotion": elem.emotion,
+                    "intensity": elem.intensity
+                }
 
     def _get_character_info_json(self) -> str:
         """将角色信息格式化为JSON字符串，供LLM直接使用"""
@@ -186,7 +210,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
 
         # === 解析LLM返回的音频提示词 ===
         audio_prompt = self._build_audio_prompt_from_llm_result(result, fragment)
-        self.last_audio_id = audio_prompt.id if audio_prompt else self.last_audio_id
+        self.last_audio_id = audio_prompt.audio_id if audio_prompt else self.last_audio_id
 
         return AIVideoPrompt(
             fragment_id=fragment.id,
@@ -232,7 +256,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
 
             # 创建音频提示词对象
             return AIAudioPrompt(
-                id=f"audio{fragment.id[4:]}",
+                audio_id=f"audio{fragment.id[4:]}",
                 prompt=combined_prompt,
                 negative_prompt=audio_data.get("negative_prompt", "noisy, low quality, distorted, robotic, bad audio"),
                 model_type=model_type,
@@ -250,7 +274,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
                 sample_rate=audio_data.get("sample_rate", 24000),
                 seed=audio_data.get("seed"),
                 scene_context=audio_data.get("scene_context"),
-                previous_id=self.last_audio_id
+                previous_audio_id=self.last_audio_id
             )
 
     def _get_scene_info_for_fragment(self, fragment: VideoFragment) -> str:
@@ -286,29 +310,47 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
         return ""
 
     def _get_element_info_for_fragment(self, fragment: VideoFragment) -> str:
-        """获取片段对应的元素信息"""
+        """获取片段对应的原始元素信息 - 基于element_ids精准获取"""
         if not self.parsed_script:
             return ""
 
+        # 从fragment的metadata中获取element_ids
         element_ids = []
         if hasattr(fragment, 'metadata') and fragment.metadata:
             element_ids = fragment.metadata.get("element_ids", [])
 
-        if not element_ids:
-            return ""
+            # 如果有original_element_ids（从video_splitter继承的），也加入
+            original_ids = fragment.metadata.get("original_element_ids", [])
+            if original_ids:
+                element_ids.extend(original_ids)
 
+        # 去重
+        element_ids = list(set(element_ids))
+
+        if not element_ids:
+            return "本片段无对应原始元素"
+
+        # 构建元素ID到原始内容的映射
+        if not self.element_map:
+            return "本片段无对应原始元素"
+
+        # 格式化输出
         elements_text = []
-        for scene in self.parsed_script.scenes:
-            for elem in scene.elements:
-                if elem.id in element_ids:
-                    elem_type = "对话" if elem.type == ElementType.DIALOGUE else "动作" if elem.type == ElementType.ACTION else "场景"
-                    char_info = f"（角色：{elem.character}）" if elem.character else ""
-                    content = elem.content if elem.content else elem.description
-                    elements_text.append(f"  - [{elem_type}{char_info}] {content}")
+        for elem_id in element_ids:  # 保持原始顺序
+            if elem_id in self.element_map:
+                elem = self.element_map[elem_id]
+                elem_type = "对话" if elem["type"] == ElementType.DIALOGUE else "动作" if elem["type"] == ElementType.ACTION else "场景"
+                char_info = f"（角色：{elem['character']}）" if elem['character'] else ""
+
+                # 优先使用content（包含完整描述），其次使用description
+                content = elem['content'] if elem['content'] else elem['description']
+
+                elements_text.append(f"  - [{elem_type}{char_info}] {content}")
 
         if elements_text:
             return "本片段包含的原始元素：\n" + "\n".join(elements_text)
-        return ""
+
+        return "本片段无对应原始元素"
 
     def _get_full_script_context(self, fragment: VideoFragment) -> str:
         """获取完整的剧本上下文"""

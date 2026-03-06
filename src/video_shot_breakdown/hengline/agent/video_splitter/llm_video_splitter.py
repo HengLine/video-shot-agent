@@ -132,9 +132,9 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             source_info=source_info,
             fragments=fragments,
             metadata={
-                "split_method": AgentMode.LLM.value,
-                "ai_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == AgentMode.LLM.value),
-                "rule_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == AgentMode.RULE.value),
+                "split_method": AgentMode.LLM,
+                "ai_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == AgentMode.LLM),
+                "rule_split_count": sum(1 for f in fragments if f.metadata.get("split_by", "") == AgentMode.RULE),
                 "total_fragments": len(fragments),
                 "average_duration": round(sum(f.duration for f in fragments) / len(fragments), 2) if fragments else 0
             }
@@ -360,7 +360,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
                 description = segment.get("description")
                 if not description:
                     description = f"{shot.description} (部分{seg_idx + 1}/{len(segments)})"
-                    warning(f"片段{seg_idx + 1}缺少description字段")
+                    warning(f"片段{seg_idx + 1}缺少description字段，使用默认标记")
 
                 continuity_notes = {
                     "main_character": shot.main_character,
@@ -376,9 +376,11 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
                 }
 
                 metadata = {
-                    "split_by": AgentMode.LLM.value,
+                    "split_by": AgentMode.LLM,
                     "original_shot": shot.id,
                     "original_description": shot.description,
+                    "original_element_ids": shot.element_ids,  # 保存原始元素ID（用于音频连续性）
+                    "element_ids": shot.element_ids,  # 当前片段的元素ID
                     "segment_index": seg_idx,
                     "total_segments": len(segments),
                     "ai_decision": decision.get("reason", ""),
@@ -387,14 +389,10 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
                     "continuity_plan": continuity_plan
                 }
 
-                element_ids = shot.element_ids if seg_idx == 0 else []
-                if seg_idx > 0 and shot.element_ids:
-                    metadata["inherited_from"] = shot.element_ids
-
                 fragment = VideoFragment(
                     id=fragment_id,
                     shot_id=shot.id,
-                    element_ids=element_ids,
+                    element_ids=shot.element_ids,
                     start_time=round(segment_start_time, 2),
                     duration=segment["duration"],
                     description=description,
@@ -419,9 +417,11 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseAgent):
             }
 
             metadata = {
-                "split_by": AgentMode.LLM.value,
+                "split_by": AgentMode.LLM,
                 "original_shot": shot.id,
                 "original_description": shot.description,
+                "original_element_ids": shot.element_ids,
+                "element_ids": shot.element_ids,
                 "segment_index": 0,
                 "total_segments": 1,
                 "ai_decision": decision.get("reason", ""),

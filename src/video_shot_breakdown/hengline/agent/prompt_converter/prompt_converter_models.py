@@ -25,7 +25,7 @@ class AudioVoiceType(str, Enum):
 
 class AIAudioPrompt(BaseModel):
     """MVP AI音频提示词模型"""
-    id: str = Field(..., description="唯一标识符，关联到片段ID或特定音频需求")
+    audio_id: str = Field(..., description="唯一标识符，关联到片段ID或特定音频需求")
     # 核心提示词
     prompt: str = Field(
         ...,
@@ -128,7 +128,7 @@ class AIAudioPrompt(BaseModel):
         description="场景上下文。如：'激烈战斗后的喘息对话'、'雨夜小巷追逐'"
     )
 
-    previous_id: Optional[str] = Field(
+    previous_audio_id: Optional[str] = Field(
         default=None,
         description="前一段音频ID。用于保持音色/风格连贯性"
     )
