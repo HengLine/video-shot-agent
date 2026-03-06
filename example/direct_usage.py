@@ -12,7 +12,7 @@ from hengshot.hengline import generate_storyboard
 """
 # 1. 下载安装依赖
 https://github.com/HengLine/video-shot-agent/releases/download/v0.1.3-beta/hengshot-0.1.3-py3-none-any.whl
-pip install hengshot-0.1.3-py3-none-any.whl  # 假设这是你的包名
+pip install hengshot-0.1.3-py3-none-any.whl
 
 # 2. 设置API密钥（如果需要LLM）
 export OPENAI_API_KEY="your-api-key"  # 或其他LLM配置

@@ -81,12 +81,12 @@ def get_default_llm(**kwargs):
     try:
         return _get_default_llm(settings.get_llm_config(), **kwargs)
     except Exception as e:
-        warning("默认AI嵌入模型初始化失败，尝试使用备用配置")
+        warning("默认LLM模型初始化失败，尝试使用备用配置")
         try:
             return _get_default_llm(settings.get_llm_config("fallback"), **kwargs)
         except Exception as e:
             print_log_exception()
-            error(f"AI模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
+            error(f"LLM模型初始化失败（错误: {str(e)}），系统将自动使用规则引擎模式继续工作")
             return None
 
 
