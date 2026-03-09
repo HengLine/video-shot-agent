@@ -28,6 +28,8 @@ class HengLineConfig(AIConfig):
     max_shot_duration: float = 60.0  # 镜头允许的时长范围
     min_shot_duration: float = 1.0
     default_shot_duration: float = 3.0
+    llm_confidence: float = 0.6  # LLM 输出的置信度阈值，低于该值将触发规则修正
+    always_enhance: bool = True  # 是否始终进行时长增强（即使LLM置信度较高）
 
     # ======================视频分割
     duration_split_threshold: float = 5.5  # 超过5秒触发分割

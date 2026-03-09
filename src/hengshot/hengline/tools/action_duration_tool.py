@@ -7,115 +7,199 @@
 """
 import re
 from functools import lru_cache
+from typing import Dict, Any, List
 
 import jieba
 
+from hengshot.hengline.agent.script_parser.script_parser_models import CharacterType
+from hengshot.hengline.agent.shot_segmenter.estimator.estimator_models import IntensityLevel, EmotionType
 from hengshot.hengline.config.action_duration_config import action_config
+from hengshot.logger import debug, warning
 
 
 class ActionDurationEstimatorTool:
     """
-    生产级动作时长估算器（修复版）
-    - 对话时长 = max(字数 × 情绪因子, min_duration)
-    - 角色因子仅在顶层应用一次
-    - 动作/对话内部逻辑与角色完全解耦合
+    生产级动作时长估算器（优化修复版）
+
+    特点：
+    - 支持精确的缓存机制
+    - 完整的类型提示
+    - 强度参数映射为数值
+    - 更好的错误处理
+    - 日志记录
     """
 
     def __init__(self):
+        """初始化估算器"""
         self.duration_config = action_config().get_config()
+        self._validate_config()
 
-    @lru_cache(maxsize=1024)
+        # 强度级别到数值的映射
+        self.intensity_map = {
+            IntensityLevel.VERY_LOW: 0.3,
+            IntensityLevel.LOW: 0.5,
+            IntensityLevel.NORMAL: 1.0,
+            IntensityLevel.HIGH: 1.5,
+            IntensityLevel.VERY_HIGH: 2.0
+        }
+
+    def _validate_config(self):
+        """验证配置完整性"""
+        required_sections = ["base_actions", "modifiers", "dialogue",
+                             "character_speed_factors", "segmentation"]
+
+        for section in required_sections:
+            if section not in self.duration_config:
+                warning(f"配置缺少必要部分: {section}，使用默认值")
+                self.duration_config[section] = self._get_default_config(section)
+
+    def _get_default_config(self, section: str) -> Dict:
+        """获取默认配置"""
+        defaults = {
+            "base_actions": {"走": 2.0, "跑": 1.2, "坐": 1.3},
+            "modifiers": {"快速": 0.7, "慢慢": 1.7},
+            "dialogue": {
+                "base_per_char": 0.35,
+                "min_duration": 1.5,
+                "max_duration": 6.0,
+                "emotion_multipliers": {"默认": 1.0}
+            },
+            "character_speed_factors": {"default": 1.0},
+            "segmentation": {"min_action_duration": 0.4}
+        }
+        return defaults.get(section, {})
+
+    @lru_cache(maxsize=2048)
     def estimate_action(
             self,
             action_text: str,
-            emotion: str = "",
-            character_type: str = "default"
+            emotion: str = EmotionType.NEUTRAL.value,
+            character_type: CharacterType = CharacterType.DEFAULT,
+            intensity: IntensityLevel = IntensityLevel.NORMAL
     ) -> float:
         """
         估算动作时长（秒）
-        角色因子仅在此处应用一次！
+
+        Args:
+            action_text: 动作描述文本
+            emotion: 情绪类型
+            character_type: 角色类型
+            intensity: 强度级别
+
+        Returns:
+            估算时长（秒）
         """
-        if not action_text.strip():
-            return 0.0
+        debug(f"估算动作: {action_text[:30]}...")
 
-        config = self.duration_config
+        try:
+            if not action_text or not action_text.strip():
+                debug("空动作描述，返回0")
+                return 0.0
 
-        # 1. 分支：对话 vs 动作
-        if self._is_dialogue(action_text):
-            # 对话：完全不受角色身体速度影响
-            duration = self._estimate_dialogue(action_text, emotion, config)
-            char_factor = 1.0
-        else:
-            # 动作：基础时长计算（不含角色因子）
-            duration = self._estimate_action(action_text, emotion, config)
-            # 仅在此处应用角色因子
-            char_factor = config["character_speed_factors"].get(
-                character_type,
-                config["character_speed_factors"]["default"]
-            )
+            config = self.duration_config
 
-        # 2. 应用角色因子（唯一位置！）
-        duration *= char_factor
+            # 1. 检查是否为对话
+            is_dialogue = self._is_dialogue(action_text)
 
-        # 3. 全局约束   区分对话和动作的最小值
-        if self._is_dialogue(action_text):
-            min_dur = config["dialogue"]["min_duration"]  # 1.5
-            max_dur = config["dialogue"]["max_duration"]  # 6.0
-        else:
-            min_dur = config["segmentation"]["min_action_duration"]  # 0.4
-            max_dur = float('inf')  # 动作无硬上限
+            if is_dialogue:
+                # 对话估算
+                duration = self._estimate_dialogue(action_text, emotion, config)
+                char_factor = 1.0  # 对话不受角色速度影响
+            else:
+                # 动作估算
+                duration = self._estimate_action_core(action_text, emotion, config)
+                # 应用角色因子
+                char_factor = config["character_speed_factors"].get(
+                    character_type,
+                    config["character_speed_factors"]["default"]
+                )
 
-        duration = max(min_dur, min(duration, max_dur))
-        return round(duration, 2)
+            # 2. 应用角色因子
+            duration *= char_factor
+
+            # 3. 应用强度因子
+            intensity_factor = self.intensity_map.get(intensity, 1.0)
+            duration *= intensity_factor
+
+            # 4. 全局约束
+            if is_dialogue:
+                min_dur = config["dialogue"]["min_duration"]
+                max_dur = config["dialogue"]["max_duration"]
+            else:
+                min_dur = config["segmentation"]["min_action_duration"]
+                max_dur = float('inf')
+
+            duration = max(min_dur, min(duration, max_dur))
+
+            debug(f"估算结果: {round(duration, 2)}秒")
+            return round(duration, 2)
+
+        except Exception as e:
+            warning(f"动作估算失败: {e}，使用默认值")
+            return self._get_fallback_duration(action_text)
+
+    def _get_fallback_duration(self, text: str) -> float:
+        """获取降级默认时长"""
+        if self._is_dialogue(text):
+            return self.duration_config["dialogue"]["min_duration"]
+        return self.duration_config["segmentation"]["min_action_duration"]
 
     def _is_dialogue(self, text: str) -> bool:
-        """强化对话检测（支持中英文标点）"""
-        if "说" not in text:
+        """强化对话检测"""
+        if not text or "说" not in text:
             return False
-        # 检查引号对或冒号后有内容
-        if re.search(r'[“”"\'`：:].*?[“”"\'`]', text):
+
+        # 检查引号对
+        if re.search(r'[“”"\'`].*?[“”"\'`]', text):
             return True
-        if re.search(r'说\s*[：:].', text):
+
+        # 检查冒号后的内容
+        if re.search(r'说\s*[：:]\s*\S+', text):
             return True
+
+        # 检查常见对话模式
+        dialogue_patterns = [
+            r'[“”"\'`].*?[“”"\'`]',  # 引号内容
+            r'：.*',  # 中文冒号后
+            r':.*',  # 英文冒号后
+        ]
+
+        for pattern in dialogue_patterns:
+            if re.search(pattern, text):
+                return True
+
         return False
 
-    def _estimate_dialogue(self, text: str, emotion: str, config: dict) -> float:
-        """估算对话时长（与角色完全无关）"""
-        # 1. 首先检查是否有明确的时间标注
-        time_match = re.search(r'(\d+)秒|(\d+)分钟|(\d+)小时', text)
-        if time_match:
-            if time_match.group(1):  # 秒
-                return float(time_match.group(1))
-            elif time_match.group(2):  # 分钟
-                return float(time_match.group(2)) * 60
-            elif time_match.group(3):  # 小时
-                return float(time_match.group(3)) * 3600
-
-        # 2. 检查是否有"三秒"、"两秒"这样的中文数字时间标注
-        chinese_time_match = re.search(r'(一|二|三|四|五|六|七|八|九|十|两|几)秒', text)
-        if chinese_time_match:
-            chinese_numbers = {
-                '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5,
-                '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
-                '几': 3  # 不确定的"几秒"默认按3秒计算
-            }
-            return float(chinese_numbers.get(chinese_time_match.group(1), 1))
-
-        # 3. 没有时间标注时，使用常规对话时长估算
-        # 提取对话内容
-        dialogue = ""
-        quote_match = re.search(r'[“”"\'`：:].*?[“”"\'`]', text)
+    def _extract_dialogue_content(self, text: str) -> str:
+        """提取对话内容"""
+        # 尝试匹配引号内容
+        quote_match = re.search(r'[“”"\'`](.*?)[“”"\'`]', text)
         if quote_match:
-            dialogue = quote_match.group(0).lstrip('“”"\'`：:').rstrip('“”"\'`')
-        else:
-            parts = re.split(r'[：:]', text, maxsplit=1)
-            if len(parts) > 1:
-                dialogue = re.sub(r'^说\s*', '', parts[1]).strip()
-            else:
-                dialogue = text.replace("说", "").strip()
+            return quote_match.group(1).strip()
+
+        # 尝试匹配冒号后内容
+        colon_match = re.search(r'[：:]\s*(.*?)$', text)
+        if colon_match:
+            return colon_match.group(1).strip()
+
+        # 移除"说"字后返回
+        return text.replace("说", "").strip()
+
+    def _estimate_dialogue(self, text: str, emotion: str, config: dict) -> float:
+        """估算对话时长"""
+        # 检查时间标注
+        explicit_time = self._check_explicit_time(text)
+        if explicit_time > 0:
+            return explicit_time
+
+        # 提取对话内容
+        dialogue = self._extract_dialogue_content(text)
 
         # 统计中文字符
-        chinese_chars = [c for c in dialogue if '\u4e00' <= c <= '\u9fff' or c in "，。！？；：“”‘’、"]
+        chinese_chars = [
+            c for c in dialogue
+            if '\u4e00' <= c <= '\u9fff' or c in "，。！？；：“”‘’、"
+        ]
         char_count = len(chinese_chars)
 
         if char_count == 0:
@@ -126,16 +210,50 @@ class ActionDurationEstimatorTool:
         emo_multipliers = config["dialogue"]["emotion_multipliers"]
         emo_factor = emo_multipliers.get(emotion, emo_multipliers["默认"])
 
-        # 计算原始时长（含情绪修正）
+        # 计算原始时长
         raw_duration = char_count * config["dialogue"]["base_per_char"] * emo_factor
 
-        # 注意：min/max 限制在 estimate() 中统一应用
         return raw_duration
 
-    def _estimate_action(self, text: str, emotion: str, config: dict) -> float:
-        """估算动作基础时长（不含角色因子！）"""
+    def _estimate_action_core(self, text: str, emotion: str, config: dict) -> float:
+        """估算动作核心时长"""
+        # 检查时间标注
+        explicit_time = self._check_explicit_time(text)
+        if explicit_time > 0:
+            return explicit_time
 
-        # 1. 首先检查是否有明确的时间标注
+        # 分词
+        words = list(jieba.cut(text, cut_all=False))
+        base_actions = config["base_actions"]
+
+        # 匹配基础动作（优先匹配长词）
+        base_duration = 1.5
+        sorted_verbs = sorted(base_actions.keys(), key=len, reverse=True)
+
+        for verb in sorted_verbs:
+            if verb and verb in text:
+                base_duration = base_actions[verb]
+                debug(f"匹配到动作: {verb} -> {base_duration}s")
+                break
+
+        # 修饰词修正
+        modifier_factor = 1.0
+        modifiers = config["modifiers"]
+
+        for word in words:
+            if word in modifiers:
+                modifier_factor = modifiers[word]
+                debug(f"匹配到修饰词: {word} -> {modifier_factor}")
+                break
+
+        # 情绪修正
+        emotion_factor = self._get_emotion_factor(emotion)
+
+        return base_duration * modifier_factor * emotion_factor
+
+    def _check_explicit_time(self, text: str) -> float:
+        """检查显式时间标注"""
+        # 数字时间（如"3秒"）
         time_match = re.search(r'(\d+)秒|(\d+)分钟|(\d+)小时', text)
         if time_match:
             if time_match.group(1):  # 秒
@@ -145,46 +263,72 @@ class ActionDurationEstimatorTool:
             elif time_match.group(3):  # 小时
                 return float(time_match.group(3)) * 3600
 
-        # 2. 检查是否有"三秒"、"两秒"这样的中文数字时间标注
-        chinese_time_match = re.search(r'(一|二|三|四|五|六|七|八|九|十|两|几)秒', text)
-        if chinese_time_match:
-            chinese_numbers = {
-                '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5,
-                '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
-                '几': 3  # 不确定的"几秒"默认按3秒计算
-            }
-            return float(chinese_numbers.get(chinese_time_match.group(1), 1))
+        # 中文数字时间（如"三秒"）
+        chinese_nums = {
+            '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5,
+            '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+            '几': 3, '数': 2
+        }
 
-        # 3. 常规动作时长估算
-        words = list(jieba.cut(text, cut_all=False))
-        base_actions = config["base_actions"]
+        for cn, num in chinese_nums.items():
+            if f"{cn}秒" in text:
+                return float(num)
 
-        # 匹配最长动词
-        base_duration = 1.5
-        sorted_verbs = sorted(base_actions.keys(), key=len, reverse=True)
-        for verb in sorted_verbs:
-            if verb and verb in text:
-                base_duration = base_actions[verb]
-                break
+        return 0.0
 
-        # 修饰词修正
-        modifier_factor = 1.0
-        modifiers = config["modifiers"]
-        for word in words:
-            if word in modifiers:
-                modifier_factor = modifiers[word]
-                break
+    def _get_emotion_factor(self, emotion: str) -> float:
+        """获取情绪因子"""
+        emotion_factors = {
+            EmotionType.TENSE.value: 1.1,
+            EmotionType.EXCITED.value: 1.1,
+            EmotionType.HESITANT.value: 1.2,
+            EmotionType.CALM.value: 0.95,
+            EmotionType.SAD.value: 0.9,
+            EmotionType.ANGRY.value: 1.1,
+            EmotionType.HAPPY.value: 1.05,
+            EmotionType.NEUTRAL.value: 1.0,
+            EmotionType.CRYING.value: 0.85,
+            EmotionType.WHISPER.value: 0.9,
+        }
 
-        # 情绪修正（简单映射）
-        emotion_factor = 1.0
-        if emotion:
-            if emotion in ["紧张", "激动", "犹豫"]:
-                emotion_factor = 1.1
-            elif emotion in ["平静", "冷静"]:
-                emotion_factor = 0.95
+        return emotion_factors.get(emotion, 1.0)
 
-        return base_duration * modifier_factor * emotion_factor
+    def batch_estimate(self, actions: List[Dict[str, Any]]) -> List[float]:
+        """
+        批量估算多个动作
+
+        Args:
+            actions: 动作字典列表，每个字典包含text、emotion等字段
+
+        Returns:
+            时长列表
+        """
+        results = []
+        for action in actions:
+            try:
+                duration = self.estimate_action(
+                    action_text=action.get("text", ""),
+                    emotion=action.get("emotion", EmotionType.NEUTRAL.value),
+                    character_type=action.get("character_type", CharacterType.DEFAULT),
+                    intensity=action.get("intensity", IntensityLevel.NORMAL)
+                )
+                results.append(duration)
+            except Exception as e:
+                warning(f"批量估算失败: {e}")
+                results.append(self._get_fallback_duration(action.get("text", "")))
+
+        return results
 
     def clear_cache(self):
         """清空缓存"""
-        self.estimate.cache_clear()
+        self.estimate_action.cache_clear()
+        debug("动作估算缓存已清空")
+
+    def get_cache_info(self) -> Dict[str, Any]:
+        """获取缓存信息"""
+        return {
+            "hits": self.estimate_action.cache_info().hits,
+            "misses": self.estimate_action.cache_info().misses,
+            "maxsize": self.estimate_action.cache_info().maxsize,
+            "currsize": self.estimate_action.cache_info().currsize
+        }
