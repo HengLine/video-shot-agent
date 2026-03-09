@@ -61,7 +61,7 @@ dependencies = [
 
     # 数据处理
     "numpy>=1.24.0",
-#    "jieba>=0.42.1",
+    "jieba>=0.42.1",
 
     # 工具库
 #    "requests>=2.31.0",
