@@ -180,11 +180,17 @@ class RuleShotSegmenter(BaseShotSegmenter):
         # 取第一个元素的主要内容
         first_elem = group[0]
 
-        # 简化描述（截断到50字符）
+        # 简化描述（不再强制截断；支持可选配置）
         base_desc = first_elem.content
 
-        if len(base_desc) > 50:
-            base_desc = base_desc[:47] + "..."
+        # 如果用户在配置中指定了最大长度，则按该长度截断并保留省略号
+        max_len = None
+        if self.config is not None:
+            max_len = getattr(self.config, 'max_description_length', None)
+
+        if max_len and isinstance(max_len, int) and max_len > 10:
+            if len(base_desc) > max_len:
+                base_desc = base_desc[:max_len - 3] + "..."
 
         # 如果是对话，添加说话者
         if first_elem.type == ElementType.DIALOGUE and first_elem.character:

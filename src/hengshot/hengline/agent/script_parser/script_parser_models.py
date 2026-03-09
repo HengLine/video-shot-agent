@@ -7,7 +7,6 @@
 """
 
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional, Dict, Any, Literal
 
 from pydantic import BaseModel, Field
@@ -15,39 +14,9 @@ from pydantic import BaseModel, Field
 from hengshot.hengline.agent.base_models import ElementType
 
 # ========================= 音频上下文模型 - 包含环境声音、背景音乐等信息 =========================
-class SoundType(str, Enum):
-    """环境音类型"""
-    RAIN = "rain"  # 雨声
-    WIND = "wind"  # 风声
-    THUNDER = "thunder"  # 雷声
-    WATER_DRIP = "water_drip"  # 滴水声
-    FOOTSTEP = "footstep"  # 脚步声
-    TRAFFIC = "traffic"  # 交通声
-    CROWD = "crowd"  # 人群声
-    MUSIC = "music"  # 背景音乐
-    TV_NOISE = "tv_noise"  # 电视噪音
-    BIRD = "bird"  # 鸟叫声
-    paper_rustle = "paper_rustle"  # 纸张摩擦声
-    SILENCE = "silence"  # 安静/无声
-    OTHER = "other"  # 其他未分类的声音
-
-
-class SceneType(str, Enum):
-    """场景类型"""
-    INDOOR = "indoor"  # 室内
-    OUTDOOR = "outdoor"  # 室外
-    CAFE = "cafe"  # 咖啡店
-    PARK = "park"  # 公园
-    STREET = "street"  # 街道
-    LIVING_ROOM = "living_room"  # 客厅
-    RAINY_OUTDOOR = "rainy_outdoor"  # 雨天户外
-    NIGHT_OUTDOOR = "night_outdoor"  # 夜间户外
-    OTHER = "other" # 其他未分类的场景
-
-
 class EnvironmentSound(BaseModel):
     """环境音信息"""
-    sound_type: SoundType = Field(..., description="环境音类型")
+    sound_type: str = Field(..., description="环境音类型")
     intensity: float = Field(default=0.5, ge=0.0, le=1.0, description="强度/音量")
     continuous: bool = Field(default=True, description="是否持续")
     description: Optional[str] = Field(None, description="详细描述")
@@ -56,7 +25,7 @@ class EnvironmentSound(BaseModel):
 
 class SceneAudioContext(BaseModel):
     """场景音频上下文"""
-    scene_type: SceneType = Field(..., description="场景类型")
+    scene_type: str = Field(..., description="场景类型")
     env_sounds: List[EnvironmentSound] = Field(default_factory=list, description="环境音列表")
     has_dialogue: bool = Field(default=False, description="是否有对话")
     has_voiceover: bool = Field(default=False, description="是否有旁白")
@@ -66,7 +35,7 @@ class SceneAudioContext(BaseModel):
 
 class ElementAudioContext(BaseModel):
     """元素级别的音频上下文"""
-    sound_type: Optional[SoundType] = Field(None, description="该元素产生的声音类型")
+    sound_type: Optional[str] = Field(None, description="该元素产生的声音类型")
     description: Optional[str] = Field(None, description="声音描述")
     intensity: float = Field(default=0.5, ge=0.0, le=1.0, description="强度")
 
@@ -169,7 +138,7 @@ class SceneInfo(BaseModel):
     )
     # 音频上下文
     audio_context: SceneAudioContext = Field(default_factory=lambda: SceneAudioContext(
-        scene_type=SceneType.OUTDOOR,
+        scene_type="outdoor",
         env_sounds=[]
     ))
 
@@ -218,7 +187,7 @@ class GlobalMetadata(BaseModel):
     continuity_notes: str = Field(default="", description="需要特别注意的连续性要点")
     # 全局音频设置
     audio_atmosphere: str = Field(default="neutral", description="全局音频氛围")
-    recurring_sounds: List[SoundType] = Field(default_factory=list, description="重复出现的声音")
+    recurring_sounds: List[str] = Field(default_factory=list, description="重复出现的声音")
 
     def to_dict(self) -> dict:
         """转换为字典表示"""

@@ -11,7 +11,7 @@ from typing import Dict, Any, List
 
 from hengshot.hengline.agent.base_models import ScriptType, ElementType
 from hengshot.hengline.agent.script_parser.script_parser_models import ParsedScript, SceneInfo, CharacterInfo, BaseElement, \
-    GlobalMetadata, PropItem, CharacterOutfit, LocationItem, ElementAudioContext, SoundType, SceneAudioContext, SceneType, EnvironmentSound
+    GlobalMetadata, PropItem, CharacterOutfit, LocationItem, ElementAudioContext, SceneAudioContext, EnvironmentSound
 from hengshot.hengline.tools.script_assessor_tool import ComplexityAssessor
 from hengshot.logger import info, warning
 
@@ -154,7 +154,7 @@ class BaseScriptParser(ABC):
         element_audio_context = None
         if _element_audio_context and _element_audio_context != {}:
             element_audio_context = ElementAudioContext(
-                sound_type=SoundType(_element_audio_context.get("sound_type", "other")),
+                sound_type=_element_audio_context.get("sound_type", ""),
                 description=_element_audio_context.get("description", ""),
                 intensity=_element_audio_context.get("intensity", 0.5),
             )
@@ -178,11 +178,11 @@ class BaseScriptParser(ABC):
     def _build_audio_context(self, audio_data: Dict[str, Any]) -> SceneAudioContext:
         """构建场景级音频上下文"""
         if not audio_data:
-            return SceneAudioContext(scene_type=SceneType.OTHER)
+            return SceneAudioContext(scene_type="other")
 
         env_sounds = [
             EnvironmentSound(
-                sound_type=SoundType(env_sound.get("sound_type", "other")),
+                sound_type=env_sound.get("sound_type", ""),
                 description=env_sound.get("description"),
                 continuous=env_sound.get("continuous", True),
                 intensity=env_sound.get("intensity", 0.5),
@@ -192,7 +192,7 @@ class BaseScriptParser(ABC):
         ]
 
         return SceneAudioContext(
-            scene_type=SceneType(audio_data.get("scene_type", "other")),
+            scene_type=audio_data.get("scene_type", "other"),
             env_sounds=env_sounds,
             has_dialogue=audio_data.get("has_dialogue", False),
             has_voiceover=audio_data.get("has_voiceover", False),
@@ -238,5 +238,5 @@ class BaseScriptParser(ABC):
             ],
             continuity_notes=global_data.get("continuity_notes", ""),
             audio_atmosphere=global_data.get("audio_atmosphere", "neutral"),
-            recurring_sounds=[SoundType(sound) for sound in global_data.get("recurring_sounds", [])]
+            recurring_sounds=[sound for sound in global_data.get("recurring_sounds", [])]
         )
