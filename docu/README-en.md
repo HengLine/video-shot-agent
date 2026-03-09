@@ -2,34 +2,39 @@
 
 English | [中文](../README.md)
 
-A multi-agent collaborative storyboard generation system that splits scripts in various formats into short AI-generatable video script units, outputs high-quality shot descriptions, and preserves narrative continuity. It supports multiple AI providers, is highly extensible and easy to use. The system can be used as a Python library, Web API, LangGraph node, or integrated into A2A systems.
+A multi-agent collaborative storyboard generation system that splits scripts in various formats into short AI-generatable video script units, outputs high-quality shot fragment descriptions, and preserves narrative continuity. It supports multiple AI providers, is highly extensible and easy to use. The system can be integrated as a Python library, a Web API, a LangGraph node, or into A2A (agent-to-agent) systems.
 
-> - Requirement: Given a roughly two-minute script, generate the corresponding short video sequences using AI models.
+> - Requirement: Given a script of approximately two minutes, generate corresponding short video segments using AI models.
 >
-> - Technical constraint: Current models typically generate only 5–10 seconds of video per run. To produce a two-minute video you must compose multiple 5-second clips together.
+> - Technical constraint: Current text-to-video systems typically produce 5–10 seconds per generation. To produce a two-minute video you must stitch multiple ~5-second clips together.
 >
-> - Task & challenges: To enable video stitching, the first step is to split the original script into segments that are close to the target 5–10 second durations (depending on the model). Each clip must remain coherent; otherwise stitched clips will show mismatched scenes, actions, or character continuity.
+> - Task & challenges: To stitch generated clips, the first step is to split the original script into segments that match the target 5–10 second duration (depending on the target model). Each clip must remain narratively coherent; otherwise stitched clips will result in mismatched scenes, actions, or character continuity.
 >
->   Actions, speech rate and other factors affect timing — e.g., an elderly person moves slower, angry shouting accelerates delivery, running is faster than walking — so the splitter must consider many scenarios.
+>   Actions, speech rate and other factors affect duration — e.g., an elderly person moves slower, angry shouting speeds up delivery, running is faster than walking — so the splitter must consider many scenarios.
 >
->   This agent performs that task. The user provides the script, the system splits it according to rules and configurable model constraints, and returns segmented script fragments the user can feed into video generation models (Runway, Pika, Sora, Wan, Stable Video, etc.). The final composition can be done with standard tools (FFmpeg) or future automated steps.
+>   This agent performs that task: the user supplies a script, the system splits it according to configurable rules and model constraints, and returns segmented script fragments that the user can feed to video generation models (Runway, Pika, Sora, Wan, Stable Video, etc.). Final composition can be done using standard tools like FFmpeg (or future automated steps).
 
 
 Video creation pipeline: Client → LLM script authoring → <u>Storyboard parsing (splitting)</u> → DM video synthesis (text-to-video) → video assembly & rendering (FFmpeg)
 
-Note: This agent does not create scripts, generate video, or perform final composition in the current version (future versions may add these). The highlighted step above is the agent's responsibility.
+Note: This agent does not author scripts, does not generate video, nor does it perform final composition in the current version (future releases may add these). The highlighted step above is the agent's responsibility.
 
-For a detailed design and architecture discussion, see: [Storyboard Agent — Architecture and Implementation Details](https://pengline.github.io/2025/10/0194020a663c408fb500dd7532349519/)
+For a detailed architecture and implementation discussion, see: [Storyboard Agent — Architecture and Implementation Details](https://pengline.github.io/2025/10/0194020a663c408fb500dd7532349519/)
 
 
 
 ## Core features
 
-- Intelligent script parsing: automatically recognize scenes, dialogues and action directives; understand story structure.
-- Precise timing planning: split content into shot-sized fragments and assign reasonable durations.
-- Continuity guardian: ensure adjacent fragments maintain character state, scene and plot consistency.
-- High-quality storyboard generation: produce detailed Chinese visual descriptions and English AI prompt phrases for video models.
-- Multi-model support: compatible with OpenAI, Qwen, DeepSeek, Ollama and other providers.
+- Intelligent script parsing: automatically identify scenes, dialogues and action directives; understand story structure.
+- Precise timing planning: split content into shot-sized fragments and assign reasonable durations (AI-compatible).
+- Continuity guardian: ensure adjacent fragments preserve character state, scene and plot consistency.
+- High-quality storyboard generation: produce detailed Chinese visual descriptions and English AI video prompts.
+- Audio prompt support: generate environment and audio design prompts for each fragment.
+- Multi-model support: compatible with OpenAI, Qwen, DeepSeek, Ollama and others.
+- Easy-to-use APIs: provide a Python library, Web API, LangGraph node and A2A integration options.
+- Configurable generation parameters: temperature, durations, model selection, and other controls.
+- Error handling and retry: automatic retries for failed generation tasks to improve success rates.
+- Traceability: every fragment can be traced back to its original position in the script for verification and editing.
 
 
 ## Quick start
@@ -46,12 +51,13 @@ cd video-shot-agent
 # Install as an editable package
 pip install -e .
 
-######### Option 1: automatic install
+######### Option 1: automatic install #########
 # The script will attempt to create a virtual environment, install dependencies and start the service. If it fails, follow the manual steps.
 python main.py
 
-######### Option 2: manual install
+######### Option 2: manual install #########
 python -m venv .venv
+
 # Activate virtual environment (Windows)
 .venv\Scripts\activate
 # Or (Linux/Mac)
@@ -70,13 +76,9 @@ Copy the example environment file and set environment variables:
 cp .env.example .env
 ```
 
-Edit the `.env` file and set required values:
+Edit the `.env` file and configure the required parameters:
 
 ```properties
-# Deployment environment (development, production)
-APP__ENVIRONMENT=development
-# Script language preference, supported: zh (Chinese) or en (English)
-APP__LANGUAGE=zh
 # ================= API CONFIG =================
 # Server host
 API__HOST=localhost
@@ -87,28 +89,11 @@ API__PORT=8000
 # Supported providers (openai, qwen, deepseek, ollama). A fallback provider will be used if the default provider is unavailable.
 
 # ================= DEFAULT LLM SETTINGS =================
-# Provider base URL
 LLM__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
-# Provider API key
 LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-# Provider model name
 LLM__DEFAULT__MODEL_NAME=qwen-plus
-# Generation temperature (0.0 = deterministic, 1.0 = higher randomness)
-LLM__DEFAULT__TEMPERATURE=0.1
-# Default API timeout (seconds)
 LLM__DEFAULT__TIMEOUT=60
-# Maximum retry attempts
-LLM__DEFAULT__MAX_RETRIES=2
-# Maximum tokens
-LLM__DEFAULT__MAX_TOKENS=3000
-LLM__DEFAULT__RETRY_DELAY=1
-
-# ================= FALLBACK LLM SETTINGS =================
-LLM__FALLBACK__BASE_URL=http://localhost:11434
-LLM__FALLBACK__MODEL_NAME=qwen3:4b
-LLM__FALLBACK__TEMPERATURE=0.1
-LLM__FALLBACK__TIMEOUT=300
-LLM__FALLBACK__MAX_TOKENS=5000
+LLM__DEFAULT__MAX_TOKENS=4096
 ```
 
 
@@ -118,83 +103,141 @@ LLM__FALLBACK__MAX_TOKENS=5000
 python main.py
 ```
 
-The service will start at `http://0.0.0.0:8000` and expose API endpoints.
+> The service will start at `http://0.0.0.0:8000` and expose API endpoints.
+>
 
 
-### 4. Submit a job
+### 4. Submit a task
 
-Submit a job example (JSON payload shows a sample script):
+Submit a storyboard generation task (example request):
 
 ```sh
 curl --location --request POST 'http://localhost:8000/api/v1/storyboard' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-    "script": "深夜11点，城市公寓客厅，窗外大雨滂沱。林然裹着旧羊毛毯蜷在沙发里，电视静音播放着黑白老电影。茶几上半杯凉茶已凝出水雾，旁边摊开一本旧相册。手机突然震动，屏幕亮起“未知号码”。她盯着看了三秒，指尖悬停在接听键上方，喉头轻轻滚动。终于，她按下接听，将手机贴到耳边。电话那头沉默两秒，传来一个沙哑的男声：“是我。”  林然的手指瞬间收紧，指节泛白，呼吸停滞了一瞬。  她声音微颤：“……陈默？你还好吗？”  对方停顿片刻，低声说：“我回来了。” 林然猛地坐直，瞳孔收缩，泪水在眼眶中打转。她张了张嘴，却发不出声音，只有毛毯从肩头滑落。"
+    "script": "Late at night, 11 PM. In a city apartment living room, heavy rain slams the windows. Lin Ran is wrapped in an old wool blanket on the sofa while a muted black-and-white movie plays on the TV. A half-drunk cup of cold tea beads on the coffee table. An old photo album lies open. The phone suddenly vibrates and shows 'Unknown Number'. She stares for three seconds, fingertip hovering above the answer key, throat tightening. Finally she accepts and puts the phone to her ear. Silence for two seconds, then a hoarse male voice says, 'It's me.' Lin Ran's fingers clench and her knuckles turn white. She breathes and speaks with a trembling voice: '...Chen Mo? Are you okay?' The caller pauses and whispers: 'I'm back.' Lin Ran jolts upright, pupils constrict, tears welling; she opens her mouth but no sound comes out; only the blanket slips from her shoulders."
 }'
 ```
 
 
 ### 5. Get results
 
-Check job status:
+Check task status:
 
 ```sh
 # Example task_id returned after submission
 curl --location --request GET 'http://localhost:8000/api/v1/status/HL202603061937129004'
 ```
 
-Retrieve job result:
+Retrieve task result:
 
 ```sh
 # Example task_id returned after submission
 curl --location --request GET 'http://localhost:8000/api/v1/result/HL202603061937129004'
 ```
 
-Output: structured storyboard result (`audio_prompt` contains audio prompt information)
+Output: structured storyboard result (the `audio_prompt` section contains audio prompt information)
 
-(Example JSON omitted for brevity — the file contains a representative structured output with fragment prompts, durations, audio_prompt objects, etc.)
+Example (abbreviated) JSON output structure:
+
+```json
+{
+  "fragments": [
+    {
+      "fragment_id": "frag_001",
+      "prompt": "Cinematic wide shot: midnight 11 PM in a compact urban apartment living room — rain lashes violently against the window, blurring distant neon signs (pink, cyan, magenta) into soft streaks; dim ambient light from a silent black-and-white vintage film playing on an old CRT TV casts faint flickering glow; medium-gray fabric sofa, weathered oak coffee table, analog wall clock frozen at 11:00, half-drawn beige curtains; woman (Lin Ran) curled on sofa under a thick, off-white hand-knitted wool blanket — coarse texture, yellowed edges, visible pilling and wear; she wears a loose, muted gray cotton long-sleeve top with subtle collar folds; her face is tired but alert, eyes slightly red, jaw gently tensed; shallow depth of field, film grain, naturalistic color grading, moody chiaroscuro lighting, 35mm cinematic realism",
+      "negative_prompt": "cartoon, anime, 3D render, photorealistic stock photo, bright lighting, smiling face, modern fashion, high saturation, text, logo, watermark, sharp focus everywhere, clean unused objects, glossy surfaces, daylight, people walking, dialogue subtitles",
+      "duration": 4.2,
+      "model": "runway_gen2",
+      "style": "cinematic 35mm film, moody realism, shallow depth of field, natural lighting, muted palette, subtle motion blur on rain streaks",
+      "requires_special_attention": false,
+      "audio_prompt": {
+        "audio_id": "audio_001",
+        "prompt": "Low-frequency rain ambience (intensity 0.95), distant muffled TV static hiss (black-and-white film tone), near-silence punctuated by faint breath and fabric rustle — no speech, no music, no sudden transients; highly restrained dynamic range, immersive spatial audio, slight reverb suggesting small enclosed apartment space",
+        "negative_prompt": "speech, dialogue, footsteps, door creak, music, birdsong, wind howl, thunderclap, laughter, applause, narration",
+        "model_type": "AudioLDM_3",
+        "voice_type": "narration",
+        "audio_style": "cinematic",
+        "voice_character": null,
+        "voice_description": "ambient sound design only, no voice, pure atmospheric field recording style",
+        "pitch_shift": 0.0,
+        "emotion": "neutral",
+        "previous_audio_id": "audio_014"
+      }
+    },
+    {
+      "fragment_id": "frag_002",
+      "prompt": "medium shot, cinematic lighting, Lin Ran curled up on a light gray fabric sofa, wrapped in a creamy off-white vintage wool blanket — thick, coarse-knit, slightly yellowed and pilled at edges, showing visible wear; she wears a neutral-toned (light gray/mushroom beige) soft cotton long-sleeve top, loose fit, subtle collar pleats, no jewelry or decoration; her expression is exhausted yet alert, eyes slightly red-rimmed, quiet emotional tension; background: modern small-city apartment living room — light gray fabric sofa, warm-toned wooden coffee table, vintage wall clock frozen at 11:00, half-drawn curtains revealing blurred neon lights and rain-streaked window; muted black-and-white old film playing silently on TV screen; ambient low-frequency rain, faint TV static hum, restrained vocal dynamic range",
+      "negative_prompt": "modern fashion clothing, bright colors, glossy textures, sharp focus on face only, text overlays, logos, cartoon style, anime, photorealistic skin imperfections, motion blur, shaky cam, high saturation, studio lighting, smiling, energetic pose, multiple people, clean unused objects",
+      "duration": 3.0,
+      "model": "runway_gen2",
+      "style": "cinematic, realistic, muted color palette, shallow depth of field, Kodak Portra 400 film grain, emotionally restrained tone",
+      "requires_special_attention": false,
+      "audio_prompt": {
+        "audio_id": "audio_002",
+        "prompt": "ambient low-frequency rainfall (intensity 0.9), distant faint television white noise (black-and-white film static), near-silence with subtle breath and micro-movement cues, highly compressed vocal dynamic range, no dialogue, immersive domestic stillness",
+        "negative_prompt": "dialogue, music, footsteps, door sounds, phone ring, laughter, wind, thunder, abrupt transients, high-frequency hiss, stereo panning effects",
+        "model_type": "AudioLDM_3",
+        "voice_type": "narration",
+        "audio_style": "cinematic",
+        "voice_character": null,
+        "voice_description": "no voice, pure environmental atmosphere with ultra-low dynamic range and tactile silence",
+        "pitch_shift": 0.0,
+        "emotion": "neutral",
+        "previous_audio_id": "audio_001"
+      }
+    },
+    ......
+  ]
+}
+```
+
+(Actual output will contain a structured list of fragments with prompts, timing, audio prompts, metadata and continuity notes.)
 
 
-## Agent integration examples
+## Integration examples
 
-Installation:
+Notes on packaging and installation:
 
 ```sh
-# Choose the desired release wheel from https://github.com/HengLine/video-shot-agent/releases
+# Choose a release wheel from: https://github.com/HengLine/video-shot-agent/releases
 # Example:
-# https://github.com/HengLine/video-shot-agent/releases/download/v0.1.3-beta/hengshot-0.1.3-py3-none-any.whl
+wget https://github.com/HengLine/video-shot-agent/releases/download/v0.1.4/hengshot-0.1.4-py3-none-any.whl
 pip install hengshot-0.1.1-py3-none-any.whl
-# Install provider-specific LLM client packages as needed:
-# pip install langchain-openai    # for openai or deepseek
-# pip install dashscope          # for qwen
+# The package defaults to using Ollama; install provider-specific LLM clients as required:
+# pip install langchain-openai  # for OpenAI/DeepSeek
+# pip install dashscope        # for Qwen
 ```
 
 Configuration notes:
 
-> 1. Copy the example environment file: `cp .env.example .env`
-> 2. Edit `.env` and fill in real values
+> 1. Copy the example env file: `cp .env.example .env`
+>
+> 2. Edit `.env` and fill in real values (API keys, base URLs, model names)
+>
+>    ```python
+>    # ================= LLM默认配置 =================
+>    LLM__DEFAULT__BASE_URL=https://api.openai.com/v1
+>    LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+>    LLM__DEFAULT__MODEL_NAME=gpt-4-turbo-preview
+>    LLM__DEFAULT__TIMEOUT=30
+>    LLM__DEFAULT__MAX_TOKENS=4000
+>    
+>    # ================= LLM备用配置 =================
+>    LLM__FALLBACK__BASE_URL=http://localhost:11434
+>    LLM__FALLBACK__MODEL_NAME=qwen3:4b
+>    LLM__FALLBACK__TIMEOUT=300
+>    LLM__FALLBACK__MAX_TOKENS=5000
+>    ```
+>
 
-```properties
-# .env - example
-# ================= Application =================
-APP__LANGUAGE=zh
 
-# ================= DEFAULT LLM =================
-LLM__DEFAULT__BASE_URL=https://api.openai.com/v1
-LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-LLM__DEFAULT__MODEL_NAME=gpt-4-turbo-preview
-LLM__DEFAULT__TEMPERATURE=0.7
-LLM__DEFAULT__TIMEOUT=30
-LLM__DEFAULT__MAX_RETRIES=3
-LLM__DEFAULT__MAX_TOKENS=4000
-```
 
 
 ### 1. Use as a Python library
 
 ```python
 from hengshot.hengline import generate_storyboard
-from hengshot.hengline.hengline_config import HengLineConfig
 
 async def basic_usage():
     """Basic usage example"""
@@ -204,20 +247,12 @@ async def basic_usage():
     Character: Xiaoli (programmer)
     Action: Xiaoli is coding when he receives a phone call and looks surprised
     """
-    
-    # Create custom LLM config
-    custom_config = HengLineConfig(
-        model_name="gpt-4",
-        base_url="http://localhost:11434",  # assume Ollama is running locally
-        temperature=0.2
-    )
 
     # Simple call
     result = await generate_storyboard(
-        script_text=script,
-        config=custom_config
+        script_text=script
     )
-    print(f"Task submitted, task_id: {result.get('task_id')}")
+    print(f"Task completed, task_id: {result.get('task_id')}")
     print(f"Success: {result.get('success', False)}")
     print(f"Fragments: {result.get('data', {})}")
 
@@ -225,27 +260,17 @@ async def basic_usage():
 ```
 
 
-### 2. Integrate in a Web app (API)
+### 2. Integrate into a Web application (API)
 
-You can integrate the storyboard agent via HTTP endpoints:
+You can expose a simple HTTP API endpoint to call the storyboard generator:
 
 ```python
+from hengshot.hengline import generate_storyboard
+
 @app.post("/api/generate-storyboard")
 async def generate_storyboard_endpoint(script_text: str):
-    """
-    Web API endpoint that returns storyboard fragments
-    """
-    # Create custom LLM config
-    custom_config = HengLineConfig(
-        model_name="gpt-4",
-        base_url="http://localhost:11434",  # assume Ollama is running locally
-        temperature=0.2
-    )
     try:
-        return await generate_storyboard(
-            script_text=script_text,
-            config=custom_config
-        )
+        return await generate_storyboard(script_text=script_text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 ```
@@ -253,91 +278,97 @@ async def generate_storyboard_endpoint(script_text: str):
 
 ### 3. LangGraph node integration
 
-You can use the agent as a node in a LangGraph workflow. See examples in the repository for a sample node implementation and workflow wiring.
+The agent can be used as a node in a LangGraph workflow — see the repository docs for examples and wiring instructions.
 
 
-### 4. Integrate into A2A systems
+### 4. A2A integration
 
-The agent can be integrated into Agent-to-Agent workflows where upstream agents provide scripts and downstream agents perform text-to-video and editing.
+Integrate the storyboard agent into agent-to-agent workflows where upstream agents provide scripts and downstream agents perform text-to-video generation and editing.
 
 
-## Version & limitations
+## Limitations & outlook
 
-> 1. Relies on external APIs: LLMs require stable network connectivity
-> 2. AI model limits: generated video quality depends on video model capabilities
-> 3. Long scripts: long scripts may require chunked processing
-> 4. Multi-language: primarily optimized for Chinese, other languages need testing
+> 1. Relies on external APIs: stable network connectivity is required for LLM providers.
+> 2. AI model limits: generated video quality depends on the capabilities of the chosen video model.
+> 3. Long scripts: very long scripts may need chunked processing.
+> 4. Multi-language: currently optimized for Chinese; other languages need further testing.
+> 5. Uncertain generated durations: actual generated fragment durations may not perfectly match estimates.
+> 6. Continuity challenges: maintaining continuity across fragments can be technically difficult.
+> 7. No online learning: the current version does not learn from user feedback.
+> 8. Error handling: exceptional cases may lead to failure.
+> 9. Audio synchronization: lip sync and environmental audio design require further work.
+> 10. Professional-grade storyboards: achieving director-level output will need iterative improvements.
 
 
 ### MVP limitations
 
-1. Simple rules: uses fixed heuristics and cannot handle all complex structures
-2. No persistent memory: supports a single split pass, not iterative long-text splitting
-3. No learning: does not learn from user feedback
-4. Simple splitting: may have continuity, duration compression issues
-5. Limited customization: fewer configuration options
-6. Simple error handling: unexpected errors may cause failure
+1. Simple rules: uses heuristic rules and cannot handle very complex script structures.
+2. No persistent memory: supports single-pass splitting; not designed for iterative long-text splitting.
+3. No learning: does not learn from feedback.
+4. Simple splitting: fragmentation may still produce continuity/duration issues.
+5. Limited customization: fewer parameter options in this version.
+6. Basic error handling: unexpected errors may cause task failure.
 
 
 ### Short-term roadmap
 
-1. Smarter splitting: optimize long-shot splitting to keep action continuity
-2. Continuity checks: verify costume, position and prop consistency
-3. Multi-model prompts: optimize prompts for Sora, Pika and others
-4. Rules + LLM hybrid: support local rule processing combined with LLM
-5. English script support: full support for English script input
-6. Error fallback: smart degradation on node failure
-7. Config expansion: finer-grained parameter controls
-8. Quality scoring: output confidence score per fragment
-9. Debug mode: save intermediate results for troubleshooting
-10. Audio prompts: support audio prompt generation that aligns with visuals
+1. Smarter splitting: improve long-shot splitting to keep action continuity.
+2. Continuity checks: verify costume, position and prop consistency.
+3. Multi-model prompt tuning: optimize prompts for Sora, Pika and other models.
+4. Rules + LLM hybrid: combine local rules with LLM processing.
+5. English script support: full support for English input.
+6. Error fallback: graceful degradation on node failure.
+7. Configuration expansion: finer-grained parameters.
+8. Quality scoring: output confidence per fragment.
+9. Debug mode: save intermediate results for troubleshooting.
+10. Audio prompts: generate audio prompts aligned with visuals.
 
 
 ### Mid-term roadmap
 
-1. Advanced camera language: support complex camera moves (push/pull/track/pan/tilt)
-2. Emotion analysis: adjust visual style according to script sentiment
-3. Long-script processing: chunking with context memory
-4. Auto-optimization: learn successful patterns from history
-5. Batch processing: multi-script queue handling
-6. Web UI: visual operations
-7. Asset library integration: support reference images for characters/scenes
-8. Multi-format export: storyboard, timeline XML, dataset formats
-9. State memory: ID-based embeddings and state tracking for long scripts
-10. Result download: export complete storyboard files
+1. Advanced camera language: support complex camera moves (push/pull/track/pan/tilt).
+2. Emotion analysis: adjust visual style according to script sentiment.
+3. Long-script processing: chunking with context memory (RAG + vector DB).
+4. Auto-optimization: learn successful patterns from history.
+5. Batch processing: multi-script queue handling.
+6. Web UI: visual operations and editing.
+7. Asset library integration: support reference images for characters/scenes.
+8. Multi-format export: storyboard, timeline XML, dataset formats.
+9. More parameters: support camera motion types, composition rules, color grading presets.
+10. Result download: export complete storyboard files.
 
 
 ### Long-term roadmap
 
-1. Multi-modal input: support images + audio + text
-2. Real-time preview: low-resolution quick previews
-3. Smart repair: automatically detect and fix continuity issues
-4. Ecosystem integrations: Premiere/FCP/DaVinci plugins
-5. Collaboration: multi-user collaboration and version control
-6. Learning evolution: automatically improve from user feedback
-7. Commercialization: usage metrics, team management, enterprise SLA
-8. Script repository: historical script management and versioning
-9. Incremental processing: reprocess only changed parts, reuse existing results
-10. AI director assistant: offer creative suggestions and shot design guidance
-11. Cross-modal consistency: ensure visual output matches script emotion and style
-12. Personalization: adjust style, pacing and composition to user preferences
+1. Multi-modal inputs: support images + audio + text inputs.
+2. Real-time preview: low-resolution quick previews.
+3. Smart repair: automatically detect and fix continuity issues.
+4. Ecosystem integrations: Premiere/FCP/DaVinci plugins.
+5. Collaboration: multi-user collaboration and version control.
+6. Learning evolution: automatically improve from feedback.
+7. Commercialization: usage analytics, team management, enterprise SLAs.
+8. Script repository: historical script management and versioning.
+9. Incremental processing: reprocess only changed parts, reuse existing results.
+10. AI director assistant: provide creative suggestions and shot design guidance.
+11. Cross-modal consistency: ensure visuals align with script emotion and style.
+12. Personalization: adapt style, pacing and composition to user preferences.
 
 
 ### Ultimate goals
 
-1. Support any script length, language and genre
-2. Zero information loss: fully visualize the script content
-3. Professional-grade outputs: match director-level storyboard quality
-4. Real-time interaction: generate previews while authoring
-5. Style customization: support any director/film aesthetic
-6. Continuous optimization loop: each use improves the system
-7. Fragment↔script traceability: map each fragment back to original text
-8. Semantic alignment checks: evaluate fragment-to-script match
-9. Multi-round correction: auto-adjust and regenerate based on checks
-10. Deep script understanding: visualize subtext, metaphor and symbolism
-11. Global style engine: unify visual style across the whole script
-12. Automatic storyboard scoring from a director's perspective
-13. Human feedback loop: incorporate manual corrections into model updates
+1. Support any script length, language and genre.
+2. Zero information loss: fully visualize script content.
+3. Professional-grade outputs: match director-level storyboard quality.
+4. Real-time interaction: generate previews while writing.
+5. Style customization: support any director/film aesthetic.
+6. Continuous optimization loop: each use improves the system.
+7. Fragment↔script traceability: map fragments back to original text locations.
+8. Semantic alignment checks: evaluate fragment-to-script match.
+9. Multi-round correction: auto-adjust and regenerate based on checks.
+10. Deep script understanding: visualize subtext, metaphor and symbolism.
+11. Global style engine: unify visual style across the whole script.
+12. Automatic storyboard scoring from a director's perspective.
+13. Human feedback loop: incorporate manual corrections into model updates.
 
 
 ## Contributing
