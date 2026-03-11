@@ -1,8 +1,8 @@
 """
 @FileName: llama_index_loader.py
 @Description: LlamaIndex 文档加载模块，提供各种文档加载器，支持不同格式的文档导入
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/12/18
 """
 

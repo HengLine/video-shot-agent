@@ -1,8 +1,8 @@
 """
 @FileName: test_video_splitter.py
 @Description: 
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 23:15
 """
 from hengshot.hengline.agent.shot_segmenter.shot_segmenter_models import ShotSequence

@@ -1,8 +1,8 @@
 """
 @FileName: shot_generator_agent.py
 @Description: 分镜生成智能体
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
 from typing import Optional

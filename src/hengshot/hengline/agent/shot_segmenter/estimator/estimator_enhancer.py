@@ -1,8 +1,8 @@
 """
 @FileName: estimator_enhancer.py
 @Description: 时长估算增强器（后处理优化）
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/19
 """
 from datetime import datetime

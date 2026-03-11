@@ -1,8 +1,8 @@
 """
 @FileName: hengline_config_demo.py
 @Description: 包含完整详细配置示例
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/2/10 19:52
 """
 import asyncio

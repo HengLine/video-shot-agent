@@ -1,8 +1,8 @@
 """
 @FileName: scene_estimator.py
 @Description: 场景时长估算器
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/19
 """
 

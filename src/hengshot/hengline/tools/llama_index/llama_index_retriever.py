@@ -1,8 +1,8 @@
 """
 @FileName: llama_index_retriever.py
 @Description: LlamaIndex 文档检索模块，提供高效的文档检索功能，支持多种检索策略
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/12/18
 """
 

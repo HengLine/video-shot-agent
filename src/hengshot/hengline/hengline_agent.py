@@ -1,8 +1,8 @@
 """
 @FileName: generate_agent.py
 @Description: 
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10/23 15:51
 """
 import uuid

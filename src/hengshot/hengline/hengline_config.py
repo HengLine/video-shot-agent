@@ -1,8 +1,8 @@
 """
 @FileName: hengline_config.py
 @Description: 
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/28 12:25
 """
 from dataclasses import dataclass

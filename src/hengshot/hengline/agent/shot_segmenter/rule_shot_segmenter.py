@@ -1,8 +1,8 @@
 """
 @FileName: rule_shot_generator.py
 @Description: 基于规则的镜头生成器
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 17:40
 """
 from typing import List, Optional

@@ -1,8 +1,8 @@
 """
 @FileName: web_app.py
 @Description: 集成到Web应用（FastAPI示例）
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/2/10 19:44
 """
 from fastapi import FastAPI, HTTPException

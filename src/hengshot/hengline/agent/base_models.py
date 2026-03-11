@@ -1,8 +1,8 @@
 """
 @FileName: base_models.py
 @Description: 基本模型
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/18 14:31
 """
 import uuid

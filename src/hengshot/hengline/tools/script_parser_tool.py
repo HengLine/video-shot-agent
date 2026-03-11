@@ -2,8 +2,8 @@
 @FileName: script_parser_agent.py
 @Description: 剧本语法解析器模块
             提供自定义剧本格式的解析功能，支持场景、角色、对话、动作等元素的提取
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
 import re

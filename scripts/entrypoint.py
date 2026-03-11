@@ -20,8 +20,8 @@
 
     The entrypoint uses os.execv to replace the current process when starting the app so that signals
     from Docker are delivered to the Python/uvicorn process correctly.
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/30 15:39
 """
 

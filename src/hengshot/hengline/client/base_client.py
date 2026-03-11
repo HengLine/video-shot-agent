@@ -1,8 +1,8 @@
 """
 @FileName: base_client.py
 @Description: 
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/10 23:12
 """
 from abc import ABC, abstractmethod

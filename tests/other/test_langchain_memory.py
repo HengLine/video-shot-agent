@@ -1,8 +1,8 @@
 """
 @FileName: langchain_memory_test.py
 @Description: 测试LangChainMemoryTool的功能
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/11
 """
 import time

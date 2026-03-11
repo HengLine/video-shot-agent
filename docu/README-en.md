@@ -45,7 +45,7 @@ Prerequisites: Python 3.10 or newer
 
 ```bash
 # Clone the project
-git clone https://github.com/HengLine/video-shot-agent.git
+git clone https://github.com/neopen/video-shot-agent.git
 cd video-shot-agent
 
 # Install as an editable package

@@ -1,8 +1,8 @@
 """
 @FileName: middleware_constant.py
 @Description: 上下文变量
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/17 22:51
 """
 import contextvars

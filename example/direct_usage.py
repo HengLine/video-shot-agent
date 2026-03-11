@@ -1,8 +1,8 @@
 """
 @FileName: direct_usage.py
 @Description: 作为Python库直接使用
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/2/10 19:46
 """
 import asyncio
@@ -11,7 +11,7 @@ from hengshot.hengline import generate_storyboard
 
 """
 # 1. 下载安装依赖
-https://github.com/HengLine/video-shot-agent/releases/download/v0.1.3-beta/hengshot-0.1.3-py3-none-any.whl
+https://github.com/neopen/video-shot-agent/releases/download/v0.1.3-beta/hengshot-0.1.3-py3-none-any.whl
 pip install hengshot-0.1.3-py3-none-any.whl
 
 # 2. 设置API密钥（如果需要LLM）

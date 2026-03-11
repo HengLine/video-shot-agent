@@ -11,7 +11,7 @@ version = "0.1.4"
 description = "长剧本分镜智能体：基于AI的长视频分镜头检测与分析工具"
 readme = "README.md"
 authors = [
-    {name = "HengLine", email = "helpenx@gmail.com"}
+    {name = "Haeng", email = "helpenx@gmail.com"}
 ]
 license = {text = "MIT"}
 requires-python = ">=3.8"
@@ -109,11 +109,11 @@ full = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/HengLine/video-shot-agent"
-Repository = "https://github.com/HengLine/video-shot-agent.git"
-Documentation = "https://HengLine.github.io/video-shot-agent"
-"Issue Tracker" = "https://github.com/HengLine/video-shot-agent/issues"
-"Changelog" = "https://github.com/HengLine/video-shot-agent/releases"
+Homepage = "https://github.com/neopen/video-shot-agent"
+Repository = "https://github.com/neopen/video-shot-agent.git"
+Documentation = "https://neopen.github.io/video-shot-agent"
+"Issue Tracker" = "https://github.com/neopen/video-shot-agent/issues"
+"Changelog" = "https://github.com/neopen/video-shot-agent/releases"
 
 # 注意：这里引用的是内部的Python包名 hengshot
 [project.scripts]
@@ -144,7 +144,7 @@ hengshot = [
     "templates/*/*",
     "config/*.yaml",
     "config/**/*.yaml",
-    "hengline/prompts/**/*.yaml",
+    "neopen/prompts/**/*.yaml",
     ".env.example"
 ]
 

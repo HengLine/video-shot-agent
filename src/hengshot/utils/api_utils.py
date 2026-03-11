@@ -1,8 +1,8 @@
 """
 @FileName: api_utils.py
 @Description: 
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/2/3 12:45
 """
 from typing import Union

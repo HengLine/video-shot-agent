@@ -46,7 +46,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/HengLine/video-shot-agent.git
+git clone https://github.com/neopen/video-shot-agent.git
 cd video-shot-agent
 
 # 安装为可编辑包

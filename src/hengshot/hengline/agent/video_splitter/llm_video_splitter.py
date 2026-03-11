@@ -1,8 +1,8 @@
 """
 @FileName: llm_video_splitter.py
 @Description: 基于LLM的视频智能分割器 - 从ParsedScript获取全局信息
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 22:30
 """
 import json

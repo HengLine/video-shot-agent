@@ -1,8 +1,8 @@
 """
 @FileName: test_ai_estimator.py
 @Description: 
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/14 21:13
 """
 from hengshot.hengline.agent.script_parser2.script_parser_models import UnifiedScript

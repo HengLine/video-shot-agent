@@ -1,8 +1,8 @@
 """
 @FileName: video_assembler_models.py
 @Description: 视频组装合成模型
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/19 23:02
 """
 import time
