@@ -52,7 +52,7 @@ if __name__ == "__main__":
         info("正在启动FastAPI服务器...")
         info("访问 http://127.0.0.1:8000/docs 查看API文档")
         uvicorn.run(
-            "hengshot.hengline.app_fast:app",
+            "hengshot.neopen.app_fast:app",
             host="127.0.0.1",
             port=8000,
             reload=True  # 开发环境启用自动重载

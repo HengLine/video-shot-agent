@@ -9,12 +9,12 @@ import json
 import os
 import sys
 
-from hengshot.hengline.client.client_factory import get_default_llm
+from hengshot.neopen.client.client_factory import get_default_llm
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from hengshot.hengline.agent.script_parser_agent import ScriptParserAgent
+from hengshot.neopen.agent.script_parser_agent import ScriptParserAgent
 
 
 def example_basic_script_parsing():
@@ -242,7 +242,6 @@ def main():
 
         # 展示配置管理信息
         print("\n=== 配置管理信息 ===")
-        print("配置文件位置: hengline/config/script_parser_config.yaml")
         print("配置内容:")
         print("1. scene_patterns - 场景识别正则表达式模式")
         print("2. dialogue_patterns - 对话识别正则表达式模式")

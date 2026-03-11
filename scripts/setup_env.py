@@ -8,7 +8,7 @@
         2. 检查虚拟环境是否存在，不存在则创建
         3. 根据不同系统激活虚拟环境
         4. 安装项目依赖
-        5. 启动HengLine应用
+        5. 启动应用
     步骤严格按顺序执行，只有上一步成功才执行下一步
 @Author: Haeng
 @Github: https://github.com/neopen/video-shot-agent
@@ -220,7 +220,7 @@ class AppBaseEnv:
             return False
 
         try:
-            info("<<<<<<<<<<<<<<<<<<<< HengLine 剧本分镜智能体 >>>>>>>>>>>>>>>>>>>>")
+            info("<<<<<<<<<<<<<<<<<<<<  Neopen 剧本分镜智能体 >>>>>>>>>>>>>>>>>>>>")
             info("应用启动中，请不要关闭此窗口。如果需要停止应用，请按 Ctrl+C")
 
             # 启动应用
@@ -289,7 +289,7 @@ class AppBaseEnv:
         """主函数 - 协调整个启动流程"""
         print_large_ascii()
         info("==================================================================")
-        info("<                   欢迎使用 HengLine 剧本分镜智能体                 >")
+        info("<                   欢迎使用 Neopen 剧本分镜智能体                 >")
         info("<           ⭐https://github.com/neopen/video-shot-agent       >")
         info("==================================================================")
         debug(f"当前工作目录: {os.getcwd()}")
@@ -324,7 +324,7 @@ class AppBaseEnv:
         # 步骤5: 启动
         self.start_aigc_application(max_retries)
 
-        info(">>>>>>>>>>>>>>>>> HengLine 剧本分镜智能体 <<<<<<<<<<<<<<<<<")
+        info(">>>>>>>>>>>>>>>>> Neopen 剧本分镜智能体 <<<<<<<<<<<<<<<<<")
         info("应用程序已停止运行。按Enter键退出...")
 
     """    需要子类实现的抽象方法，用于启动具体的应用"""

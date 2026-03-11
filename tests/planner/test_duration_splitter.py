@@ -8,11 +8,11 @@
 
 from typing import Dict
 
-from hengshot.hengline.agent.script_parser2.script_parser_models import UnifiedScript
-from hengshot.hengline.agent.temporal_planner.splitter.five_second_splitter import FiveSecondSplitter
-from hengshot.hengline.agent.temporal_planner.splitter.splitter_config import SplitterConfig
-from hengshot.hengline.agent.video_assembler.splitter.splitter_validator import SplitterExporter, SegmentValidator, SegmentVisualizer
-from hengshot.hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
+from hengshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from hengshot.neopen.agent.temporal_planner.splitter.five_second_splitter import FiveSecondSplitter
+from hengshot.neopen.agent.temporal_planner.splitter.splitter_config import SplitterConfig
+from hengshot.neopen.agent.video_assembler.splitter.splitter_validator import SplitterExporter, SegmentValidator, SegmentVisualizer
+from hengshot.neopen.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
 from hengshot.utils.obj_utils import dict_to_dataclass
 
 

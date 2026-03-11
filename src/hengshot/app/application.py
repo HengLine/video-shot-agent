@@ -20,7 +20,7 @@ from hengshot.api.index_api import app as index_api
 # 导入模型API路由器
 from hengshot.api.shot_api import app as shot_api
 from hengshot.config.config import settings
-from hengshot.hengline.context_var import RequestContextMiddleware
+from hengshot.neopen.context_var import RequestContextMiddleware
 from hengshot.logger import error
 from .proxy import router as proxy_router
 from ..utils.path_utils import PathResolver

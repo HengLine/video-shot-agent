@@ -6,10 +6,10 @@
 @Time: 2026/1/13 16:12
 """
 
-from hengshot.hengline.agent.script_parser2.script_parser_models import Action
-from hengshot.hengline.agent.shot_generator_bak.estimator.rule_action_estimator import RuleActionDurationEstimator
-from hengshot.hengline.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
-from hengshot.hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation
+from hengshot.neopen.agent.script_parser2.script_parser_models import Action
+from hengshot.neopen.agent.shot_generator_bak.estimator.rule_action_estimator import RuleActionDurationEstimator
+from hengshot.neopen.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
+from hengshot.neopen.agent.temporal_planner.temporal_planner_model import DurationEstimation
 from hengshot.utils.obj_utils import batch_dict_to_dataclass, dict_to_dataclass
 
 

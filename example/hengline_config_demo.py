@@ -9,8 +9,8 @@ import asyncio
 
 from pydantic.v1 import SecretStr
 
-from hengshot.hengline import generate_storyboard
-from hengshot.hengline.hengline_config import HengLineConfig
+from hengshot.neopen import generate_storyboard
+from hengshot.neopen.hengline_config import HengLineConfig
 
 
 async def hengline_config_examples():

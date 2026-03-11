@@ -5,9 +5,9 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/13 16:12
 """
-from hengshot.hengline.agent.script_parser2.script_parser_models import Dialogue
-from hengshot.hengline.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
-from hengshot.hengline.agent.shot_generator_bak.estimator.rule_dialogue_estimator import RuleDialogueDurationEstimator
+from hengshot.neopen.agent.script_parser2.script_parser_models import Dialogue
+from hengshot.neopen.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
+from hengshot.neopen.agent.shot_generator_bak.estimator.rule_dialogue_estimator import RuleDialogueDurationEstimator
 from hengshot.utils.obj_utils import dict_to_obj, dict_to_dataclass
 
 

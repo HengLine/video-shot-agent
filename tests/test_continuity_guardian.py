@@ -7,7 +7,7 @@
 """
 from typing import Dict, List, Optional, Any
 
-from hengshot.hengline.agent import ContinuityGuardianAgent
+from hengshot.neopen.agent import ContinuityGuardianAgent
 
 
 # 工作流调用接口

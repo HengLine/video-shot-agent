@@ -203,8 +203,8 @@ curl --location --request GET 'http://localhost:8000/api/v1/result/HL20260306193
 **安装依赖**：
 
 ```sh
-# 选择最新版本，下载 whl 包（https://github.com/HengLine/video-shot-agent/releases）
-wget https://github.com/HengLine/video-shot-agent/releases/download/v0.1.4/hengshot-0.1.4-py3-none-any.whl
+# 选择最新版本，下载 whl 包（https://github.com/neopen/video-shot-agent/releases）
+wget https://github.com/neopen/video-shot-agent/releases/download/v0.1.4/hengshot-0.1.4-py3-none-any.whl
 # 安装包
 pip install hengshot-0.1.1-py3-none-any.whl
 # 内部默认安装使用 ollama，如果要使用其他平台，需要安装对应的LLM包
@@ -240,7 +240,7 @@ pip install hengshot-0.1.1-py3-none-any.whl
 ### 1. 作为Python库使用
 
 ```python
-from hengshot.hengline import generate_storyboard
+from hengshot.neopen import generate_storyboard
 
 async def basic_usage():
     """基础用法示例"""
@@ -267,7 +267,7 @@ async def basic_usage():
 可以通过 HTTP API 将剧本分镜智能体集成到各种 Web 应用中：
 
 ```python
-from hengshot.hengline import generate_storyboard
+from hengshot.neopen import generate_storyboard
 
 @app.post("/api/generate-storyboard")
 async def generate_storyboard_endpoint(script_text: str):

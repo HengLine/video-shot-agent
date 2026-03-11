@@ -7,8 +7,8 @@
 """
 import json
 
-from hengshot.hengline.agent.script_parser2.script_parser_models import UnifiedScript
-from hengshot.hengline.agent.shot_generator_bak.local_temporal_planner import LocalRuleTemporalPlanner
+from hengshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from hengshot.neopen.agent.shot_generator_bak.local_temporal_planner import LocalRuleTemporalPlanner
 from hengshot.utils.obj_utils import dict_to_obj
 
 

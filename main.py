@@ -35,12 +35,12 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 # 全局变量 - uvicorn期望的格式为"模块名:应用实例名"，不需要路径分隔符
 # APP_FILE = "./app:app"  # 应用入口路径
 
-class HengLineApp(AppBaseEnv):
-    """HengLine应用启动类"""
+class NeopenApp(AppBaseEnv):
+    """Neopen应用启动类"""
 
     def start_application(self):
         """启动应用的抽象方法"""
-        info("正在启动 HengLine 应用......")
+        info("正在启动 Neopen 应用......")
 
         # 设置信号处理函数
         def signal_handler(sig, frame):
@@ -58,7 +58,7 @@ class HengLineApp(AppBaseEnv):
             signal.signal(signal.SIGTERM, signal_handler)  # 处理终止信号
 
             # 解析命令行参数
-            parser = argparse.ArgumentParser(description='HengLine应用启动脚本')
+            parser = argparse.ArgumentParser(description='Neopen 应用启动脚本')
             parser.add_argument('--host', type=str, help='服务器监听地址')
             parser.add_argument('--port', type=int, help='服务器监听端口')
             args = parser.parse_args()
@@ -123,4 +123,4 @@ class HengLineApp(AppBaseEnv):
 
 
 if __name__ == "__main__":
-    HengLineApp().main()
+    NeopenApp().main()

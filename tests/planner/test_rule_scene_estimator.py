@@ -5,11 +5,11 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/13 16:12
 """
-from hengshot.hengline.agent.script_parser2.script_parser_models import Scene
-from hengshot.hengline.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
-from hengshot.hengline.agent.shot_generator_bak.estimator.rule_scene_estimator import RuleSceneDurationEstimator
-from hengshot.hengline.config.keyword_config import get_keyword_config
-from hengshot.hengline.config.temporal_planner_config import get_planner_config
+from hengshot.neopen.agent.script_parser2.script_parser_models import Scene
+from hengshot.neopen.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
+from hengshot.neopen.agent.shot_generator_bak.estimator.rule_scene_estimator import RuleSceneDurationEstimator
+from hengshot.neopen.config.keyword_config import get_keyword_config
+from hengshot.neopen.config.temporal_planner_config import get_planner_config
 from hengshot.utils.obj_utils import dict_to_obj
 
 
