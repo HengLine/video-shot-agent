@@ -7,9 +7,9 @@
 """
 import json
 
-from hengshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
-from hengshot.neopen.agent.shot_generator_bak.local_temporal_planner import LocalRuleTemporalPlanner
-from hengshot.utils.obj_utils import dict_to_obj
+from videoshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from videoshot.neopen.agent.shot_generator_bak.local_temporal_planner import LocalRuleTemporalPlanner
+from videoshot.utils.obj_utils import dict_to_obj
 
 
 def test_rule_based_planner():

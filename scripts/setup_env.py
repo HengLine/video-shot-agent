@@ -22,9 +22,9 @@ import time
 from abc import abstractmethod
 from typing import final
 
-from hengshot.logger import debug, info, warning, error
-from hengshot.utils.env_utils import print_large_ascii
-from hengshot.utils.log_utils import print_log_exception
+from videoshot.logger import debug, info, warning, error
+from videoshot.utils.env_utils import print_large_ascii
+from videoshot.utils.log_utils import print_log_exception
 
 PROJECT_ROOT = "."
 

@@ -5,15 +5,15 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/14 21:13
 """
-from hengshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
-from hengshot.neopen.agent.shot_generator_bak.estimator.ai_action_estimator import AIActionDurationEstimator
-from hengshot.neopen.agent.shot_generator_bak.estimator.ai_dialogue_estimator import AIDialogueDurationEstimator
-from hengshot.neopen.agent.shot_generator_bak.estimator.ai_scene_estimator import AISceneDurationEstimator
-from hengshot.neopen.agent.shot_generator_bak.estimator.estimator_factory import estimator_factory
-from hengshot.neopen.agent.shot_generator_bak.llm_temporal_planner import LLMTemporalPlanner
-from hengshot.neopen.agent.temporal_planner.temporal_planner_model import ElementType
-from hengshot.neopen.prompts.temporal_planner_prompt import PromptConfig
-from hengshot.utils.obj_utils import dict_to_dataclass
+from videoshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from videoshot.neopen.agent.shot_generator_bak.estimator.ai_action_estimator import AIActionDurationEstimator
+from videoshot.neopen.agent.shot_generator_bak.estimator.ai_dialogue_estimator import AIDialogueDurationEstimator
+from videoshot.neopen.agent.shot_generator_bak.estimator.ai_scene_estimator import AISceneDurationEstimator
+from videoshot.neopen.agent.shot_generator_bak.estimator.estimator_factory import estimator_factory
+from videoshot.neopen.agent.shot_generator_bak.llm_temporal_planner import LLMTemporalPlanner
+from videoshot.neopen.agent.temporal_planner.temporal_planner_model import ElementType
+from videoshot.neopen.prompts.temporal_planner_prompt import PromptConfig
+from videoshot.utils.obj_utils import dict_to_dataclass
 
 
 def demonstrate_complete_system():

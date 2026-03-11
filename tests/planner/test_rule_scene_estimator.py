@@ -5,12 +5,12 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/13 16:12
 """
-from hengshot.neopen.agent.script_parser2.script_parser_models import Scene
-from hengshot.neopen.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
-from hengshot.neopen.agent.shot_generator_bak.estimator.rule_scene_estimator import RuleSceneDurationEstimator
-from hengshot.neopen.config.keyword_config import get_keyword_config
-from hengshot.neopen.config.temporal_planner_config import get_planner_config
-from hengshot.utils.obj_utils import dict_to_obj
+from videoshot.neopen.agent.script_parser2.script_parser_models import Scene
+from videoshot.neopen.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
+from videoshot.neopen.agent.shot_generator_bak.estimator.rule_scene_estimator import RuleSceneDurationEstimator
+from videoshot.neopen.config.keyword_config import get_keyword_config
+from videoshot.neopen.config.temporal_planner_config import get_planner_config
+from videoshot.utils.obj_utils import dict_to_obj
 
 
 def demonstrate_yaml_config():

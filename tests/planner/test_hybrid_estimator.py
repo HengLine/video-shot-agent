@@ -7,11 +7,11 @@
 """
 import json
 
-from hengshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
-from hengshot.neopen.agent.shot_generator_bak.estimator.estimator_factory import estimator_factory
-from hengshot.neopen.agent.shot_generator_bak.hybrid_temporal_planner import HybridTemporalPlanner
-from hengshot.neopen.client.client_factory import get_default_llm
-from hengshot.utils.obj_utils import dict_to_dataclass
+from videoshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from videoshot.neopen.agent.shot_generator_bak.estimator.estimator_factory import estimator_factory
+from videoshot.neopen.agent.shot_generator_bak.hybrid_temporal_planner import HybridTemporalPlanner
+from videoshot.neopen.client.client_factory import get_default_llm
+from videoshot.utils.obj_utils import dict_to_dataclass
 
 """
 更新使用示例

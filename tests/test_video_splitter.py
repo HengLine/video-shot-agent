@@ -5,8 +5,8 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 23:15
 """
-from hengshot.neopen.agent.shot_segmenter.shot_segmenter_models import ShotSequence
-from hengshot.neopen.agent.video_splitter.video_splitter_models import FragmentSequence
+from videoshot.neopen.agent.shot_segmenter.shot_segmenter_models import ShotSequence
+from videoshot.neopen.agent.video_splitter.video_splitter_models import FragmentSequence
 
 
 # MVP分段核心逻辑（伪代码）

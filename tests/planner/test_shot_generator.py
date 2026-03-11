@@ -6,9 +6,9 @@
 @Time: 2026/1/17 23:22
 """
 
-from hengshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
-from hengshot.neopen.agent.shot_generator_bak.shot.shot_generator_manager import ShotGenerationManager
-from hengshot.utils.file_utils import save_to_json, load_from_obj
+from videoshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from videoshot.neopen.agent.shot_generator_bak.shot.shot_generator_manager import ShotGenerationManager
+from videoshot.utils.file_utils import save_to_json, load_from_obj
 
 
 def test_example_usage():

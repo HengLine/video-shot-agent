@@ -5,7 +5,7 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10/24 14:21
 """
-from hengshot.neopen.tools.action_duration_tool import ActionDurationEstimatorTool
+from videoshot.neopen.tools.action_duration_tool import ActionDurationEstimatorTool
 from typing import List, Dict, Any
 import json
 
