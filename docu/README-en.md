@@ -202,8 +202,8 @@ Notes on packaging and installation:
 ```sh
 # Choose a release wheel from: https://github.com/HengLine/video-shot-agent/releases
 # Example:
-wget https://github.com/HengLine/video-shot-agent/releases/download/v0.1.4/hengshot-0.1.4-py3-none-any.whl
-pip install hengshot-0.1.1-py3-none-any.whl
+wget https://github.com/HengLine/video-shot-agent/releases/download/v0.1.4/penshot-0.1.4-py3-none-any.whl
+pip install penshot-0.1.1-py3-none-any.whl
 # The package defaults to using Ollama; install provider-specific LLM clients as required:
 # pip install langchain-openai  # for OpenAI/DeepSeek
 # pip install dashscope        # for Qwen
@@ -237,7 +237,7 @@ Configuration notes:
 ### 1. Use as a Python library
 
 ```python
-from hengshot.hengline import generate_storyboard
+from penshot.hengline import generate_storyboard
 
 async def basic_usage():
     """Basic usage example"""
@@ -265,7 +265,7 @@ async def basic_usage():
 You can expose a simple HTTP API endpoint to call the storyboard generator:
 
 ```python
-from hengshot.hengline import generate_storyboard
+from penshot.hengline import generate_storyboard
 
 @app.post("/api/generate-storyboard")
 async def generate_storyboard_endpoint(script_text: str):

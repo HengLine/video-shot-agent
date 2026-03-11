@@ -7,9 +7,9 @@
 """
 import logging
 
-from videoshot.neopen.agent.base_models import ElementType
-from videoshot.neopen.agent.script_parser.script_parser_models import BaseElement, SceneInfo, CharacterInfo, ParsedScript
-from videoshot.neopen.agent.shot_segmenter.rule_shot_segmenter import RuleShotSegmenter
+from penshot.neopen.agent.base_models import ElementType
+from penshot.neopen.agent.script_parser.script_parser_models import BaseElement, SceneInfo, CharacterInfo, ParsedScript
+from penshot.neopen.agent.shot_segmenter.rule_shot_segmenter import RuleShotSegmenter
 
 
 # 使用示例

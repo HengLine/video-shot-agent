@@ -7,7 +7,7 @@
 """
 import time
 
-from videoshot.neopen.tools.langchain_memory_tool import LangChainMemoryTool
+from penshot.neopen.tools.langchain_memory_tool import LangChainMemoryTool
 
 
 def test_langchain_memory():

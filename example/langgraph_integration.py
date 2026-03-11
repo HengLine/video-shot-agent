@@ -10,7 +10,7 @@ from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from pydantic import BaseModel, Field
 
-from videoshot.neopen import generate_storyboard
+from penshot.neopen import generate_storyboard
 
 
 # 定义状态结构

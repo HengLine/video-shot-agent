@@ -8,7 +8,7 @@
 from dataclasses import dataclass
 from typing import Dict, Any
 
-from videoshot.neopen import generate_storyboard
+from penshot.neopen import generate_storyboard
 
 
 @dataclass

@@ -1,5 +1,5 @@
 """
-@FileName: hengline_config_demo.py
+@FileName: neopen_config_demo.py
 @Description: 包含完整详细配置示例
 @Author: Haeng
 @Github: https://github.com/neopen/video-shot-agent
@@ -9,16 +9,16 @@ import asyncio
 
 from pydantic.v1 import SecretStr
 
-from videoshot.neopen import generate_storyboard
-from videoshot.neopen.hengline_config import HengLineConfig
+from penshot.neopen import generate_storyboard
+from penshot.neopen.shot_config import ShotConfig
 
 
-async def hengline_config_examples():
-    """HengLineConfig 各种配置示例"""
+async def neopen_config_examples():
+    """ShotConfig 各种配置示例"""
 
     # ==================== 示例1: 基础配置 ====================
     print("=== 示例1: 基础配置 ===")
-    config1 = HengLineConfig(
+    config1 = ShotConfig(
         # 模型配置
         model_name="gpt-4",  # 使用的LLM模型
         temperature=0.7,  # 温度参数，控制随机性
@@ -45,7 +45,7 @@ async def hengline_config_examples():
 
     # ==================== 示例2: 使用不同模型 ====================
     print("\n=== 示例2: 使用不同模型 ===")
-    config2 = HengLineConfig(
+    config2 = ShotConfig(
         model_name="gpt-4-turbo-preview",
         temperature=0.3,  # 更低的温度，输出更确定性
         max_tokens=3000,
@@ -56,7 +56,7 @@ async def hengline_config_examples():
 
     # ==================== 示例3: 本地模型配置 ====================
     print("\n=== 示例3: 本地模型配置 ===")
-    config3 = HengLineConfig(
+    config3 = ShotConfig(
         # 使用本地部署的模型
         model_name="qwen2.5:14b",  # 本地模型名称
         base_url="http://localhost:11434/v1",  # 本地API地址
@@ -69,7 +69,7 @@ async def hengline_config_examples():
 
     # ==================== 示例4: 深度求索 DeepSeek 配置 ====================
     print("\n=== 示例4: DeepSeek 配置 ===")
-    config4 = HengLineConfig(
+    config4 = ShotConfig(
         model_name="deepseek-chat",
         base_url="https://api.deepseek.com/v1",
         api_key=SecretStr("your-deepseek-api-key"),
@@ -81,7 +81,7 @@ async def hengline_config_examples():
 
     # ==================== 示例5: 批处理优化配置 ====================
     print("\n=== 示例5: 批处理优化配置 ===")
-    config5 = HengLineConfig(
+    config5 = ShotConfig(
         model_name="gpt-4",
         temperature=0.5,
 
@@ -102,15 +102,15 @@ async def hengline_config_examples():
     os.environ["HENGLINE_MAX_TOKENS"] = "2500"
 
     # 使用默认构造函数，会自动读取环境变量
-    config6 = HengLineConfig()  # 从环境变量加载配置
+    config6 = ShotConfig()  # 从环境变量加载配置
 
     # ==================== 示例7: 自定义提示词模板 ====================
     print("\n=== 示例7: 自定义配置（如果有相关参数） ===")
-    config7 = HengLineConfig(
+    config7 = ShotConfig(
         model_name="gpt-4",
 
-        # 假设 HengLineConfig 支持这些参数
-        # 实际参数请查看 HengLineConfig 的源码定义
+        # 假设 ShotConfig 支持这些参数
+        # 实际参数请查看 ShotConfig 的源码定义
         max_shot_duration=10.0,
 
         # 输出格式控制
@@ -121,11 +121,11 @@ async def hengline_config_examples():
     print("\n=== 示例8: 混合配置 ===")
 
     # 先创建基础配置
-    base_config = HengLineConfig()
+    base_config = ShotConfig()
 
     # 然后根据需要修改特定参数
-    # 注意：根据 HengLineConfig 的实现方式，可能需要使用不同的方法
-    # 这里假设 HengLineConfig 支持属性设置或提供了更新方法
+    # 注意：根据 ShotConfig 的实现方式，可能需要使用不同的方法
+    # 这里假设 ShotConfig 支持属性设置或提供了更新方法
 
     try:
         # 尝试直接设置属性
@@ -134,7 +134,7 @@ async def hengline_config_examples():
         base_config.max_tokens = 1500
     except AttributeError:
         # 如果不能直接设置，可能需要创建新实例
-        config8 = HengLineConfig(
+        config8 = ShotConfig(
             model_name="claude-3-opus",
             temperature=0.4,
             max_tokens=1500,
@@ -145,7 +145,7 @@ async def hengline_config_examples():
 
     # ==================== 示例9: 错误处理和回退配置 ====================
     print("\n=== 示例9: 错误处理和回退配置 ===")
-    config9 = HengLineConfig(
+    config9 = ShotConfig(
         model_name="primary-model",
 
         # 备用模型配置
@@ -187,7 +187,7 @@ async def hengline_config_examples():
     """
 
     # 使用优化配置
-    production_config = HengLineConfig(
+    production_config = ShotConfig(
         model_name="gpt-4",
         temperature=0.6,
         max_tokens=3500,
@@ -228,7 +228,7 @@ async def hengline_config_examples():
 
         # 尝试降级到更简单的配置
         print("尝试使用降级配置...")
-        fallback_config = HengLineConfig(
+        fallback_config = ShotConfig(
             model_name="gpt-3.5-turbo",
             temperature=0.8,
             max_tokens=2000,
@@ -249,7 +249,7 @@ class ConfigFactory:
     @staticmethod
     def create_fast_config():
         """快速但简略的配置"""
-        return HengLineConfig(
+        return ShotConfig(
             model_name="gpt-3.5-turbo",
             temperature=0.9,
             max_tokens=1000,
@@ -259,7 +259,7 @@ class ConfigFactory:
     @staticmethod
     def create_quality_config():
         """高质量详细配置"""
-        return HengLineConfig(
+        return ShotConfig(
             model_name="gpt-4",
             temperature=0.4,
             max_tokens=5000,
@@ -270,7 +270,7 @@ class ConfigFactory:
     @staticmethod
     def create_local_config(base_url: str = "http://localhost:11434/v1"):
         """本地模型配置"""
-        return HengLineConfig(
+        return ShotConfig(
             model_name="qwen2.5:14b",
             base_url=base_url,
             temperature=0.7,
@@ -299,7 +299,7 @@ async def factory_demo():
 
 
 # ==================== 配置验证和测试 ====================
-async def test_config(config: HengLineConfig):
+async def test_config(config: ShotConfig):
     """测试配置的有效性"""
     test_script = "测试场景：一个人在房间里看书"
 
@@ -326,14 +326,14 @@ async def main():
     """主函数"""
 
     # 运行配置示例
-    result = await hengline_config_examples()
+    result = await neopen_config_examples()
 
     # 运行工厂示例
     # factory_result = await factory_demo()
 
     # 测试配置
     print("\n=== 配置验证测试 ===")
-    test_config_instance = HengLineConfig(
+    test_config_instance = ShotConfig(
         model_name="gpt-3.5-turbo",
         temperature=0.7,
         max_tokens=500

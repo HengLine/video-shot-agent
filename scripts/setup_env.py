@@ -22,9 +22,9 @@ import time
 from abc import abstractmethod
 from typing import final
 
-from videoshot.logger import debug, info, warning, error
-from videoshot.utils.env_utils import print_large_ascii
-from videoshot.utils.log_utils import print_log_exception
+from penshot.logger import debug, info, warning, error
+from penshot.utils.env_utils import print_large_ascii
+from penshot.utils.log_utils import print_log_exception
 
 PROJECT_ROOT = "."
 

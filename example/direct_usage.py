@@ -7,12 +7,12 @@
 """
 import asyncio
 
-from videoshot.neopen import generate_storyboard
+from penshot.neopen import generate_storyboard
 
 """
 # 1. 下载安装依赖
-https://github.com/neopen/video-shot-agent/releases/download/v0.1.4-beta/videoshot-0.1.4-py3-none-any.whl
-pip install videoshot-0.1.4-py3-none-any.whl
+https://github.com/neopen/video-shot-agent/releases/download/v0.1.4-beta/penshot-0.1.4-py3-none-any.whl
+pip install penshot-0.1.4-py3-none-any.whl
 
 # 2. 设置API密钥（如果需要LLM）
 export OPENAI_API_KEY="your-api-key"  # 或其他LLM配置
@@ -68,10 +68,10 @@ async def batch_processing():
 
 async def with_custom_config():
     """使用自定义配置"""
-    from videoshot.neopen.hengline_config import HengLineConfig
+    from penshot.neopen.shot_config import ShotConfig
 
     # 创建自定义配置
-    custom_config = HengLineConfig(
+    custom_config = ShotConfig(
         # 这里可以根据实际情况设置配置参数
         model_name="gpt-4",
         base_url="http://localhost:11434",  # 假设本地部署了 Ollama

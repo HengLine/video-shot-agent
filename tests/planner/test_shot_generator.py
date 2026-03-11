@@ -6,9 +6,9 @@
 @Time: 2026/1/17 23:22
 """
 
-from videoshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
-from videoshot.neopen.agent.shot_generator_bak.shot.shot_generator_manager import ShotGenerationManager
-from videoshot.utils.file_utils import save_to_json, load_from_obj
+from penshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from penshot.neopen.agent.shot_generator_bak.shot.shot_generator_manager import ShotGenerationManager
+from penshot.utils.file_utils import save_to_json, load_from_obj
 
 
 def test_example_usage():

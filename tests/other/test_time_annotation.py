@@ -6,7 +6,7 @@
 @Time: 2025/12/18
 """
 
-from videoshot.neopen.agent.shot_generator.estimator.rule_action_estimator import RuleActionDurationEstimator
+from penshot.neopen.agent.shot_generator.estimator.rule_action_estimator import RuleActionDurationEstimator
 
 
 def test_time_annotations():

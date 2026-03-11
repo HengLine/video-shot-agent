@@ -3,12 +3,12 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {attr = "hengshot.__version__"}
+version = {attr = "penshot.__version__"}
 
 [project]
-name = "hengshot"
+name = "penshot"
 version = "0.1.4"
-description = "长剧本分镜智能体：基于AI的长视频分镜头检测与分析工具"
+description = "长剧本分镜智能体：支持将任意自然语言剧本，转换为结构化分镜数据，支持视频生成与编辑。"
 readme = "README.md"
 authors = [
     {name = "Haeng", email = "helpenx@gmail.com"}
@@ -110,31 +110,31 @@ full = [
 
 [project.urls]
 Homepage = "https://github.com/neopen/video-shot-agent"
-Repository = "https://github.com/neopen/video-shot-agent.git"
-Documentation = "https://neopen.github.io/video-shot-agent"
-"Issue Tracker" = "https://github.com/neopen/video-shot-agent/issues"
-"Changelog" = "https://github.com/neopen/video-shot-agent/releases"
+Repository = "https://github.com/neopen/video-shot-agent"
+Documentation = "https://github.com/neopen/video-shot-agent#README"
+Changelog = "https://github.com/neopen/video-shot-agent/releases"
+Issues = "https://github.com/neopen/video-shot-agent/issues"
 
-# 注意：这里引用的是内部的Python包名 hengshot
+# 注意：这里引用的是内部的Python包名 penshot
 [project.scripts]
-video-shot-agent = "hengshot.cli:main"
-vs-agent = "hengshot.cli:main"  # 简写别名
+video-shot-agent = "penshot.cli:main"
+vs-agent = "penshot.cli:main"  # 简写别名
 
 # 如果使用FastAPI，可以添加一个serve命令
 [project.entry-points."console_scripts"]
-video-shot-agent-serve = "hengshot.cli:serve"
+video-shot-agent-serve = "penshot.cli:serve"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["hengshot*"]
+include = ["penshot*"]
 exclude = ["tests*", "tests.*"]
 
 # 包含包内数据文件
 [tool.setuptools.package-data]
-hengshot = [
+penshot = [
     "*.yaml",
     "*.yml",
     "*.json",

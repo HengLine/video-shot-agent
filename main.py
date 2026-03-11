@@ -19,10 +19,10 @@ import sys
 from pathlib import Path
 
 from scripts.setup_env import AppBaseEnv
-from videoshot.app import app
-from videoshot.config.config import settings
-from videoshot.logger import debug, info, error, get_logging_manager
-from videoshot.utils.log_utils import print_log_exception
+from penshot.app import app
+from penshot.config.config import settings
+from penshot.logger import debug, info, error, get_logging_manager
+from penshot.utils.log_utils import print_log_exception
 
 # 设置编码为UTF-8以确保中文显示正常
 sys.stdout.reconfigure(encoding='utf-8')

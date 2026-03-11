@@ -7,7 +7,7 @@
 """
 from typing import Dict, List, Optional, Any
 
-from videoshot.neopen.agent import ContinuityGuardianAgent
+from penshot.neopen.agent import ContinuityGuardianAgent
 
 
 # 工作流调用接口

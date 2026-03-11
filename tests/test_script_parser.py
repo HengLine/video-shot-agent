@@ -9,12 +9,12 @@ import json
 import os
 import sys
 
-from videoshot.neopen.client.client_factory import get_default_llm
+from penshot.neopen.client.client_factory import get_default_llm
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from videoshot.neopen.agent.script_parser_agent import ScriptParserAgent
+from penshot.neopen.agent.script_parser_agent import ScriptParserAgent
 
 
 def example_basic_script_parsing():

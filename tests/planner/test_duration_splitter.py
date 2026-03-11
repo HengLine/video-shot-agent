@@ -8,12 +8,12 @@
 
 from typing import Dict
 
-from videoshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
-from videoshot.neopen.agent.temporal_planner.splitter.five_second_splitter import FiveSecondSplitter
-from videoshot.neopen.agent.temporal_planner.splitter.splitter_config import SplitterConfig
-from videoshot.neopen.agent.video_assembler.splitter.splitter_validator import SplitterExporter, SegmentValidator, SegmentVisualizer
-from videoshot.neopen.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
-from videoshot.utils.obj_utils import dict_to_dataclass
+from penshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from penshot.neopen.agent.temporal_planner.splitter.five_second_splitter import FiveSecondSplitter
+from penshot.neopen.agent.temporal_planner.splitter.splitter_config import SplitterConfig
+from penshot.neopen.agent.video_assembler.splitter.splitter_validator import SplitterExporter, SegmentValidator, SegmentVisualizer
+from penshot.neopen.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
+from penshot.utils.obj_utils import dict_to_dataclass
 
 
 def create_sample_estimations() -> Dict[str, DurationEstimation]:
