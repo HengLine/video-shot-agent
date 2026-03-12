@@ -3,15 +3,15 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {attr = "hengshot.__version__"}
+version = {attr = "penshot.__version__"}
 
 [project]
-name = "hengshot"
-version = "0.1.3"
-description = "长剧本分镜智能体：基于AI的长视频分镜头检测与分析工具"
+name = "penshot"
+version = "0.1.4"
+description = "长剧本分镜智能体：支持将任意自然语言剧本，转换为结构化分镜数据，支持视频生成与编辑。"
 readme = "README.md"
 authors = [
-    {name = "HengLine", email = "haeng2030@gmail.com"}
+    {name = "Haeng", email = "helpenx@gmail.com"}
 ]
 license = {text = "MIT"}
 requires-python = ">=3.8"
@@ -35,17 +35,17 @@ keywords = ["剧本分镜", "shot-detection", "视频分割", "视频生成", "f
 
 dependencies = [
     # Web框架
-    "fastapi>=0.104.0",
+#    "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
-    "httpx>=0.25.0",
+#    "httpx>=0.25.0",
 
     # 核心AI/LLM
     "langchain==0.3.27",
     "langchain-community==0.3.31",
     "langchain-ollama>=0.1.0",
+    "langgraph==0.6.11",
 #    "langchain-deepseek>=0.1.0",
 #    "dashscope==1.23.9",
-    "langgraph==0.6.11",
 
     # RAG/向量存储
 #    "llama-index-core==0.14.4",
@@ -61,10 +61,10 @@ dependencies = [
 
     # 数据处理
     "numpy>=1.24.0",
-#    "jieba>=0.42.1",
+    "jieba>=0.42.1",
 
     # 工具库
-    "requests>=2.31.0",
+#    "requests>=2.31.0",
     "tiktoken>=0.5.0",
 ]
 
@@ -109,32 +109,32 @@ full = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/HengLine/video-shot-agent"
-Repository = "https://github.com/HengLine/video-shot-agent.git"
-Documentation = "https://HengLine.github.io/video-shot-agent"
-"Issue Tracker" = "https://github.com/HengLine/video-shot-agent/issues"
-"Changelog" = "https://github.com/HengLine/video-shot-agent/releases"
+Homepage = "https://github.com/neopen/video-shot-agent"
+Repository = "https://github.com/neopen/video-shot-agent"
+Documentation = "https://github.com/neopen/video-shot-agent#README"
+Changelog = "https://github.com/neopen/video-shot-agent/releases"
+Issues = "https://github.com/neopen/video-shot-agent/issues"
 
-# 注意：这里引用的是内部的Python包名 hengshot
+# 注意：这里引用的是内部的Python包名 penshot
 [project.scripts]
-video-shot-agent = "hengshot.cli:main"
-vs-agent = "hengshot.cli:main"  # 简写别名
+video-shot-agent = "penshot.cli:main"
+vs-agent = "penshot.cli:main"  # 简写别名
 
 # 如果使用FastAPI，可以添加一个serve命令
 [project.entry-points."console_scripts"]
-video-shot-agent-serve = "hengshot.cli:serve"
+video-shot-agent-serve = "penshot.cli:serve"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["hengshot*"]
+include = ["penshot*"]
 exclude = ["tests*", "tests.*"]
 
 # 包含包内数据文件
 [tool.setuptools.package-data]
-hengshot = [
+penshot = [
     "*.yaml",
     "*.yml",
     "*.json",
@@ -144,7 +144,7 @@ hengshot = [
     "templates/*/*",
     "config/*.yaml",
     "config/**/*.yaml",
-    "hengline/prompts/**/*.yaml",
+    "neopen/prompts/**/*.yaml",
     ".env.example"
 ]
 

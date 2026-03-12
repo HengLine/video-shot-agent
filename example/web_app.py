@@ -1,14 +1,14 @@
 """
 @FileName: web_app.py
 @Description: 集成到Web应用（FastAPI示例）
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/2/10 19:44
 """
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from hengshot.hengline import generate_storyboard
+from penshot.neopen import generate_storyboard
 
 app = FastAPI(title="视频分镜生成API")
 

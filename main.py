@@ -9,8 +9,8 @@
         5. 启动Flask应用
 
     步骤严格按顺序执行，只有上一步成功才执行下一步
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/08 - 2025/11
 """
 import argparse
@@ -19,10 +19,10 @@ import sys
 from pathlib import Path
 
 from scripts.setup_env import AppBaseEnv
-from hengshot.app import app
-from hengshot.config.config import settings
-from hengshot.logger import debug, info, error, get_logging_manager
-from hengshot.utils.log_utils import print_log_exception
+from penshot.app import app
+from penshot.config.config import settings
+from penshot.logger import debug, info, error, get_logging_manager
+from penshot.utils.log_utils import print_log_exception
 
 # 设置编码为UTF-8以确保中文显示正常
 sys.stdout.reconfigure(encoding='utf-8')
@@ -35,12 +35,12 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 # 全局变量 - uvicorn期望的格式为"模块名:应用实例名"，不需要路径分隔符
 # APP_FILE = "./app:app"  # 应用入口路径
 
-class HengLineApp(AppBaseEnv):
-    """HengLine应用启动类"""
+class NeopenApp(AppBaseEnv):
+    """Neopen应用启动类"""
 
     def start_application(self):
         """启动应用的抽象方法"""
-        info("正在启动 HengLine 应用......")
+        info("正在启动 Neopen 应用......")
 
         # 设置信号处理函数
         def signal_handler(sig, frame):
@@ -58,7 +58,7 @@ class HengLineApp(AppBaseEnv):
             signal.signal(signal.SIGTERM, signal_handler)  # 处理终止信号
 
             # 解析命令行参数
-            parser = argparse.ArgumentParser(description='HengLine应用启动脚本')
+            parser = argparse.ArgumentParser(description='Neopen 应用启动脚本')
             parser.add_argument('--host', type=str, help='服务器监听地址')
             parser.add_argument('--port', type=int, help='服务器监听端口')
             args = parser.parse_args()
@@ -123,4 +123,4 @@ class HengLineApp(AppBaseEnv):
 
 
 if __name__ == "__main__":
-    HengLineApp().main()
+    NeopenApp().main()

@@ -1,19 +1,19 @@
 """
 @FileName: test_duration_splitter.py
 @Description: 5秒分片模块使用示例
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/15 15:57
 """
 
 from typing import Dict
 
-from hengshot.hengline.agent.script_parser2.script_parser_models import UnifiedScript
-from hengshot.hengline.agent.temporal_planner.splitter.five_second_splitter import FiveSecondSplitter
-from hengshot.hengline.agent.temporal_planner.splitter.splitter_config import SplitterConfig
-from hengshot.hengline.agent.video_assembler.splitter.splitter_validator import SplitterExporter, SegmentValidator, SegmentVisualizer
-from hengshot.hengline.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
-from hengshot.utils.obj_utils import dict_to_dataclass
+from penshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from penshot.neopen.agent.temporal_planner.splitter.five_second_splitter import FiveSecondSplitter
+from penshot.neopen.agent.temporal_planner.splitter.splitter_config import SplitterConfig
+from penshot.neopen.agent.video_assembler.splitter.splitter_validator import SplitterExporter, SegmentValidator, SegmentVisualizer
+from penshot.neopen.agent.temporal_planner.temporal_planner_model import DurationEstimation, ElementType
+from penshot.utils.obj_utils import dict_to_dataclass
 
 
 def create_sample_estimations() -> Dict[str, DurationEstimation]:

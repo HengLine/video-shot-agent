@@ -1,14 +1,14 @@
 """
 @FileName: a2a_integration.py
 @Description: 集成到A2A系统（代理到代理）
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/2/10 19:45
 """
 from dataclasses import dataclass
 from typing import Dict, Any
 
-from hengshot.hengline import generate_storyboard
+from penshot.neopen import generate_storyboard
 
 
 @dataclass

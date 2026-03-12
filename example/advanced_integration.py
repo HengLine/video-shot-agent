@@ -1,8 +1,8 @@
 """
 @FileName: advanced_integration.py
 @Description: 高级集成示例（结合其他功能）
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/2/10 19:47
 """
 import asyncio
@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict
 
 from example.direct_usage import basic_usage
-from hengshot.hengline import generate_storyboard
+from penshot.neopen import generate_storyboard
 
 
 class StoryboardManager:

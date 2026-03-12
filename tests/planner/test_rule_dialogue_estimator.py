@@ -1,14 +1,14 @@
 """
 @FileName: test_temporal_scene_planner.py
 @Description: 对话估算器演示
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/13 16:12
 """
-from hengshot.hengline.agent.script_parser2.script_parser_models import Dialogue
-from hengshot.hengline.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
-from hengshot.hengline.agent.shot_generator_bak.estimator.rule_dialogue_estimator import RuleDialogueDurationEstimator
-from hengshot.utils.obj_utils import dict_to_obj, dict_to_dataclass
+from penshot.neopen.agent.script_parser2.script_parser_models import Dialogue
+from penshot.neopen.agent.shot_generator_bak.estimator.rule_base_estimator import EstimationContext
+from penshot.neopen.agent.shot_generator_bak.estimator.rule_dialogue_estimator import RuleDialogueDurationEstimator
+from penshot.utils.obj_utils import dict_to_obj, dict_to_dataclass
 
 
 def test_demonstrate_dialogue_estimator():

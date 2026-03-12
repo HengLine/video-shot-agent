@@ -1,5 +1,3 @@
-
-@Github: https://github.com/HengLine/video-shot-agent
 import requests
 from langchain_community.llms import Ollama
 import subprocess

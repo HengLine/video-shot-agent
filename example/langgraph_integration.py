@@ -1,8 +1,8 @@
 """
 @FileName: langgraph_integration.py
 @Description: 集成到 LangGraph 工作流节点
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/2/10 19:43
 """
 from typing import Dict, Any
@@ -10,7 +10,7 @@ from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from pydantic import BaseModel, Field
 
-from hengshot.hengline import generate_storyboard
+from penshot.neopen import generate_storyboard
 
 
 # 定义状态结构

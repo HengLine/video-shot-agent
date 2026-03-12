@@ -1,5 +1,5 @@
 
-from hengshot.utils.file_utils import load_from_obj, save_to_json
+from penshot.utils.file_utils import load_from_obj, save_to_json
 
 
 def _call_llm(self, prompt: str) -> str:

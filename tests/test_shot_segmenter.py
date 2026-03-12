@@ -1,15 +1,15 @@
 """
 @FileName: test_shot_splitter.py
 @Description: 
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 22:11
 """
 import logging
 
-from hengshot.hengline.agent.base_models import ElementType
-from hengshot.hengline.agent.script_parser.script_parser_models import BaseElement, SceneInfo, CharacterInfo, ParsedScript
-from hengshot.hengline.agent.shot_segmenter.rule_shot_segmenter import RuleShotSegmenter
+from penshot.neopen.agent.base_models import ElementType
+from penshot.neopen.agent.script_parser.script_parser_models import BaseElement, SceneInfo, CharacterInfo, ParsedScript
+from penshot.neopen.agent.shot_segmenter.rule_shot_segmenter import RuleShotSegmenter
 
 
 # 使用示例

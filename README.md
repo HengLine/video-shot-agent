@@ -1,5 +1,7 @@
 # 剧本分镜智能体
 
+中文 | [English](docu/README-en.md)
+
 一个基于多智能体协作的剧本分镜系统，能够将多种格式的剧本拆分为AI可生成的短视频脚本单元，输出高质量分镜片段描述，并保证叙事连续性。支持多种AI提供商，具有强大的可扩展性和易用性。可以通过Python库、Web API、LangGraph节点或A2A系统集成使用。
 
 > - **需求描述**：假如我有一段预估两分钟左右的剧本，想通过AI模型生成对应的短视频。
@@ -12,11 +14,11 @@
 >
 >   这便是本智能体需要完成的任务，用户只需要给出剧本，而后根据各种技术拆解，最后将拆解完成的剧本片段返回，用户只需要将其交给模型（Runway、Pika、Sora、Wan、Stable Video等）生成即可，最后再利用相关技术将片段合成为完整视频。
 
-**视频创作流程**：客户端  → LLM 剧本创作  →  <u>***剧本解析（拆分）***</u> → DM 视频生成（文生视频） →  视频合成渲染（FFmpeg）
+**创作流程**：客户端  → LLM 剧本创作  →  <u>***剧本解析（分镜转码）***</u> → DM 视频生成（文生视频） →  视频合成渲染（FFmpeg）
 
-**注意**：本智能体不会参与剧本创作，目前版本不会调用模型生成视频，亦不会合成视频（未来版本会支持），以上流程中标注处就是本智能体的任务。
+**注意**：本智能体不参与剧本创作，不会调用模型生成视频，亦不会合成视频，以上流程中标注处就是本智能体任务（未来版本会支持qita）。
 
-详细设计参照文档：[**剧本分镜智能体的架构设计与实现细节**](https://pengline.github.io/2025/10/0194020a663c408fb500dd7532349519/)
+详细设计参照文档：[**剧本分镜智能体的架构设计与实现细节**](https://penhex.github.io/2025/10/0194020a663c408fb500dd7532349519/)
 
 
 
@@ -24,10 +26,15 @@
 ## 核心功能
 
 - **智能剧本解析**：自动识别场景、对话和动作指令，理解故事结构
-- **精准时序规划**：按镜头粒度智能切分内容，分配合理时长
+- **精准时序规划**：按镜头粒度智能切分内容，分配合理时长（符合AI）
 - **连续性守护**：确保相邻分镜间角色状态、场景和情节的一致性
 - **高质量分镜生成**：生成详细的中文画面描述和英文AI视频提示词
+- **音频提示词支持**：为每个分镜生成对应的环境音和声音设计提示词
 - **多模型支持**：兼容OpenAI、Qwen、DeepSeek、Ollama等多种AI提供商
+- **易用的API接口**：提供Python库、Web API、LangGraph节点和A2A系统集成方式
+- **可配置的生成参数**：支持温度、时长、模型选择等多维度参数配置
+- **错误处理与重试机制**：自动重试失败的生成任务，确保高成功率
+- **结果可追溯**：每个分镜片段都可追溯到原剧本位置，便于验证和调整
 
 
 
@@ -39,23 +46,22 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/HengLine/video-shot-agent.git
+git clone https://github.com/neopen/video-shot-agent.git
 cd video-shot-agent
 
 # 安装为可编辑包
 pip install -e .
 
-######### 方式1：自动安装
+######### 方式1：自动安装  #########
 # 脚本会自动创建虚拟环境、安装依赖并启动服务，若失败，可手动安装
 python main.py
 
 
-######### 方式2：手动安装
+######### 方式2：手动安装 #########
 python -m venv .venv
-# 激活虚拟环境 (Windows)
-.venv\Scripts\activate
-# 或者 (Linux/Mac)
-source .venv/bin/activate
+
+.venv\Scripts\activate      # 激活虚拟环境 (Windows)
+source .venv/bin/activate   # 或者 (Linux/Mac)
 
 # 安装依赖
 pip install -r requirements.txt
@@ -72,10 +78,6 @@ cp .env.example .env
 编辑 `.env` 文件，配置必要的参数：
 
 ```properties
-# 部署环境（development, production）
-APP__ENVIRONMENT=development
-# 剧本的语言设置，目前支持：zh（中文）或en（英文）
-APP__LANGUAGE=zh
 # ================= API配置 =================
 #  服务器主机，支持HOST环境变量
 API__HOST=localhost
@@ -83,7 +85,7 @@ API__HOST=localhost
 API__PORT=8000
 
 ########################## LLM 模型配置 #########################
-# 系统支持的厂商（openai, qwen, deepseek, ollama），当默认模型不可用时使用备用厂商
+# 系统支持的厂商（openai, qwen, deepseek, ollama）
 
 # ================= LLM默认配置 =================
 # LLM 厂商 API
@@ -92,22 +94,10 @@ LLM__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
 LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 # LLM 厂商 模型
 LLM__DEFAULT__MODEL_NAME=qwen-plus
-# 生成温度参数，控制输出的随机性： 0.0 = 确定性输出，1.0 = 最大随机性
-LLM__DEFAULT__TEMPERATURE=0.1
 # 默认API超时时间（秒）
 LLM__DEFAULT__TIMEOUT=60
-# 最大重试次数
-LLM__DEFAULT__MAX_RETRIES=2
 # 最大生成令牌数
-LLM__DEFAULT__MAX_TOKENS=3000
-LLM__DEFAULT__RETRY_DELAY=1
-
-# ================= LLM备用配置 =================
-LLM__FALLBACK__BASE_URL=http://localhost:11434
-LLM__FALLBACK__MODEL_NAME=qwen3:4b
-LLM__FALLBACK__TEMPERATURE=0.1
-LLM__FALLBACK__TIMEOUT=300
-LLM__FALLBACK__MAX_TOKENS=5000
+LLM__DEFAULT__MAX_TOKENS=4096
 ```
 
 ### 3. 启动应用
@@ -116,11 +106,12 @@ LLM__FALLBACK__MAX_TOKENS=5000
 python main.py
 ```
 
-应用将在 `http://0.0.0.0:8000` 启动，提供API接口服务。
+> 应用将在 `http://0.0.0.0:8000` 启动，提供API接口服务。
+>
 
 ### 4. 提交任务
 
-提交任务：
+提交任务（自然语言短剧本）：
 
 ```sh
 curl --location --request POST 'http://localhost:8000/api/v1/storyboard' \
@@ -148,7 +139,7 @@ curl --location --request GET 'http://localhost:8000/api/v1/status/HL20260306193
 curl --location --request GET 'http://localhost:8000/api/v1/result/HL202603061937129004'
 ```
 
-输出：结构化分镜结果（`audio_prompt` 为音频提示词信息）
+输出：结构化分镜结果（`audio_prompt` 为音频提示词信息，提示词包含双语）
 
 ```json
 {
@@ -205,38 +196,43 @@ curl --location --request GET 'http://localhost:8000/api/v1/result/HL20260306193
 
 
 ## 智能体集成示例
+**注意**：以下`generate_storyboard()`是同步函数，实际集成时需要根据具体应用场景进行适当调整和扩展。
+
+### 环境准备
 
 **安装依赖**：
 
 ```sh
-# 选择最新版本，下载 whl 包（https://github.com/HengLine/video-shot-agent/releases）
-# https://github.com/HengLine/video-shot-agent/releases/download/v0.1.3-beta/hengshot-0.1.3-py3-none-any.whl
-# 内部默认安装使用 ollama，如果要使用其他平台，需要安装对应的包
-pip install hengshot-0.1.1-py3-none-any.whl
-# 安装指定LLM 包
+# 选择最新版本，下载 whl 包（https://github.com/neopen/video-shot-agent/releases）
+wget https://github.com/neopen/video-shot-agent/releases/download/v0.1.4/penshot-0.1.4-py3-none-any.whl
+# 安装包
+pip install penshot-0.1.1-py3-none-any.whl
+# 内部默认安装使用 ollama，如果要使用其他平台，需要安装对应的LLM包
 # pip install langchain-openai	使用 openai 或 deepseek
 # pip install dashscope			使用千问
 ```
 
 **环境配置**：
 
-> 1. 复制示例文件：cp .env.example .env
+同以上配置
+
+> 1. 复制示例文件：`cp .env.example .env`
 >
 > 2. 编辑 .env 文件，填入真实配置
 >
 > ```properties
-> # .env - 实际配置文件
-> # ================= 应用配置 =================
-> APP__LANGUAGE=zh
-> 
 > # ================= LLM默认配置 =================
 > LLM__DEFAULT__BASE_URL=https://api.openai.com/v1
 > LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 > LLM__DEFAULT__MODEL_NAME=gpt-4-turbo-preview
-> LLM__DEFAULT__TEMPERATURE=0.7
 > LLM__DEFAULT__TIMEOUT=30
-> LLM__DEFAULT__MAX_RETRIES=3
 > LLM__DEFAULT__MAX_TOKENS=4000
+> 
+> # ================= LLM备用配置 =================
+> LLM__FALLBACK__BASE_URL=http://localhost:11434
+> LLM__FALLBACK__MODEL_NAME=qwen3:4b
+> LLM__FALLBACK__TIMEOUT=300
+> LLM__FALLBACK__MAX_TOKENS=5000
 > ```
 
 
@@ -244,8 +240,7 @@ pip install hengshot-0.1.1-py3-none-any.whl
 ### 1. 作为Python库使用
 
 ```python
-from hengshot.hengline import generate_storyboard
-from hengshot.hengline.hengline_config import HengLineConfig
+from penshot.neopen import generate_storyboard
 
 async def basic_usage():
     """基础用法示例"""
@@ -255,18 +250,10 @@ async def basic_usage():
     人物：小李（程序员）
     动作：小李正在写代码，突然接到电话，表情惊讶
     """
-    
-    # 创建自定义配置 LLM
-    custom_config = HengLineConfig(
-        model_name="gpt-4",
-        base_url="http://localhost:11434",  # 假设本地部署了 Ollama
-        temperature=0.2
-    )
 
     # 简单调用
     result = await generate_storyboard(
-        script_text=script,
-        config=custom_config
+        script_text=script
     )
     print(f"生成完成，任务ID: {result.get('task_id')}")
     print(f"生成结果: {result.get('success', False)}")
@@ -280,8 +267,7 @@ async def basic_usage():
 可以通过 HTTP API 将剧本分镜智能体集成到各种 Web 应用中：
 
 ```python
-from hengshot.hengline import generate_storyboard
-from hengshot.hengline.hengline_config import HengLineConfig
+from penshot.neopen import generate_storyboard
 
 @app.post("/api/generate-storyboard")
 async def generate_storyboard_endpoint(script_text: str):
@@ -289,17 +275,9 @@ async def generate_storyboard_endpoint(script_text: str):
     生成视频分镜的Web API端点
     """
     
-    # 创建自定义配置 LLM
-    custom_config = HengLineConfig(
-        model_name="gpt-4",
-        base_url="http://localhost:11434",  # 假设本地部署了 Ollama
-        temperature=0.2
-    )
-    
     try:
         return await generate_storyboard(
-            script_text=script_text,
-            config=custom_config
+            script_text=script_text
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"生成失败: {str(e)}")
@@ -311,7 +289,7 @@ async def generate_storyboard_endpoint(script_text: str):
 
 可以将剧本分镜智能体作为 LangGraph 工作流中的一个节点。
 
-使用方式：[剧本分镜智能体架构设计与实现 | 集成到 LangGraph 节点](https://pengline.github.io/2025/10/0194020a663c408fb500dd7532349519/)
+使用方式：[剧本分镜智能体架构设计与实现 | 集成到 LangGraph 节点](https://penhex.github.io/2025/10/0194020a663c408fb500dd7532349519/)
 
 
 
@@ -321,18 +299,26 @@ async def generate_storyboard_endpoint(script_text: str):
 
 如：上游是剧本创作智能体，下游是 文生视频+剪辑 智能。
 
-使用方式：[剧本分镜智能体架构设计与实现 | 集成到 A2A 系统](https://pengline.github.io/2025/10/0194020a663c408fb500dd7532349519/)
+使用方式：[剧本分镜智能体架构设计与实现 | 集成到 A2A 系统](https://penhex.github.io/2025/10/0194020a663c408fb500dd7532349519/)
 
 
 
 ## 版本与展望
 
+限制与说明：
+
 > 1. **依赖外部API**：LLM版本需要稳定的网络连接
 > 2. **AI模型限制**：生成的视频质量受限于AI视频模型能力
 > 3. **处理长剧本**：长剧本可能需要分段处理
 > 4. **多语言支持**：主要针对中文优化，其他语言效果待测试
+> 5. **生成时长不确定**：AI生成的片段时长可能与预估不完全一致
+> 6. **连续性挑战**：保持分镜间的连续性可能存在技术难点
+> 7. **用户反馈机制**：当前版本不支持从用户反馈中学习优化
+> 8. **错误处理**：异常情况可能导致生成失败
+> 9. **声音同步**：实现声音与画面的一致性挑战，口型同步、环境音设计等需要进一步优化
+> 10. **专业级分镜**：达到专业导演水准需要持续迭代和优化
 
-### MVP版本限制
+### MVP版本
 
 1. **简单规则**：使用固定规则，无法处理复杂剧本结构
 2. **无状态记忆能力**：只支持一次拆解，不支持超长文本的多次拆分
@@ -359,13 +345,13 @@ async def generate_storyboard_endpoint(script_text: str):
 
 1. **高级镜头语言**：支持复杂镜头运动（推拉摇移跟）
 2. **情感分析**：根据剧本情感自动调整视觉风格
-3. **超长剧本**：分块处理+上下文记忆
+3. **超长剧本**：分块处理+上下文记忆（RAG + 向量数据库）
 4. **自动优化**：从历史结果学习成功模式
 5. **批量处理**：多剧本队列处理
 6. **Web界面**：可视化操作
 7. **素材库集成**：支持角色/场景参考图
 8. **多格式导出**：故事板、时间线XML、数据集格式
-9. **状态记忆系统**：基于ID的Embedding+状态追踪，支持超长剧本分段处理
+9. **更多参数**：支持更多细节控制，如镜头运动类型、构图规则、色调风格等
 10. **结果下载**：支持导出完整分镜结果文件
 
 ### 长期计划
@@ -404,9 +390,9 @@ async def generate_storyboard_endpoint(script_text: str):
 
 ## 贡献指南
 
-欢迎提交Issue和Pull Request来改进这个项目：
+欢迎提交 Issue 和 Pull Request 来改进这个项目：
 
 1. **报告问题**：在使用中遇到的问题
 2. **功能建议**：希望添加的新功能
 3. **代码优化**：性能优化或代码重构
-4. **文档改进**：补充或修正文档x1
+4. **文档改进**：补充或修正文档

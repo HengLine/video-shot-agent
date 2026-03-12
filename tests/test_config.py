@@ -1,8 +1,8 @@
 """
 @FileName: test_config.py
 @Description: 
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/31 22:03
 """
 import os
@@ -10,7 +10,7 @@ import os
 """
 @FileName: config.py
 @Description: 配置管理模块 - 严格遵循 env > yaml > default 优先级
-@Author: HengLine (优化版)
+@Author: Haeng
 @Time: 2026/01
 """
 from pathlib import Path

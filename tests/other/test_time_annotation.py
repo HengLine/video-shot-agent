@@ -1,12 +1,12 @@
 """
 @FileName: test_time_annotation.py
 @Description: 测试动作时长估算器对时间标注的处理
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/12/18
 """
 
-from hengshot.hengline.agent.shot_generator.estimator.rule_action_estimator import RuleActionDurationEstimator
+from penshot.neopen.agent.shot_generator.estimator.rule_action_estimator import RuleActionDurationEstimator
 
 
 def test_time_annotations():

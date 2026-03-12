@@ -1,17 +1,17 @@
 """
 @FileName: test_hybrid_estimator.py
 @Description: 
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/15 19:10
 """
 import json
 
-from hengshot.hengline.agent.script_parser2.script_parser_models import UnifiedScript
-from hengshot.hengline.agent.shot_generator_bak.estimator.estimator_factory import estimator_factory
-from hengshot.hengline.agent.shot_generator_bak.hybrid_temporal_planner import HybridTemporalPlanner
-from hengshot.hengline.client.client_factory import get_default_llm
-from hengshot.utils.obj_utils import dict_to_dataclass
+from penshot.neopen.agent.script_parser2.script_parser_models import UnifiedScript
+from penshot.neopen.agent.shot_generator_bak.estimator.estimator_factory import estimator_factory
+from penshot.neopen.agent.shot_generator_bak.hybrid_temporal_planner import HybridTemporalPlanner
+from penshot.neopen.client.client_factory import get_default_llm
+from penshot.utils.obj_utils import dict_to_dataclass
 
 """
 更新使用示例

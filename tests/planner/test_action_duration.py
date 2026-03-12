@@ -1,11 +1,11 @@
 """
 @FileName: action_duration_example_improved.py
 @Description: 动作时长估算和分镜切分示例
-@Author: HengLine
-@Github: https://github.com/HengLine/video-shot-agent
+@Author: Haeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10/24 14:21
 """
-from hengshot.hengline.tools.action_duration_tool import ActionDurationEstimatorTool
+from penshot.neopen.tools.action_duration_tool import ActionDurationEstimatorTool
 from typing import List, Dict, Any
 import json
 
