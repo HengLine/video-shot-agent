@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-langchain==0.3.27
+langchain==0.3.28
 langchain-community==0.3.31
 dashscope==1.23.9
 langgraph==0.6.11
@@ -13,6 +13,8 @@ llama-index-core==0.14.4
 llama-index-embeddings-openai
 llama-index-embeddings-huggingface
 llama-index-embeddings-ollama
+#
+redis
 #
 python-dotenv
 pydantic
