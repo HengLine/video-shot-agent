@@ -187,8 +187,8 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
             character=fragment.continuity_notes.get("main_character", ""),
             location=fragment.continuity_notes.get("location", ""),
             original_language=original_language,
-            dm_model=self.config.video_model.value,
-            video_style=self.config.default_style.value,
+            dm_model=self.config.video_model,
+            video_style=self.config.default_style,
             max_length=self.config.max_prompt_length,
             min_length=self.config.min_prompt_length,
             global_context=global_context,
@@ -217,7 +217,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
             prompt=combined_prompt,
             negative_prompt=result.get("negative_prompt", self.config.default_negative_prompt),
             duration=fragment.duration,
-            model=self.config.video_model.value,
+            model=self.config.video_model,
             style=result.get("style_hint"),
             audio_prompt=audio_prompt
         )

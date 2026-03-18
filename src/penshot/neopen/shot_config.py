@@ -40,10 +40,10 @@ class ShotConfig(AIConfig):
     ai_splitter_enabled: bool = True  # 是否启用AI分割器
 
     # ======================指令转换
-    video_model: VideoModelType = VideoModelType.RUNWAY_GEN2
-    audio_model: AudioModelType = AudioModelType.XTTSv2
+    video_model: str = VideoModelType.RUNWAY_GEN2.value
+    audio_model: str = AudioModelType.XTTSv2.value
     default_negative_prompt: str = "blurry, distorted, low quality, cartoonish, bad anatomy"
-    default_style: VideoStyle = VideoStyle.CINEMATIC
+    default_style: str = VideoStyle.CINEMATIC.value
     max_prompt_length: int = 200    # 提示词最大长度（单词数）
     min_prompt_length: int = 10
 
