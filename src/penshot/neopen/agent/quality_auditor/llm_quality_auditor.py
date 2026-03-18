@@ -141,6 +141,7 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseAgent):
                 "summary": "LLM审查执行失败",
                 "issues": [],
                 "fragments_checked": [f["id"] for f in fragments_data],
+                "quality_score": 0,
                 "timestamp": time.time()
             }
 
@@ -189,6 +190,7 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseAgent):
             "summary": result.get("summary", "LLM审查完成"),
             "issues": [],
             "fragments_checked": [f["id"] for f in fragments_data],
+            "quality_score": result.get("quality_score", 100),
             "timestamp": time.time()
         }
 
