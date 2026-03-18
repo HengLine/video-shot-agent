@@ -15,6 +15,7 @@ from penshot.neopen.task.task_handler import CallbackHandler
 from penshot.neopen.task.task_manager import TaskManager
 from penshot.utils.log_utils import print_log_exception
 from penshot.neopen.task.task_models import CallbackPayload
+from penshot.utils.obj_utils import dict_to_obj
 
 
 class AsyncTaskProcessor:
@@ -31,17 +32,19 @@ class AsyncTaskProcessor:
             error(f"任务不存在: {task_id}")
             return
 
+        config = dict_to_obj(task["config"], ShotConfig)
+
         try:
             # 更新状态为处理中
             self.task_manager.update_task_progress(task_id, "processing", 10)
 
             # 获取工作流实例
-            workflow = self.task_manager.get_workflow(task_id, task["config"])
+            workflow = self.task_manager.get_workflow(task_id, config)
 
             # 执行处理
             self.task_manager.update_task_progress(task_id, "parsing_script", 20)
             # workflow.run_process should return a dict-like result with keys: success, data, error
-            result = await workflow.run_process(task["script"], task["config"])  # type: ignore
+            result = await workflow.run_process(task["script"], config)  # type: ignore
 
             # 更新进度
             self.task_manager.update_task_progress(task_id, "finalizing", 90)

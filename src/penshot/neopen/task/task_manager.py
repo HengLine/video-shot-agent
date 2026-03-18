@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from penshot.utils.log_utils import print_log_exception
+from penshot.utils.obj_utils import obj_to_dict
 from penshot.utils.redis_utils import RedisClient
 
 """
@@ -123,13 +125,13 @@ class TaskManager:
 
     # ---------------------- redis helpers ----------------------
     def _redis_key(self, task_id: str) -> str:
-        return f"task:{task_id}"
+        return f"penshot:task:{task_id}"
 
     def _redis_tasks_set_key(self) -> str:
-        return "tasks:ids"
+        return "penshot:tasks:ids"
 
     def _redis_metrics_key(self, name: str) -> str:
-        return f"tasks:metrics:{name}"
+        return f"penshot:tasks:metrics:{name}"
 
     # ---------------------- core operations ----------------------
     def create_task(self, script: str, config: Optional[ShotConfig] = None, task_id: str = None) -> str:
@@ -155,14 +157,16 @@ class TaskManager:
             key = self._redis_key(task_id)
             # store JSON and add to set
             try:
-                self.redis.set(key, json.dumps(record, ensure_ascii=False))
+                self.redis.set(key, json.dumps(obj_to_dict(record), ensure_ascii=False))
                 self.redis.sadd(self._redis_tasks_set_key(), task_id)
                 # increment metrics in redis
                 try:
                     self.redis.incr(self._redis_metrics_key("created"))
                 except Exception:
                     pass
-            except Exception:
+            except Exception as e:
+                print(f"Redis 添加任务失败: {e}")
+                print_log_exception()
                 # fallback to local
                 with self._lock:
                     self._local_tasks[task_id] = record
@@ -186,15 +190,15 @@ class TaskManager:
 
     def _read_record_redis(self, task_id: str) -> Optional[Dict[str, Any]]:
         if not self.redis:
-            return None
+            return self._read_record_local(task_id)
         key = self._redis_key(task_id)
         raw = self.redis.get(key)
         if not raw:
-            return None
+            return self._read_record_local(task_id)
         try:
             return json.loads(raw)
         except Exception:
-            return None
+            return self._read_record_local(task_id)
 
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         if self.use_redis and self.redis:

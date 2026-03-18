@@ -210,7 +210,7 @@ async def get_task_result(task_id: str):
         task_id=task_id,
         success=task["status"] == "completed",
         status="success" if task["status"] == "completed" else "failed",
-        data=task.get("result", {}).get("data"),
+        data=task.get("result", {}).get("data") if task.get("result") is not None else None,
         message=task.get("error"),
         processing_time_ms=processing_time,
         created_at=created_at_dt,

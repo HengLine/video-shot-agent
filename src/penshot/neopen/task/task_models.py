@@ -29,7 +29,7 @@ class ProcessRequest(BaseModel):
     - `task_id` 使用生成器作为默认值。
     """
     script: str = Field(..., min_length=1, description="原始剧本文本")
-    config: Optional[ShotConfig] = Field(default_factory=dict, description="处理配置（序列化形式）")
+    config: Optional[ShotConfig] = Field(default_factory=ShotConfig, description="处理配置（序列化形式）")
     callback_url: Optional[str] = Field(default=None, description="回调URL，处理完成后通知（可选）")
     task_id: str = Field(default_factory=_generate_task_id, description="外部请求ID（可选）")
     language: str = Field(default=Language.ZH.value, description='剧本语言，例如 "zh" 或 "en"')
