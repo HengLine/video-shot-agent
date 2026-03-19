@@ -88,7 +88,7 @@ quality_auditor_user:
       - WARNING: 有警告
       - FAILED: 失败
       
-      type字段必须使用以下KEY值之一：
+      issues[i].type字段必须使用以下KEY值之一：
       - TRUNCATION: 截断问题
       - SCENE: 场景问题
       - WEATHER: 气象问题
@@ -97,9 +97,11 @@ quality_auditor_user:
       - PROMPT: 提示词质量问题
       - DURATION: 时长问题
       - STYLE: 风格问题
+      - FRAGMENT: 片段分隔或分镜问题
+      - MODEL: 模型相关问题
       - OTHER: 其他问题
       
-      severity字段必须使用以下KEY值之一：
+      issues[i].severity字段必须使用以下KEY值之一：
       - INFO: 信息级别，不影响执行
       - WARNING: 警告级别，建议修复
       - MODERATE: 中度问题，需要调整
@@ -128,16 +130,16 @@ quality_auditor_user:
       输入：
         标题: "雨中的约定" | 片段数: 16 | 总时长: 57.2秒
         片段列表:
-        - frag_001: 全景雨景，4.0秒
-        - frag_002: 林小雨擦书中景，3.0秒
-        - frag_003: 林小雨台词特写，5.2秒
-        - frag_004: 陈阳出场全景，3.5秒
-        - frag_005: 书落水中景，2.8秒
-        - frag_006: 陈阳捡书中景，2.5秒
-        - frag_007: 陈阳台词中景，3.0秒
-        - frag_008: 两本书并排全景，4.0秒
-        - frag_009: 林小雨反应中景，3.0秒
-        - frag_010: 林小雨台词特写，4.0秒
+          - frag_001: 全景雨景，4.0秒
+          - frag_002: 林小雨擦书中景，3.0秒
+          - frag_003: 林小雨台词特写，5.2秒
+          - frag_004: 陈阳出场全景，3.5秒
+          - frag_005: 书落水中景，2.8秒
+          - frag_006: 陈阳捡书中景，2.5秒
+          - frag_007: 陈阳台词中景，3.0秒
+          - frag_008: 两本书并排全景，4.0秒
+          - frag_009: 林小雨反应中景，3.0秒
+          - frag_010: 林小雨台词特写，4.0秒
       
       输出：
         {

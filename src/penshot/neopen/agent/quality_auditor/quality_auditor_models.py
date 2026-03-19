@@ -38,25 +38,40 @@ class AuditStatus(str, Enum):
     WARNING = "warning"           # 有警告
 
 
-
 class IssueType(str, Enum):
     """问题类型枚举 - 统一规范"""
-    TRUNCATION = "截断"          # 提示词截断
-    SCENE = "场景"                # 场景引用错误
-    WEATHER = "气象"              # 气象矛盾
-    CHARACTER = "角色"            # 角色不一致
-    ACTION = "动作"               # 动作不连贯
-    PROMPT = "提示词"             # 提示词质量问题
-    DURATION = "时长"             # 时长不合理
-    STYLE = "风格"                # 风格不一致
-    OTHER = "其他"                # 其他问题
+    TRUNCATION = "truncation"          # 提示词截断
+    SCENE = "scene"                    # 场景引用错误
+    WEATHER = "weather"                # 气象矛盾
+    CHARACTER = "character"            # 角色不一致
+    ACTION = "action"                  # 动作不连贯
+    PROMPT = "prompt"                  # 提示词质量问题
+    DURATION = "duration"             # 时长不合理
+    STYLE = "style"                     # 风格不一致
+    FRAGMENT = "fragment"             # 片段分隔或分镜问题
+    MODEL = "model"                # 模型问题
+    OTHER = "other"                # 其他问题
+
+
+class RuleType(Enum):
+    LLM_COHERENCE = ("llm_coherence", "LLM连贯性检查")
+    DURATION_LIMIT = ("duration_limit", "片段时长限制")
+    PROMPT_NOT_EMPTY = ("prompt_not_empty", "提示词非空")
+    PROMPT_LENGTH = ("prompt_length", "提示词长度")
+    FRAGMENT_COUNT = ("fragment_count", "片段数量")
+    MODEL_SUPPORTED = ("model_supported", "模型支持")
+
+    def __init__(self, code, description):
+        self.code = code
+        self.description = description
 
 
 class BasicViolation(BaseModel):
     """MVP违规记录"""
-    rule_id: str = Field(..., description="规则ID")
+    rule_code: str = Field(..., description="规则编码")
     rule_name: str = Field(..., description="规则名称")
     description: str = Field(..., description="违规描述")
+    issue_type: IssueType = Field(..., description="问题类型")
     severity: Literal[SeverityLevel.INFO, SeverityLevel.WARNING, SeverityLevel.ERROR,
         SeverityLevel.MAJOR, SeverityLevel.MODERATE, SeverityLevel.CRITICAL] = Field(
         default=SeverityLevel.WARNING,

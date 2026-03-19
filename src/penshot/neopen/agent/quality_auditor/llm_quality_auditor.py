@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional, List
 from penshot.neopen.agent.base_agent import BaseAgent
 from penshot.neopen.agent.prompt_converter.prompt_converter_models import AIVideoInstructions, AIVideoPrompt
 from penshot.neopen.agent.quality_auditor.base_quality_auditor import BaseQualityAuditor
-from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityAuditReport, AuditStatus, IssueType, SeverityLevel
+from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityAuditReport, AuditStatus, IssueType, SeverityLevel, RuleType
 from penshot.neopen.agent.quality_auditor.rule_quality_auditor import RuleQualityAuditor
 from penshot.neopen.shot_config import ShotConfig
 from penshot.logger import info, error, debug
@@ -424,6 +424,7 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseAgent):
         # 添加LLM检查记录
         status = llm_result.get("status", AuditStatus.NEEDS_REVIEW.value)
         summary = llm_result.get("summary", "")
+        report.score = llm_result.get("quality_score", 80.0)
 
         self._add_check(
             report,
@@ -435,17 +436,15 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseAgent):
         # 添加LLM发现的问题
         issues = llm_result.get("issues", [])
         for issue in issues:
-            severity = issue.get("severity", SeverityLevel.WARNING.value)
-
             # 构建详细描述
             description = f"[{issue.get('type', '其他')}] {issue.get('description', '')}"
 
             self._add_violation(
                 report=report,
-                rule_id="llm_coherence",
-                rule_name="LLM连贯性检查",
+                rule_type=RuleType.LLM_COHERENCE,
+                issue_type=issue.get("type", IssueType.OTHER),
                 description=description,
-                severity=severity,
+                severity=issue.get("severity", SeverityLevel.WARNING),
                 fragment_id=issue.get("fragment_id"),
                 suggestion=issue.get("suggestion")
             )

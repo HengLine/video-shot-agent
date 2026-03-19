@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 
 from penshot.neopen.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
-from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityAuditReport, BasicViolation, SeverityLevel, AuditStatus
+from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityAuditReport, BasicViolation, SeverityLevel, AuditStatus, RuleType, IssueType
 from penshot.neopen.shot_config import ShotConfig
 from penshot.logger import info
 
@@ -372,13 +372,14 @@ class BaseQualityAuditor(ABC):
             "checked_at": datetime.now().isoformat()
         })
 
-    def _add_violation(self, report: QualityAuditReport, rule_id: str, rule_name: str,
-                       description: str, severity: str = "warning",
+    def _add_violation(self, report: QualityAuditReport, rule_type: RuleType, issue_type: IssueType,
+                       description: str, severity: SeverityLevel = SeverityLevel.WARNING,
                        fragment_id: Optional[str] = None, suggestion: Optional[str] = None) -> None:
         """添加违规记录"""
         violation = BasicViolation(
-            rule_id=rule_id,
-            rule_name=rule_name,
+            rule_code=rule_type.code,
+            rule_name=rule_type.description,
+            issue_type=issue_type,
             description=description,
             severity=severity,
             fragment_id=fragment_id,
