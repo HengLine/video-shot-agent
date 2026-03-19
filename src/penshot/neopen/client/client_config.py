@@ -19,6 +19,7 @@ class ClientType(Enum):
     OLLAMA = "ollama"
     DEEPSEEK = "deepseek"
     QWEN = "qwen"
+    HUGGINGFACE = "huggingface"
 
 
 def get_client_type(client_type_str):

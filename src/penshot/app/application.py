@@ -20,7 +20,7 @@ from penshot.api.index_api import app as index_api
 # 导入模型API路由器
 from penshot.api.shot_api import app as shot_api
 from penshot.config.config import settings
-from penshot.neopen.context_var import RequestContextMiddleware
+from penshot.neopen.shot_context import RequestContextMiddleware
 from penshot.logger import error
 from .proxy import router as proxy_router
 from ..utils.path_utils import PathResolver

@@ -1,5 +1,5 @@
 """
-@FileName: language_manage.py
+@FileName: shot_language.py
 @Description: 语言管理模块
 @Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent

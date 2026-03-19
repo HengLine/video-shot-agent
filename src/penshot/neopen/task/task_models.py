@@ -13,7 +13,7 @@ from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 from penshot.neopen.shot_config import ShotConfig
 
 

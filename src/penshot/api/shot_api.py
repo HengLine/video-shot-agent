@@ -12,8 +12,8 @@ from fastapi import APIRouter, BackgroundTasks
 from fastapi import HTTPException
 
 from penshot.logger import error, log_with_context
-from penshot.neopen.context_var import task_id_ctx
-from penshot.neopen.language_manage import set_language
+from penshot.neopen.shot_context import task_id_ctx
+from penshot.neopen.shot_language import set_language
 from penshot.neopen.task.task_manager import TaskManager
 from penshot.neopen.task.task_models import ProcessRequest, ProcessResult, ProcessingStatus, BatchProcessResult, BatchProcessRequest
 from penshot.neopen.task.task_processor import AsyncTaskProcessor

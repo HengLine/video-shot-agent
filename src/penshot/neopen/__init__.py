@@ -6,11 +6,15 @@
 @Time: 2025/10 - 2025/11
 """
 
+# 导入主要模块
+from penshot.logger import (debug, info, warning, error, critical)
 # 定义对外暴露的接口
 from penshot.neopen.shot_agent import generate_storyboard
-# 导入主要模块
-from penshot.logger import (debug, info, warning, error, critical, log_with_context
-, log_function_call, log_performance)
+
+from penshot.neopen.shot_config import ShotConfig
+
+from penshot.neopen.shot_language import get_language
+
 
 __all__ = [
     "debug",
@@ -18,9 +22,8 @@ __all__ = [
     "warning",
     "error",
     "critical",
-    "log_with_context",
-    "log_function_call",
-    "log_performance",
+    "get_language",
+    "ShotConfig",
     "generate_storyboard"
 ]
 

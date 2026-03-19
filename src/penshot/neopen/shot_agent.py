@@ -9,7 +9,7 @@ import uuid
 from typing import Dict, Optional
 
 from penshot.neopen.agent import MultiAgentPipeline
-from penshot.neopen.language_manage import Language, set_language
+from penshot.neopen.shot_language import Language, set_language
 from penshot.neopen.shot_config import ShotConfig
 
 

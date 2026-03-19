@@ -11,7 +11,7 @@ from typing import Dict, Any
 import yaml
 
 from penshot.neopen import prompts
-from penshot.neopen.language_manage import Language, get_language
+from penshot.neopen.shot_language import Language, get_language
 from penshot.logger import error
 from penshot.utils.log_utils import print_log_exception
 

@@ -10,7 +10,7 @@ from typing import Dict, Any
 import jieba
 
 from penshot.neopen.config.base_config import BaseConfig
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 
 
 class ActionDurationConfig(BaseConfig):

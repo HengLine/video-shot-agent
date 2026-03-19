@@ -23,7 +23,7 @@ from penshot.neopen.agent.prompt_converter.template_prompt_converter import Temp
 from penshot.neopen.agent.script_parser.script_parser_models import ParsedScript
 from penshot.neopen.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from penshot.neopen.shot_config import ShotConfig
-from penshot.neopen.language_manage import get_language
+from penshot.neopen.shot_language import get_language
 from penshot.logger import info, error
 from penshot.utils.log_utils import print_log_exception
 

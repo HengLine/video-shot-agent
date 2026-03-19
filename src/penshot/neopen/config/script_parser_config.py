@@ -13,7 +13,7 @@ import yaml
 
 from penshot.neopen.config.base_config import BaseConfig
 from penshot.logger import debug, warning, error
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 
 class ScriptParserConfig(BaseConfig):
     """剧本解析器配置类"""

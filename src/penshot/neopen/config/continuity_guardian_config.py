@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional
 import yaml
 
 from penshot.logger import debug, warning
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 
 
 class ContinuityGuardianConfig:

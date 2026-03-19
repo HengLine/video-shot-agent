@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from penshot.neopen.language_manage import Language, get_language
+from penshot.neopen.shot_language import Language, get_language
 from penshot.logger import info, error, warning
 
 

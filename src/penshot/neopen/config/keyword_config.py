@@ -11,7 +11,7 @@ from typing import Dict, Any
 import yaml
 
 from penshot.neopen.config.base_config import BaseConfig
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 from penshot.logger import debug, error
 
 
