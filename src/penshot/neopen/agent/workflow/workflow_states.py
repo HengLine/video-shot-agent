@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 
 from penshot.neopen.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
-from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityAuditReport
+from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityAuditReport, BasicViolation
 from penshot.neopen.agent.script_parser.script_parser_models import ParsedScript
 from penshot.neopen.agent.shot_segmenter.shot_segmenter_models import ShotSequence
 from penshot.neopen.agent.video_splitter.video_splitter_models import FragmentSequence
@@ -25,6 +25,7 @@ class InputState(BaseModel):
     raw_script: str  # 原始剧本文本
     user_config: ShotConfig = {}  # 用户配置（模型选择、风格偏好等）
     task_id: str = str(uuid.uuid4())  # 唯一标识符
+
 
 class ScriptParsingState(BaseModel):
     """剧本解析相关状态"""
@@ -54,7 +55,7 @@ class PromptConverterState(BaseModel):
 
 class QualityAuditorState(BaseModel):
     """质量审查相关状态"""
-    audit_report: Optional[QualityAuditReport]  = None # 质量审查报告
+    audit_report: Optional[QualityAuditReport] = None  # 质量审查报告
     audit_failures: List[str] = []  # 审查失败项
     audit_warnings: List[str] = []  # 审查警告项
 
@@ -103,13 +104,12 @@ class NodeLoopState(BaseModel):
     global_loop_exceeded: bool = False  # 全局循环超限标记
 
     # ==== 其他字段 ====
-    loop_warning_issued: bool = False   # 是否已发出循环警告
-    last_node: Optional[PipelineNode] = None # 上一个节点
-    current_node: Optional[PipelineNode] = None # 当前节点
+    loop_warning_issued: bool = False  # 是否已发出循环警告
+    last_node: Optional[PipelineNode] = None  # 上一个节点
+    current_node: Optional[PipelineNode] = None  # 当前节点
     total_retries: int = 0  # 全局重试统计
     node_loop_details: list = []  # 每个节点的循环详情日志
     recovery_flags: Dict[str, Any] = {}  # 每个节点的恢复标记
-
 
 
 class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoopState,
@@ -145,6 +145,12 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoop
     audit_executed: bool = False
     audit_timestamp: Optional[str] = None
     last_audit_result: Optional[Dict] = None  # 上一次质量审查结果
+
+    # 修复
+    auto_fix_needed: bool = False  # 是否需要自动修复
+    auto_fix_issues: List[BasicViolation] = []
+    fix_summary: Dict[str, Any] = {}
+    repair_params: Optional[Dict[str, Any]]
 
     # 节点执行历史
     node_execution_history: List[Dict] = []
