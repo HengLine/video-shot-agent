@@ -94,6 +94,7 @@ quality_auditor_user:
       - WEATHER: 气象问题
       - CHARACTER: 角色问题
       - ACTION: 动作问题
+      - DIALOGUE: 对话问题
       - PROMPT: 提示词质量问题
       - DURATION: 时长问题
       - STYLE: 风格问题

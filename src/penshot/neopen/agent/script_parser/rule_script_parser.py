@@ -5,7 +5,7 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 14:38
 """
-from typing import Any
+from typing import Any, Dict
 
 from penshot.neopen.agent.base_models import ScriptType
 from penshot.neopen.agent.script_parser.base_script_parser import BaseScriptParser
@@ -20,5 +20,5 @@ class RuleScriptParser(BaseScriptParser):
 
         """
 
-    def parser(self, script_text: Any, script_format: ScriptType) -> ParsedScript | None:
+    def parser(self, script_text: Any, script_format: ScriptType, repair_params: Dict[str, Any] = None) -> ParsedScript | None:
         pass

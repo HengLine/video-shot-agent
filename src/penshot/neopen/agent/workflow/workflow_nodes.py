@@ -54,7 +54,7 @@ class WorkflowNodes:
         输出：parsed_script (包含顺序保持的元素列表)
         """
         try:
-            parsed_script = self.script_parser.parser_process(state.raw_script)
+            parsed_script = self.script_parser.parser_process(state.raw_script, state.repair_params)
             debug(f"剧本解析完成，场景数: {len(parsed_script.scenes)}")
 
             # 保存剧本解析结果

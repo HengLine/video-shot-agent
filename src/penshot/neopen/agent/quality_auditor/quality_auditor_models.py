@@ -45,6 +45,7 @@ class IssueType(str, Enum):
     WEATHER = "weather"                # 气象矛盾
     CHARACTER = "character"            # 角色不一致
     ACTION = "action"                  # 动作不连贯
+    DIALOGUE = "dialogue"              # 对话问题
     PROMPT = "prompt"                  # 提示词质量问题
     DURATION = "duration"             # 时长不合理
     STYLE = "style"                     # 风格不一致
@@ -60,6 +61,12 @@ class RuleType(Enum):
     PROMPT_LENGTH = ("prompt_length", "提示词长度")
     FRAGMENT_COUNT = ("fragment_count", "片段数量")
     MODEL_SUPPORTED = ("model_supported", "模型支持")
+    SCENE_MISSING = ("scene_missing", "场景缺失")
+    SCENE_INSUFFICIENT = ("scene_insufficient", "场景不足")
+    CHARACTER_MISSING = ("character_missing", "角色缺失")
+    CHARACTER_INCONSISTENT = ("character_inconsistent", "角色不一致")
+    DIALOGUE_MISSING = ("dialogue_missing", "对话缺失")
+    ACTION_INSUFFICIENT = ("action_insufficient", "动作提取不足")
 
     def __init__(self, code, description):
         self.code = code
