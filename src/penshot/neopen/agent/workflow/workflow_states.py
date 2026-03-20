@@ -124,9 +124,9 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoop
     error_handling_history: List[Dict] = []  # 错误处理历史记录
 
     # === 连续性管理 ===
-    continuity_state: Dict = {}  # 当前连续性状态
-    continuity_issues: List[Dict] = []  # 连续性问题列表
-    continuity_anchors: Dict = {}  # 连续性锚点映射
+    continuity_state: Optional[Dict] = {}  # 当前连续性状态
+    continuity_issues: Optional[List[Dict]] = []  # 连续性问题列表
+    continuity_anchors: Optional[Dict] = {}  # 连续性锚点映射
 
     # === 镜头拆分配置 ===
     max_shot_duration: float = 30.0  # 镜头允许的时长范围
@@ -148,12 +148,12 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoop
 
     # 修复
     auto_fix_needed: bool = False  # 是否需要自动修复
-    auto_fix_issues: List[BasicViolation] = []
-    fix_summary: Dict[str, Any] = {}
-    repair_params: Optional[Dict[str, Any]]
+    auto_fix_issues: Optional[List[BasicViolation]] = []
+    fix_summary: Optional[Dict[str, Any]] = {}
+    repair_params: Optional[Dict[str, Any]] = {}
 
     # 节点执行历史
-    node_execution_history: List[Dict] = []
+    node_execution_history: Optional[List[Dict]] = []
 
     def add_node_execution(self, node: PipelineNode):
         """添加节点执行记录"""

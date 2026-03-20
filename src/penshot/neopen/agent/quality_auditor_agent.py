@@ -33,7 +33,7 @@ class QualityAuditorAgent:
         else:
             self.auditor = QualityAuditorFactory.create_auditor(AgentMode.RULE, config)
 
-    def qa_process(self, instructions: AIVideoInstructions) -> QualityAuditReport | None:
+    def qa_process(self, instructions: AIVideoInstructions) -> Optional[QualityAuditReport]:
         """ 视频片段 """
         debug("开始审查质量")
         try:

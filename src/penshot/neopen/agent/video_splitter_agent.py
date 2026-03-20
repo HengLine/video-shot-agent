@@ -34,7 +34,7 @@ class VideoSplitterAgent:
         else:
             self.splitter = VideoSplitterFactory.create_splitter(AgentMode.RULE, self.config)
 
-    def video_process(self, shot_sequence: ShotSequence, parsed_script: ParsedScript) -> FragmentSequence | None:
+    def video_process(self, shot_sequence: ShotSequence, parsed_script: ParsedScript) ->  Optional[FragmentSequence]:
         """ 视频片段 """
         debug("开始切割视频片段")
         try:

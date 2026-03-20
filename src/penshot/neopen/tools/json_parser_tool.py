@@ -20,7 +20,7 @@ class JsonResponseParser:
     """
 
     @staticmethod
-    def extract_json(response: Union[str, Any]) -> dict[str, Any] | None:
+    def extract_json(response: Union[str, Any]) -> Optional[dict[str, Any]]:
         """
         从LLM响应中提取JSON数据
         支持直接JSON响应和Markdown代码块中的JSON

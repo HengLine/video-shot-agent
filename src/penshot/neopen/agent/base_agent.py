@@ -25,14 +25,14 @@ class BaseAgent(ABC):
         """ 转换LLM响应，必要时需要重写该方法 """
         return parse_json_response(ai_response)
 
-    def _call_llm_parse_with_retry(self, llm, system_prompt: str, user_prompt, max_retries: int = 2) -> Dict[str, Any] | None:
+    def _call_llm_parse_with_retry(self, llm, system_prompt: str, user_prompt, max_retries: int = 2) -> Optional[Dict[str, Any]]:
         """
             调用LLM，返回转换后的对象（支持重试）
             返回 dict
         """
         return self._parse_llm_response(self._call_llm_chat_with_retry(llm, system_prompt, user_prompt, max_retries))
 
-    def _call_llm_chat_with_retry(self, llm, system_prompt: str, user_prompt, max_retries: int = 2) -> str | None:
+    def _call_llm_chat_with_retry(self, llm, system_prompt: str, user_prompt, max_retries: int = 2) -> Optional[str]:
         """
             调用LLM，直接返回json字符串（支持重试）
         """
@@ -50,7 +50,7 @@ class BaseAgent(ABC):
                     raise Exception(f"LLM调用失败: {e}")
                 time.sleep(1)
 
-    def _call_llm_with_retry(self, llm, prompt: str, max_retries: int = 2) -> Any | None:
+    def _call_llm_with_retry(self, llm, prompt: str, max_retries: int = 2) -> Optional[Any]:
         """调用LLM，支持重试"""
         for attempt in range(max_retries):
             try:

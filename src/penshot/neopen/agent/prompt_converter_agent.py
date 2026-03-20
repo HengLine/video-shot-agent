@@ -34,7 +34,7 @@ class PromptConverterAgent:
         else:
             self.converter = PromptConverterFactory.create_converter(AgentMode.RULE, config)
 
-    def prompt_process(self, fragment_sequence: FragmentSequence, parsed_script: ParsedScript) -> AIVideoInstructions | None:
+    def prompt_process(self, fragment_sequence: FragmentSequence, parsed_script: ParsedScript) -> Optional[AIVideoInstructions]:
         """ 视频片段 """
         debug("开始视频转换提示词")
         try:
