@@ -231,4 +231,4 @@ class RuleShotSegmenter(BaseShotSegmenter):
         if any(elem.type == ElementType.DIALOGUE for elem in group):
             base_confidence += 0.1
 
-        return min(1.0, base_confidence)
+        return min(1.0, round(base_confidence, 2))

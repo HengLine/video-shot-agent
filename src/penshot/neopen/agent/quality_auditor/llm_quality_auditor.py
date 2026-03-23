@@ -17,6 +17,7 @@ from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityA
 from penshot.neopen.agent.quality_auditor.rule_quality_auditor import RuleQualityAuditor
 from penshot.neopen.shot_config import ShotConfig
 from penshot.logger import info, error, debug
+from penshot.utils.log_utils import print_log_exception
 
 
 class LLMQualityAuditor(BaseQualityAuditor, BaseAgent):
@@ -57,6 +58,7 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseAgent):
 
             except Exception as e:
                 error(f"LLM审查失败: {str(e)}")
+                print_log_exception()
                 # 添加错误标记但不中断流程
                 self._add_check(
                     basic_report,

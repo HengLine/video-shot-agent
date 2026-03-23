@@ -80,7 +80,7 @@ class BaseDurationEstimator:
         """更新统计数据"""
         stats = {
             "shot_count": len(sequence.shots),
-            "total_duration": sum(s.duration for s in sequence.shots),
+            "total_duration": round(sum(s.duration for s in sequence.shots), 2),
             "avg_shot_duration": 0.0,
             "close_up_count": 0,
             "wide_shot_count": 0,

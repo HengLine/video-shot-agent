@@ -15,6 +15,7 @@ from penshot.neopen.agent.shot_segmenter.base_shot_segmenter import BaseShotSegm
 from penshot.neopen.agent.shot_segmenter.rule_shot_segmenter import RuleShotSegmenter
 from penshot.neopen.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo, ShotType
 from penshot.neopen.shot_config import ShotConfig
+from penshot.utils.log_utils import print_log_exception
 
 
 class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
@@ -50,6 +51,7 @@ class LLMShotSegmenter(BaseShotSegmenter, BaseAgent):
 
             except Exception as e:
                 error(f"场景{scene.id}分镜失败: {str(e)}")
+                print_log_exception()
                 # 降级到规则拆分
                 rule_splitter = RuleShotSegmenter(self.config)
                 fallback_shots = rule_splitter.split_scene(scene, current_time, len(all_shots))
