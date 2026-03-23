@@ -1,4 +1,3 @@
-
 """
 @FileName: application.py
 @Description: 应用程序主模块 - 负责初始化和配置整个应用
@@ -15,13 +14,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from penshot.api.index_api import app as index_api
 #
 # 导入模型API路由器
-from penshot.api.shot_api import app as shot_api
+from penshot.api.index_api import router as index_router
+from penshot.api.rest_server import router as rest_router
 from penshot.config.config import settings
-from penshot.neopen.shot_context import RequestContextMiddleware
 from penshot.logger import error
+from penshot.neopen.shot_context import RequestContextMiddleware
 from .proxy import router as proxy_router
 from ..utils.path_utils import PathResolver
 
@@ -56,8 +55,6 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan
 )
-
-app.include_router(proxy_router)
 
 # 生产环境应限制为特定域名
 cors_config = os.environ.get("APP_CORS", "")
@@ -124,6 +121,6 @@ async def general_exception_handler(request, exc):
 
 
 # =====================router======================
-
-app.include_router(index_api, prefix="/api/v1")
-app.include_router(shot_api, prefix="/api/v1")
+app.include_router(proxy_router)
+app.include_router(rest_router)
+app.include_router(index_router)
