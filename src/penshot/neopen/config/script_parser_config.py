@@ -1,7 +1,7 @@
 """
 @FileName: script_parser_config.py
 @Description: 剧本转换智能体配置
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10/27 17:22
 """
@@ -13,7 +13,7 @@ import yaml
 
 from penshot.neopen.config.base_config import BaseConfig
 from penshot.logger import debug, warning, error
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 
 class ScriptParserConfig(BaseConfig):
     """剧本解析器配置类"""

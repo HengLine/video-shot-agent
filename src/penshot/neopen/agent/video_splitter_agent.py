@@ -1,7 +1,7 @@
 """
 @FileName: video_assembler_agent.py
 @Description: 视频片段分割器
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/22 22:00
 """
@@ -34,7 +34,7 @@ class VideoSplitterAgent:
         else:
             self.splitter = VideoSplitterFactory.create_splitter(AgentMode.RULE, self.config)
 
-    def video_process(self, shot_sequence: ShotSequence, parsed_script: ParsedScript) -> FragmentSequence | None:
+    def video_process(self, shot_sequence: ShotSequence, parsed_script: ParsedScript) ->  Optional[FragmentSequence]:
         """ 视频片段 """
         debug("开始切割视频片段")
         try:

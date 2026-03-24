@@ -1,5 +1,8 @@
 # 剧本解析相关提示词模板
-version: "1.2"
+version: "1.3"
+changelog: |
+  - 2026-03-18: 规范化提示词，细节性示例优化
+
 
 script_parser_system:
   name: "base_script_parser_prompt"
@@ -7,7 +10,7 @@ script_parser_system:
   template: |
     你是一个专业的剧本解析AI。请将输入的任意剧本文本内容解析为结构化的JSON结构（严格按照以下结构输出）。
 
-    【JSON结构】
+    【输出格式】
       {{
         "title": "剧本标题",
         "characters": [
@@ -25,7 +28,7 @@ script_parser_system:
             "id": "scene_001",
             "location": "场景地点",
             "description": "场景视觉描述（光影、氛围、环境元素）",
-            "time_of_day": "早晨/中午/下午/傍晚/夜晚/凌晨",
+            "time_of_day": "早晨/上午/中午/下午/傍晚/夜晚/深夜/凌晨",
             "weather": "晴天/雨天/阴天/雪天/暖阳/灰蒙蒙等（如有）",
             "audio_context": {{
               "scene_type": "indoor/outdoor/cafe/park/street/living_room/rainy_outdoor/night_outdoor/other",
@@ -40,7 +43,7 @@ script_parser_system:
               ],
               "has_dialogue": true/false,
               "has_voiceover": true/false,
-              "atmosphere": "紧张/温馨/忧伤/平静/神秘",
+              "atmosphere": "neutral/happy/sad/angry/tense/fear/surprise/disgust/anxious/excited/calm/tender/hesitant/crying/whisper/choking/repression/emotional/shock/resigned/resolute/nostalgic/heavy/other",
               "reverb": 0.0-1.0
             }},
             "elements": [
@@ -55,7 +58,7 @@ script_parser_system:
                 "target_character": "目标角色名，必须与 characters[].name 的值保持一致，若没有则为 null",
                 "description": "元素的视觉描述（动作、表情、画面细节）",
                 "intensity": 0.0-1.0,
-                "emotion": "值必须为其中之一，无法归类时使用other：neutral/happy/sad/angry/tense/fear/surprise/disgust/anxious/excited/calm/tender/hesitant/crying/whisper/choking/repression/emotional/shock/resigned/resolute/nostalgic/other",
+                "emotion": "neutral/happy/sad/angry/tense/fear/surprise/disgust/anxious/excited/calm/tender/hesitant/crying/whisper/choking/repression/emotional/shock/resigned/resolute/nostalgic/heavy/other",
                 "audio_context": {{
                   "sound_type": "rain/wind/thunder/water_drip/footstep/traffic/crowd/music/tv_noise/bird/silence/other",
                   "description": "声音描述",
@@ -133,17 +136,27 @@ script_parser_system:
          - 表情状态（焦虑/温柔/震惊/期待）
       
       6. 时间估算（简化）：
-         - 对话：2-6秒（根据台词长度）
-         - 动作：2-4秒
-         - 场景：3-5秒
+        - 对话：2秒/句（简短）+1秒/情感转折
+        - 动作：基础动作2秒 + 复杂度×0.5秒
+        - 场景：基础3秒 + 环境元素数量×0.3秒
          - 沉默/停顿等具有时间性质的词需显式建模，duration ≥ 1
       
       7. 情感推断：基于上下文合理推断情绪
       
       8. 置信度评估：
-         - 0.9-1.0：明确提到
-         - 0.7-0.8：可明确推断
-         - 0.5-0.6：合理推断但不确定
+        - 明确提到：1.0
+        - 可明确推断：0.8-0.9
+        - 合理推断：0.6-0.7
+        - 猜测：0.4-0.5
+    
+    【多义性处理】
+      - 如果同一内容有多种解释，选择置信度最高的
+      - 如果置信度相近（<0.1差距），同时保留并标记
+        
+    【性能优化】
+      - 缓存常用结果
+      - 并行处理独立片段
+      - 增量更新（只处理变化部分）
 
 
 # 自然语言转结构化分镜，提示词模板
@@ -274,6 +287,12 @@ script_parser_user:
   description: "用户输入提示词模板，适用于剧本解析任务"
   template: |
     请解析以下剧本内容，返回完整的JSON解析结果。
+    
+    【问题类型】
+    {issue_types}
+    
+    【修复建议】
+    {suggestions}
 
     【剧本内容】
     {script_text}

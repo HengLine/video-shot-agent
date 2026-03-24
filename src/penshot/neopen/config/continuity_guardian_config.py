@@ -1,7 +1,7 @@
 """
 @FileName: continuity_guardian_config.py
 @Description: 连续性守护智能体配置
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/11/3 21:31
 """
@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional
 import yaml
 
 from penshot.logger import debug, warning
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 
 
 class ContinuityGuardianConfig:

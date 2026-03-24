@@ -1,7 +1,7 @@
 """
 @FileName: template_prompt_converter.py
 @Description: 
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 23:41
 """
@@ -100,7 +100,7 @@ class TemplatePromptConverter(BasePromptConverter):
             prompt=full_prompt,
             negative_prompt=self.config.default_negative_prompt,
             duration=fragment.duration,
-            model=self.config.video_model.value,
+            model=self.config.video_model,
             style=style_hint,
             requires_special_attention=fragment.requires_special_attention
         )

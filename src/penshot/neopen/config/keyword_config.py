@@ -1,7 +1,7 @@
 """
 @FileName: keyword_config.py
 @Description: 统一关键词配置加载器
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/12/18
 """
@@ -11,7 +11,7 @@ from typing import Dict, Any
 import yaml
 
 from penshot.neopen.config.base_config import BaseConfig
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 from penshot.logger import debug, error
 
 

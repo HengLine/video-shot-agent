@@ -2,7 +2,7 @@
 """
 @FileName: index_api.py
 @Description: FastAPI应用，提供索引接口
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10/22 23:40
 """
@@ -11,10 +11,9 @@ from fastapi import APIRouter
 
 from penshot.logger import info, error
 
-app = APIRouter()
+router = APIRouter(tags=["Penshot"])
 
-
-@app.get("/")
+@router.get("/")
 def read_root():
     """
     根路径，提供API信息
@@ -27,7 +26,7 @@ def read_root():
     }
 
 
-@app.get("/health")
+@router.get("/health")
 def health_check():
     """
     健康检查接口
@@ -35,7 +34,7 @@ def health_check():
     return {"status": "healthy"}
 
 
-@app.get("/config/styles")
+@router.get("/config/styles")
 def get_supported_styles():
     """
     获取支持的视频风格列表

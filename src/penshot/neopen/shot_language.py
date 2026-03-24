@@ -1,7 +1,7 @@
 """
-@FileName: language_manage.py
+@FileName: shot_language.py
 @Description: 语言管理模块
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/12/18 14:10
 """
@@ -12,7 +12,7 @@ from typing import Optional
 from penshot.logger import error
 
 
-class Language(Enum):
+class Language(str, Enum):
     """
     语言枚举类，统一管理语言标识
     """
@@ -58,28 +58,29 @@ def _init_language_from_env():
             error(f'初始化语言设置失败，使用默认值{Language.ZH.value}：{e}')
 
 
-def set_language(lang: str) -> bool:
+def set_language(lang: Language) -> bool:
     """
     设置当前语言
     :param lang: 语言字符串，支持'zh', 'en', '中文', '英文'
     :return: 设置成功返回True，失败返回False
     """
-    global _current_language
-    lang_enum = Language.from_string(lang)
-    if lang_enum:
-        _current_language = lang_enum
-        return True
+    if lang:
+        global _current_language
+        lang_enum = lang
+        if lang_enum:
+            _current_language = lang_enum
+            return True
     return False
 
 
-def set_language_from_request(lang: str) -> bool:
+def set_str_language(lang: str) -> bool:
     """
     从请求参数设置语言
     :param lang: 语言字符串，支持'zh', 'en', '中文', '英文'
     :return: 设置成功返回True，失败返回False
     """
     # 请求参数的优先级高于环境变量
-    return set_language(lang)
+    return set_language(Language.from_string(lang))
 
 
 def get_language() -> Language:

@@ -1,7 +1,7 @@
 """
 @FileName: shot_generator_models.py
 @Description: 模型
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/18 14:26
 """
@@ -38,8 +38,8 @@ class ShotInfo(BaseModel):
     scene_id: str = Field(..., description="所属场景ID")
 
     # 情绪信息（简化）
-    emotion: EmotionType = Field(
-        default=EmotionType.NEUTRAL,
+    emotion: str = Field(
+        default=EmotionType.NEUTRAL.value,
         description="伴随情绪：neutral/happy/angry/sad/fear"
     )
 

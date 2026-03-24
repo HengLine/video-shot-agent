@@ -1,7 +1,7 @@
 """
 @FileName: llm_prompt_converter.py
 @Description: 基于LLM的提示词转换器 - 音频参数由LLM直接从CharacterInfo解析
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 23:36
 """
@@ -23,7 +23,7 @@ from penshot.neopen.agent.prompt_converter.template_prompt_converter import Temp
 from penshot.neopen.agent.script_parser.script_parser_models import ParsedScript
 from penshot.neopen.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from penshot.neopen.shot_config import ShotConfig
-from penshot.neopen.language_manage import get_language
+from penshot.neopen.shot_language import get_language
 from penshot.logger import info, error
 from penshot.utils.log_utils import print_log_exception
 
@@ -187,8 +187,8 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
             character=fragment.continuity_notes.get("main_character", ""),
             location=fragment.continuity_notes.get("location", ""),
             original_language=original_language,
-            dm_model=self.config.video_model.value,
-            video_style=self.config.default_style.value,
+            dm_model=self.config.video_model,
+            video_style=self.config.default_style,
             max_length=self.config.max_prompt_length,
             min_length=self.config.min_prompt_length,
             global_context=global_context,
@@ -217,7 +217,7 @@ class LLMPromptConverter(BasePromptConverter, BaseAgent):
             prompt=combined_prompt,
             negative_prompt=result.get("negative_prompt", self.config.default_negative_prompt),
             duration=fragment.duration,
-            model=self.config.video_model.value,
+            model=self.config.video_model,
             style=result.get("style_hint"),
             audio_prompt=audio_prompt
         )

@@ -1,7 +1,7 @@
 """
 @FileName: quality_auditor_agent.py
 @Description: 质量审查器
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/25 21:59
 """
@@ -33,7 +33,7 @@ class QualityAuditorAgent:
         else:
             self.auditor = QualityAuditorFactory.create_auditor(AgentMode.RULE, config)
 
-    def qa_process(self, instructions: AIVideoInstructions) -> QualityAuditReport | None:
+    def qa_process(self, instructions: AIVideoInstructions) -> Optional[QualityAuditReport]:
         """ 视频片段 """
         debug("开始审查质量")
         try:

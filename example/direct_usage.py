@@ -1,26 +1,24 @@
 """
 @FileName: direct_usage.py
 @Description: 作为Python库直接使用
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/2/10 19:46
 """
 import asyncio
 
-from penshot.neopen import generate_storyboard
+from penshot.api import PenshotFunction
+from penshot.neopen import ShotConfig
+from penshot.neopen.shot_language import Language
 
-"""
-# 1. 下载安装依赖
-https://github.com/neopen/video-shot-agent/releases/download/v0.1.4-beta/penshot-0.1.4-py3-none-any.whl
-pip install penshot-0.1.4-py3-none-any.whl
-
-# 2. 设置API密钥（如果需要LLM）
-export OPENAI_API_KEY="your-api-key"  # 或其他LLM配置
-
-"""
 
 async def basic_usage():
     """基础用法示例"""
+    print("=== 基础用法示例 ===")
+
+    # 创建智能体实例（可配置并发数）
+    agent = PenshotFunction(language=Language.ZH, max_concurrent=5)
+
     script = """
     场景：现代办公室
     时间：下午3点
@@ -28,82 +26,192 @@ async def basic_usage():
     动作：小李正在写代码，突然接到电话，表情惊讶
     """
 
-    # 简单调用
-    result = await generate_storyboard(script_text=script)
-    print(f"生成完成，任务ID: {result.get('task_id')}")
-    print(f"生成结果: {result.get('success', False)}")
-    print(f"分镜片段: {result.get('data', {})}")
+    # 同步调用（等待完成）
+    result = agent.breakdown_script(script)
+
+    print(f"任务ID: {result.task_id}")
+    print(f"成功: {result.success}")
+    print(f"状态: {result.status}")
+
+    if result.success:
+        data = result.data or {}
+        shots = data.get("shots", [])
+        stats = data.get("stats", {})
+        print(f"镜头数量: {stats.get('shot_count', len(shots))}")
+        print(f"总时长: {stats.get('total_duration', 0):.1f}秒")
+
+        # 显示前3个镜头
+        for i, shot in enumerate(shots[:3], 1):
+            print(f"  镜头{i}: {shot.get('description', '')[:50]}...")
+
+    return result
+
+
+async def async_usage():
+    """异步用法示例"""
+    print("\n=== 异步用法示例 ===")
+
+    agent = PenshotFunction(language=Language.ZH, max_concurrent=5)
+
+    script = """
+    早晨，一个女孩在咖啡馆读书，阳光透过窗户...
+    """
+
+    # 异步提交任务
+    task_id = agent.breakdown_script_async(
+        script,
+        callback=lambda r: print(f"回调: 任务 {r.task_id} 完成")
+    )
+
+    print(f"任务已提交: {task_id}")
+
+    # 查询状态
+    status = agent.get_task_status(task_id)
+    print(f"初始状态: {status.get('status')}")
+
+    # 等待结果
+    result = await agent.wait_for_result_async(task_id)
+
+    print(f"最终结果: 成功={result.success}, 状态={result.status}")
 
     return result
 
 
 async def batch_processing():
     """批量处理示例"""
+    print("\n=== 批量处理示例 ===")
+
+    agent = PenshotFunction(language=Language.ZH, max_concurrent=5)
+
     scripts = [
         "一个男人在海边跑步，日出时分...",
         "两个孩子在游乐场玩耍，欢声笑语...",
         "老人在公园下棋，专注沉思..."
     ]
 
-    tasks = []
-    for idx, script in enumerate(scripts, 1):
-        task_id = f"batch_task_{idx:03d}"
-        task = generate_storyboard(
-            script_text=script,
-            task_id=task_id
-        )
-        tasks.append(task)
+    # 同步批量处理
+    results = agent.batch_breakdown(scripts)
 
-    # 并发执行
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    for idx, result in enumerate(results):
-        if isinstance(result, Exception):
-            print(f"任务 {idx + 1} 失败: {result}")
+    for i, result in enumerate(results, 1):
+        if result.success:
+            data = result.data or {}
+            shots = data.get("shots", [])
+            print(f"任务 {i}: 成功, {len(shots)}个镜头")
         else:
-            print(f"任务 {idx + 1} 成功，生成结果 {result.get('success', [])} ")
+            print(f"任务 {i}: 失败 - {result.error}")
+
+    return results
+
+
+async def async_batch_processing():
+    """异步批量处理示例"""
+    print("\n=== 异步批量处理示例 ===")
+
+    agent = PenshotFunction(language=Language.ZH, max_concurrent=5)
+
+    scripts = [
+        "科幻场景：太空站内部，宇航员发现异常信号...",
+        "古装场景：侠客在竹林中对决...",
+        "动画场景：小动物在森林里探险..."
+    ]
+
+    # 异步批量处理
+    results = await agent.batch_breakdown_async(scripts, max_concurrent=2)
+
+    for i, result in enumerate(results, 1):
+        if result.success:
+            data = result.data or {}
+            stats = data.get("stats", {})
+            print(f"任务 {i}: 成功, {stats.get('shot_count', 0)}个镜头, {result.processing_time_ms}ms")
+        else:
+            print(f"任务 {i}: 失败 - {result.error}")
 
     return results
 
 
 async def with_custom_config():
     """使用自定义配置"""
-    from penshot.neopen.shot_config import ShotConfig
+    print("\n=== 自定义配置示例 ===")
 
     # 创建自定义配置
     custom_config = ShotConfig(
-        # 这里可以根据实际情况设置配置参数
         model_name="gpt-4",
-        base_url="http://localhost:11434",  # 假设本地部署了 Ollama
-        temperature=0.2
+        temperature=0.3,
+        max_tokens=3000
+    )
+
+    agent = PenshotFunction(
+        config=custom_config,
+        language=Language.ZH,
+        max_concurrent=5
     )
 
     script = "科幻场景：太空站内部，宇航员发现异常信号..."
 
-    # 使用自定义配置
-    result = await generate_storyboard(
-        script_text=script,
-        task_id="custom_config_task",
-        config=custom_config
-    )
+    result = agent.breakdown_script(script)
+
+    print(f"使用自定义配置: 成功={result.success}")
 
     return result
+
+
+async def with_queue_control():
+    """队列控制示例"""
+    print("\n=== 队列控制示例 ===")
+
+    # 创建低并发数的智能体
+    agent = PenshotFunction(language=Language.ZH, max_concurrent=2)
+
+    # 查看队列状态
+    queue_status = agent.get_queue_status()
+    print(f"初始队列状态: {queue_status}")
+
+    # 提交多个任务
+    scripts = ["剧本1", "剧本2", "剧本3", "剧本4", "剧本5"]
+    task_ids = []
+
+    for script in scripts:
+        task_id = agent.breakdown_script_async(script)
+        task_ids.append(task_id)
+        print(f"提交任务: {task_id}")
+
+    # 查看队列状态
+    queue_status = agent.get_queue_status()
+    print(f"提交后队列状态: {queue_status}")
+
+    # 等待所有任务完成
+    results = []
+    for task_id in task_ids:
+        result = agent.wait_for_result(task_id)
+        results.append(result)
+
+    # 查看统计信息
+    stats = agent.get_stats()
+    print(f"处理统计: {stats}")
+
+    return results
 
 
 def main():
     """主函数演示各种用法"""
 
-    # 基本用法
-    print("=== 基本用法示例 ===")
+    # 基本用法（同步）
     result = asyncio.run(basic_usage())
 
+    # 异步用法
+    async_result = asyncio.run(async_usage())
+
     # 批量处理
-    print("\n=== 批量处理示例 ===")
     batch_results = asyncio.run(batch_processing())
 
-    # 使用自定义配置（如果需要）
-    # print("\n=== 自定义配置示例 ===")
-    # custom_result = asyncio.run(with_custom_config())
+    # 异步批量处理
+    async_batch_results = asyncio.run(async_batch_processing())
+
+    # 自定义配置
+    custom_result = asyncio.run(with_custom_config())
+
+    # 队列控制
+    queue_results = asyncio.run(with_queue_control())
 
 
 if __name__ == "__main__":

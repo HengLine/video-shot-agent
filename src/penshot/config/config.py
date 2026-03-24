@@ -1,36 +1,36 @@
 """
 @FileName: config.py
 @Description: 配置管理模块 - 严格遵循 env > yaml > default 优先级
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/01
 """
 import os
-from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import yaml
-from dotenv import load_dotenv
 from pydantic import BaseModel, Field, SecretStr, field_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from penshot.logger import debug, error, warning
+from penshot.utils.dotenv_loader import DotEnvLoader
 from penshot.utils.file_utils import get_logging_path, get_env_path
 from penshot.utils.path_utils import PathResolver
 
 # ==================== 路径配置 ====================
 # 确定项目根目录
-ENV_FILE = Path.cwd() / ".env"
-
+# ENV_FILE = Path.cwd() / ".env"
 # 加载 .env 文件（如果存在）
-load_dotenv(ENV_FILE)
+# load_dotenv(ENV_FILE)
+# debug(f".env 文件: {ENV_FILE}")
 
-debug(f".env 文件: {ENV_FILE}")
+DotEnvLoader().load()
+
 
 class LLMProviderConfig(BaseModel):
     """LLM提供商配置"""
-    base_url: str = Field(default="https://api.openai.com/v1")
+    base_url: str = Field(default="")   # https://api.openai.com/v1
     api_key: SecretStr = Field(default=SecretStr(""))
     model_name: str = Field(default="gpt-4o")
     timeout: int = Field(default=60, ge=1)
@@ -57,7 +57,7 @@ class LLMProviderConfig(BaseModel):
 
 class EmbeddingProviderConfig(BaseModel):
     """嵌入模型提供商配置"""
-    base_url: str = Field(default="https://api.openai.com/v1")
+    base_url: str = Field(default="")   # https://api.openai.com/v1
     api_key: SecretStr = Field(default=SecretStr(""))
     model_name: str = Field(default="text-embedding-3-small")
     device: str = Field(default="gpu")
@@ -98,7 +98,7 @@ class APIConfig(BaseModel):
     host: str = Field(default="127.0.0.1")
     port: int = Field(default=8000, ge=5000, le=65535)
     workers: int = Field(default=1, ge=1, le=10)
-    reload: bool = Field(default=False)     # 调试模式下启用热重载
+    reload: bool = Field(default=False)  # 调试模式下启用热重载
     cors_origins: List[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
@@ -325,7 +325,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         case_sensitive=False,  # 大小写不敏感
         env_file_encoding="utf-8",
-        env_file=str(ENV_FILE),  # 明确指定.env文件路径
+        # env_file=str(ENV_FILE),  # 明确指定.env文件路径
         extra="ignore",
         env_prefix="",  # 清除前缀
         env_ignore_empty=True,

@@ -1,7 +1,7 @@
 """
 @FileName: base_prompt_converter.py
 @Description: 
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 23:36
 """
@@ -77,5 +77,5 @@ class BasePromptConverter(ABC):
 
         return base_template.format(
             description=description,
-            style=style.value
+            style=style
         )

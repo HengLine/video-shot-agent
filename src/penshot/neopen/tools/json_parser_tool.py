@@ -1,7 +1,7 @@
 """
 @FileName: json_parser_tool.py
 @Description: JSON响应解析工具模块，提供从LLM响应中提取和解析JSON数据的功能，支持处理Markdown代码块中的JSON
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/12/18
 """
@@ -20,7 +20,7 @@ class JsonResponseParser:
     """
 
     @staticmethod
-    def extract_json(response: Union[str, Any]) -> dict[str, Any] | None:
+    def extract_json(response: Union[str, Any]) -> Optional[dict[str, Any]]:
         """
         从LLM响应中提取JSON数据
         支持直接JSON响应和Markdown代码块中的JSON

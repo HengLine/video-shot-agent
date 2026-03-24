@@ -1,7 +1,7 @@
 """
 @FileName: estimator_factory.py
 @Description: 时长估算器工厂
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/19
 """
@@ -89,7 +89,7 @@ class DurationEstimatorFactory:
         """更新统计数据"""
         stats = {
             "shot_count": len(sequence.shots),
-            "total_duration": sum(s.duration for s in sequence.shots),
+            "total_duration": round(sum(s.duration for s in sequence.shots), 2),
             "avg_shot_duration": 0.0,
             "close_up_count": 0,
             "wide_shot_count": 0,
@@ -97,7 +97,7 @@ class DurationEstimatorFactory:
         }
 
         if stats["shot_count"] > 0:
-            stats["avg_shot_duration"] = stats["total_duration"] / stats["shot_count"]
+            stats["avg_shot_duration"] = round(stats["total_duration"] / stats["shot_count"], 2)
 
         for shot in sequence.shots:
             if shot.shot_type == ShotType.CLOSE_UP:

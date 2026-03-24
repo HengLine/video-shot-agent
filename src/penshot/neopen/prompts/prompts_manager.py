@@ -1,7 +1,7 @@
 """
 @FileName: prompts_manager.py
 @Description: 提示词模板管理类
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10/23 21:54
 """
@@ -11,7 +11,7 @@ from typing import Dict, Any
 import yaml
 
 from penshot.neopen import prompts
-from penshot.neopen.language_manage import Language, get_language
+from penshot.neopen.shot_language import Language, get_language
 from penshot.logger import error
 from penshot.utils.log_utils import print_log_exception
 

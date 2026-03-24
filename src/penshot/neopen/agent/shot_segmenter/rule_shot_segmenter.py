@@ -1,7 +1,7 @@
 """
 @FileName: rule_shot_generator.py
 @Description: 基于规则的镜头生成器
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 17:40
 """
@@ -231,4 +231,4 @@ class RuleShotSegmenter(BaseShotSegmenter):
         if any(elem.type == ElementType.DIALOGUE for elem in group):
             base_confidence += 0.1
 
-        return min(1.0, base_confidence)
+        return min(1.0, round(base_confidence, 2))

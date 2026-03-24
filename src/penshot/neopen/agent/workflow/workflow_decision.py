@@ -1,7 +1,7 @@
 """
 @FileName: workflow_decision.py
 @Description: 决策函数类 - 控制工作流分支逻辑
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 16:12
 """
@@ -376,6 +376,21 @@ class PipelineDecision:
                     return PipelineState.RETRY
                 else:
                     return PipelineState.NEEDS_REPAIR
+
+        elif report.status == AuditStatus.MINOR_ISSUES:  # NEEDS_REVIEW
+            # 检查问题数量和严重性
+            issue_count = len(report.violations) if hasattr(report, 'violations') else 0
+
+            if issue_count <= 3:
+                # 少量轻微问题，自动修复后继续
+                info(f"发现{issue_count}个轻微问题，自动修复后继续")
+                state.auto_fix_needed = True
+                state.auto_fix_issues = [v for v in report.violations[:3]]
+                return PipelineState.VALID  # 继续，但标记需要自动修复
+            else:
+                # 问题较多，返回修复
+                info(f"发现{issue_count}个轻微问题，建议修复")
+                return PipelineState.NEEDS_REPAIR
 
         # 审计状态到决策状态的映射
         decision_map = {

@@ -1,7 +1,7 @@
 """
 @FileName: script_parser_agent.py
 @Description: LLM 剧本解析基类，包含复杂度评估和路由决策逻辑
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
@@ -9,11 +9,11 @@ from abc import abstractmethod, ABC
 from datetime import datetime
 from typing import Dict, Any, List
 
+from penshot.logger import info, warning
 from penshot.neopen.agent.base_models import ScriptType, ElementType
 from penshot.neopen.agent.script_parser.script_parser_models import ParsedScript, SceneInfo, CharacterInfo, BaseElement, \
-    GlobalMetadata, PropItem, CharacterOutfit, LocationItem, ElementAudioContext, SceneAudioContext, EnvironmentSound, CharacterType, EmotionType
+    GlobalMetadata, PropItem, CharacterOutfit, LocationItem, ElementAudioContext, SceneAudioContext, EnvironmentSound, CharacterType
 from penshot.neopen.tools.script_assessor_tool import ComplexityAssessor
-from penshot.logger import info, warning
 
 
 class BaseScriptParser(ABC):
@@ -26,7 +26,7 @@ class BaseScriptParser(ABC):
         self.complexity_assessor = ComplexityAssessor()
 
     @abstractmethod
-    def parser(self, script_text: Any, script_format: ScriptType) -> ParsedScript:
+    def parser(self, script_text: Any, script_format: ScriptType, repair_params: Dict[str, Any] = None) -> ParsedScript:
         """处理输入数据（子类实现）"""
         raise NotImplementedError("子类必须实现process方法")
 
@@ -171,7 +171,7 @@ class BaseScriptParser(ABC):
             target_character=elem_data.get("target_character"),
             description=elem_data.get("description", ""),
             intensity=elem_data.get("intensity", 0.5),
-            emotion=EmotionType(elem_data.get("emotion", "neutral")),
+            emotion=elem_data.get("emotion", "neutral"),
             audio_context=element_audio_context,
         )
 

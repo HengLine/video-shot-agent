@@ -1,7 +1,7 @@
 """
 @FileName: base_video_splitter.py
 @Description: 
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/26 22:30
 """
@@ -62,7 +62,7 @@ class BaseVideoSplitter(ABC):
             "cutter_type": self.__class__.__name__
         })
 
-        info(f"分割完成: {len(fragments)}个片段, 总时长{total_duration:.1f}秒")
+        info(f"分割完成: {len(fragments)}个片段, 总时长{total_duration:.2f}秒")
         return fragment_sequence
 
     def validate_sequence(self, fragment_sequence: FragmentSequence) -> bool:

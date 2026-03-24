@@ -1,7 +1,7 @@
 """
 @FileName: workflow_states.py
 @Description: 分镜生成工作流的状态定义
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10 - 2025/11
 """
@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 
 from penshot.neopen.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
-from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityAuditReport
+from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityAuditReport, BasicViolation
 from penshot.neopen.agent.script_parser.script_parser_models import ParsedScript
 from penshot.neopen.agent.shot_segmenter.shot_segmenter_models import ShotSequence
 from penshot.neopen.agent.video_splitter.video_splitter_models import FragmentSequence
@@ -25,6 +25,7 @@ class InputState(BaseModel):
     raw_script: str  # 原始剧本文本
     user_config: ShotConfig = {}  # 用户配置（模型选择、风格偏好等）
     task_id: str = str(uuid.uuid4())  # 唯一标识符
+
 
 class ScriptParsingState(BaseModel):
     """剧本解析相关状态"""
@@ -54,7 +55,7 @@ class PromptConverterState(BaseModel):
 
 class QualityAuditorState(BaseModel):
     """质量审查相关状态"""
-    audit_report: Optional[QualityAuditReport]  = None # 质量审查报告
+    audit_report: Optional[QualityAuditReport] = None  # 质量审查报告
     audit_failures: List[str] = []  # 审查失败项
     audit_warnings: List[str] = []  # 审查警告项
 
@@ -103,13 +104,12 @@ class NodeLoopState(BaseModel):
     global_loop_exceeded: bool = False  # 全局循环超限标记
 
     # ==== 其他字段 ====
-    loop_warning_issued: bool = False   # 是否已发出循环警告
-    last_node: Optional[PipelineNode] = None # 上一个节点
-    current_node: Optional[PipelineNode] = None # 当前节点
+    loop_warning_issued: bool = False  # 是否已发出循环警告
+    last_node: Optional[PipelineNode] = None  # 上一个节点
+    current_node: Optional[PipelineNode] = None  # 当前节点
     total_retries: int = 0  # 全局重试统计
     node_loop_details: list = []  # 每个节点的循环详情日志
     recovery_flags: Dict[str, Any] = {}  # 每个节点的恢复标记
-
 
 
 class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoopState,
@@ -124,9 +124,9 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoop
     error_handling_history: List[Dict] = []  # 错误处理历史记录
 
     # === 连续性管理 ===
-    continuity_state: Dict = {}  # 当前连续性状态
-    continuity_issues: List[Dict] = []  # 连续性问题列表
-    continuity_anchors: Dict = {}  # 连续性锚点映射
+    continuity_state: Optional[Dict] = {}  # 当前连续性状态
+    continuity_issues: Optional[List[Dict]] = []  # 连续性问题列表
+    continuity_anchors: Optional[Dict] = {}  # 连续性锚点映射
 
     # === 镜头拆分配置 ===
     max_shot_duration: float = 30.0  # 镜头允许的时长范围
@@ -146,8 +146,14 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoop
     audit_timestamp: Optional[str] = None
     last_audit_result: Optional[Dict] = None  # 上一次质量审查结果
 
+    # 修复
+    auto_fix_needed: bool = False  # 是否需要自动修复
+    auto_fix_issues: Optional[List[BasicViolation]] = []
+    fix_summary: Optional[Dict[str, Any]] = {}
+    repair_params: Optional[Dict[str, Any]] = {}
+
     # 节点执行历史
-    node_execution_history: List[Dict] = []
+    node_execution_history: Optional[List[Dict]] = []
 
     def add_node_execution(self, node: PipelineNode):
         """添加节点执行记录"""

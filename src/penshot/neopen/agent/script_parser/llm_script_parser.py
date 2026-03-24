@@ -1,12 +1,12 @@
 """
 @FileName: llm_script_parser.py
 @Description: LLM 剧本解析智能体实现
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/9 21:23
 """
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from penshot.neopen.agent.base_agent import BaseAgent
 from penshot.neopen.agent.base_models import ScriptType
@@ -38,7 +38,7 @@ class LLMScriptParser(BaseScriptParser, BaseAgent):
             "default": self._get_default_prompt()
         }
 
-    def parser(self, script_text: Any, script_format: ScriptType) -> ParsedScript | None:
+    def parser(self, script_text: Any, script_format: ScriptType, repair_params: Dict[str, Any] = None) -> Optional[ParsedScript]:
 
         """
         优化版剧本解析函数
@@ -59,7 +59,13 @@ class LLMScriptParser(BaseScriptParser, BaseAgent):
 
         # 构建用户提示词
         prompt_template = self._build_user_prompt(script_text, script_format)
-        user_prompt = prompt_template.format(script_text=script_text)
+
+        if repair_params:
+            issue_types = repair_params.get('issue_types', [])
+            suggestions = repair_params.get('suggestions', {})
+            user_prompt = prompt_template.format(script_text=script_text, issue_types=', '.join(issue_types), suggestions=suggestions)
+        else:
+            user_prompt = prompt_template.format(script_text=script_text, issue_types="", suggestions="")
 
         debug(f"AI系统提示词（摘要）: {system_prompt[:150]}...")
         debug(f"AI用户提示词（摘要）: {user_prompt[:150]}...")

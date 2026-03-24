@@ -1,7 +1,7 @@
 """
 @FileName: base_config.py
 @Description: 
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/13 16:36
 """
@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from penshot.neopen.language_manage import Language, get_language
+from penshot.neopen.shot_language import Language, get_language
 from penshot.logger import info, error, warning
 
 

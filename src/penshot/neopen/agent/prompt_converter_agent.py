@@ -1,7 +1,7 @@
 """
 @FileName: prompt_converter_agent.py
 @Description: 提示词转换智能体
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/18 14:23
 """
@@ -34,7 +34,7 @@ class PromptConverterAgent:
         else:
             self.converter = PromptConverterFactory.create_converter(AgentMode.RULE, config)
 
-    def prompt_process(self, fragment_sequence: FragmentSequence, parsed_script: ParsedScript) -> AIVideoInstructions | None:
+    def prompt_process(self, fragment_sequence: FragmentSequence, parsed_script: ParsedScript) -> Optional[AIVideoInstructions]:
         """ 视频片段 """
         debug("开始视频转换提示词")
         try:

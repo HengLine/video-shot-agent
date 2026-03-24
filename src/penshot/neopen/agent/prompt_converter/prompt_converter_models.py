@@ -1,7 +1,7 @@
 """
 @FileName: prompt_converter_models.py
 @Description: 模型
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/18 14:25
 """
@@ -132,6 +132,10 @@ class AIAudioPrompt(BaseModel):
         default=None,
         description="前一段音频ID。用于保持音色/风格连贯性"
     )
+
+    def to_dict(self) -> dict:
+        """转换为字典表示"""
+        return self.model_dump()
 
     # === 验证器 ===
     @validator('negative_prompt', pre=True, always=True)
@@ -275,6 +279,10 @@ class AIVideoPrompt(BaseModel):
         default=None,
         description="关联的音频提示词（如果有）"
     )
+
+    def to_dict(self) -> dict:
+        """转换为字典表示"""
+        return self.model_dump()
 
 
 class AIVideoInstructions(BaseModel):

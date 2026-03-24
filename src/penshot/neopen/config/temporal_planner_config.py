@@ -1,7 +1,7 @@
 """
 @FileName: temporal_planner_config.py
 @Description: 时序规划智能体配置管理
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10/27 17:24
 """
@@ -9,7 +9,7 @@ from functools import lru_cache
 from typing import Dict, Any
 
 from penshot.neopen.config.base_config import BaseConfig
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 from penshot.logger import debug
 
 

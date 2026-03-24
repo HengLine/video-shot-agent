@@ -1,76 +1,124 @@
 """
 @FileName: task_models.py
-@Description: 
-@Author: Haeng
+@Description: API-friendly request/response models for task processing
+@Author: HiPeng (adapted)
 @Github: https://github.com/neopen/video-shot-agent
-@Time: 2026/1/26 16:41
+@Time: 2026/03/17
 """
-import random
-from datetime import datetime
+from __future__ import annotations
+
+from dataclasses import field, dataclass
+from datetime import datetime, timezone
+from enum import Enum
 from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel, Field
 
-from penshot.neopen.shot_config import ShotConfig
-from penshot.neopen.language_manage import Language
+
+class TaskStatus(str, Enum):
+    """ task流程状态 """
+    PENDING = "pending"
+    PROCESSING = "processing"
+    # COMPLETED = "completed"
+    SUCCESS = "success"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    NOT_FOUND = "not_found"
+    TIMEOUT = "timeout"
+    UNKNOWN = "unknown"
+
+    def is_completed(self) -> bool:
+        return self in (TaskStatus.SUCCESS, TaskStatus.FAILED, TaskStatus.CANCELLED)
 
 
-class ProcessRequest(BaseModel):
-    """处理请求数据模型"""
-    script: str = Field(..., min_length=1, description="原始剧本文本")
-    config: Optional[ShotConfig] = Field(
-        default=ShotConfig(),
-        description="处理配置，如模型选择、风格偏好等"
-    )
-    callback_url: Optional[str] = Field(
-        default=None,
-        description="回调URL，处理完成后通知（可选）"
-    )
-    task_id: Optional[str] = Field(
-        default="HL" + str(datetime.now().strftime("%Y%m%d%H%M%S")) + str(random.randint(1000, 9999)),
-        description="外部请求ID（可选）"
-    )
-    # 剧本语言，可选值："zh"（中文）、"en"（英文）
-    language: str = Language.ZH.value
+class TaskPriority(int, Enum):
+    """任务优先级"""
+    LOW = 1
+    NORMAL = 2
+    HIGH = 3
+    CRITICAL = 4
 
 
 class ProcessingStatus(BaseModel):
-    """处理状态响应模型"""
+    """处理状态响应模型（用于轮询/状态接口）"""
     task_id: str
-    status: str  # pending, processing, completed, failed
-    stage: Optional[str] = None  # 当前处理阶段
-    progress: Optional[float] = Field(default=None, ge=0, le=100)  # 进度百分比
-    estimated_time_remaining: Optional[int] = None  # 预估剩余时间（秒）
-    created_at: datetime
-    updated_at: datetime
+    status: TaskStatus = Field(..., description="任务状态: pending | processing | completed | failed")
+    stage: Optional[str] = Field(default=None, description="当前处理阶段")
+    progress: Optional[float] = Field(default=None, ge=0, le=100, description="进度百分比")
+    estimated_time_remaining: Optional[int] = Field(default=None, description="预估剩余时间（秒）")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     error_message: Optional[str] = None
 
 
-class ProcessResult(BaseModel):
-    """处理结果响应模型"""
+class CallbackPayload(BaseModel):
+    """回调通知的标准负载"""
     task_id: str
-    status: str  # success, failed
+    status: str
+    data: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+    completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class APIResponse(BaseModel):
+    """统一的 API 响应包装"""
     success: bool
-    data: Optional[Dict[str, Any]] = None  # 处理结果数据
+    code: int = 200
     message: Optional[str] = None
-    processing_time_ms: Optional[int] = None  # 处理耗时（毫秒）
-    created_at: datetime
+    data: Optional[Any] = None
+
+
+@dataclass
+class TaskResponse:
+    """任务响应数据类"""
+    task_id: str
+    success: bool
+    status: TaskStatus
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    processing_time_ms: Optional[int] = None
+    created_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "success": self.success,
+            "status": self.status.value if hasattr(self.status, 'value') else self.status,
+            "data": self.data,
+            "error": self.error,
+            "processing_time_ms": self.processing_time_ms,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None
+        }
 
-class BatchProcessRequest(BaseModel):
-    """批量处理请求模型"""
-    scripts: List[str] = Field(..., min_length=1, max_length=10, description="剧本列表")
-    config: ShotConfig = ShotConfig()
-    batch_id: Optional[str] = None
 
-
-class BatchProcessResult(BaseModel):
-    """批量处理结果模型"""
+@dataclass
+class BatchTaskResponse:
+    """批量任务响应数据类"""
     batch_id: str
     total_tasks: int
-    completed_tasks: int
-    failed_tasks: int
-    pending_tasks: int
-    results: List[Dict[str, Any]] = []  # 各任务结果摘要
-    created_at: datetime
+    task_ids: List[str]
+    status: TaskStatus
+    results: List[TaskResponse] = field(default_factory=list)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "batch_id": self.batch_id,
+            "total_tasks": self.total_tasks,
+            "task_ids": self.task_ids,
+            "status": self.status.value if hasattr(self.status, 'value') else self.status,
+            "results": [r.to_dict() for r in self.results],
+            "created_at": self.created_at.isoformat()
+        }
+
+
+# 兼容导出名（保持原文件中常用符号）
+__all__ = [
+    "ProcessingStatus",
+    "BatchTaskResponse",
+    "TaskResponse",
+    "CallbackPayload",
+    "APIResponse",
+]

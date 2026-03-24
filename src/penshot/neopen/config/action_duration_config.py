@@ -1,7 +1,7 @@
 """
 @FileName: action_uration_tool.py
 @Description: 动作时长估算算法
-@Author: Haeng
+@Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10/24 14:01
 """
@@ -10,7 +10,7 @@ from typing import Dict, Any
 import jieba
 
 from penshot.neopen.config.base_config import BaseConfig
-from penshot.neopen.language_manage import Language
+from penshot.neopen.shot_language import Language
 
 
 class ActionDurationConfig(BaseConfig):
