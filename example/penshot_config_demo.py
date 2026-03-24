@@ -10,7 +10,6 @@ import asyncio
 from penshot.api import PenshotFunction
 from penshot.neopen import ShotConfig
 from penshot.neopen.shot_language import Language
-from penshot.neopen.task.task_manager import TaskManager
 
 
 class ConfigFactory:
@@ -71,7 +70,7 @@ async def basic_config_demo():
         max_tokens=2000
     )
 
-    agent = PenshotFunction(config=config, language=Language.ZH)
+    agent = PenshotFunction(config=config, language=Language.ZH, max_concurrent=5)
 
     result = agent.breakdown_script("一个简单的测试场景")
 
@@ -87,7 +86,7 @@ async def local_model_demo():
 
     try:
         config = ConfigFactory.create_local_config()
-        agent = PenshotFunction(config=config, language=Language.ZH)
+        agent = PenshotFunction(config=config, language=Language.ZH, max_concurrent=5)
 
         result = agent.breakdown_script("本地模型测试场景")
 
@@ -106,7 +105,7 @@ async def quality_config_demo():
     print("\n=== 高质量配置示例 ===")
 
     config = ConfigFactory.create_quality_config()
-    agent = PenshotFunction(config=config, language=Language.ZH)
+    agent = PenshotFunction(config=config, language=Language.ZH, max_concurrent=5)
 
     detailed_script = """
     电影《追光者》开场：
@@ -152,9 +151,8 @@ async def fallback_config_demo():
     primary_config = ConfigFactory.create_quality_config()
     fallback_config = ConfigFactory.create_fast_config()
 
-    agent = PenshotFunction(config=primary_config, language=Language.ZH)
+    agent = PenshotFunction(config=primary_config, language=Language.ZH, max_concurrent=5)
 
-    # 模拟主配置失败，使用降级配置
     try:
         result = agent.breakdown_script("测试剧本")
 
@@ -164,7 +162,7 @@ async def fallback_config_demo():
             print(f"主配置失败: {result.error}")
             print("切换到降级配置...")
 
-            agent_fallback = PenshotFunction(config=fallback_config, language=Language.ZH)
+            agent_fallback = PenshotFunction(config=fallback_config, language=Language.ZH, max_concurrent=5)
             result = agent_fallback.breakdown_script("测试剧本")
             print(f"降级配置结果: 成功={result.success}")
 
@@ -190,7 +188,7 @@ async def multi_config_demo():
     results = {}
     for name, config in configs.items():
         try:
-            agent = PenshotFunction(config=config, language=Language.ZH)
+            agent = PenshotFunction(config=config, language=Language.ZH, max_concurrent=5)
             result = agent.breakdown_script(test_script)
 
             if result.success:
@@ -219,46 +217,38 @@ async def multi_config_demo():
     return results
 
 
-async def shared_task_manager_demo():
-    """共享任务管理器示例"""
-    print("\n=== 共享任务管理器示例 ===")
+async def queue_control_demo():
+    """队列控制示例"""
+    print("\n=== 队列控制示例 ===")
 
-    # 创建共享任务管理器
-    task_manager = TaskManager()
+    # 创建低并发数的智能体
+    agent = PenshotFunction(language=Language.ZH, max_concurrent=2)
 
-    # 创建多个配置不同的智能体，但共享同一个任务管理器
-    fast_agent = PenshotFunction(
-        config=ConfigFactory.create_fast_config(),
-        task_manager=task_manager,
-        language=Language.ZH
-    )
-
-    quality_agent = PenshotFunction(
-        config=ConfigFactory.create_quality_config(),
-        task_manager=task_manager,
-        language=Language.ZH
-    )
+    # 查看初始队列状态
+    queue_status = agent.get_queue_status()
+    print(f"初始队列状态: 队列长度={queue_status['queue_length']}, 活跃任务={queue_status['active_tasks']}")
 
     # 提交多个任务
-    tasks = [
-        fast_agent.breakdown_script_async("快速处理任务..."),
-        quality_agent.breakdown_script_async("高质量处理任务..."),
-        fast_agent.breakdown_script_async("另一个快速任务...")
-    ]
+    scripts = ["任务1", "任务2", "任务3", "任务4", "任务5"]
+    task_ids = []
+
+    for script in scripts:
+        task_id = agent.breakdown_script_async(script)
+        task_ids.append(task_id)
+        print(f"提交任务: {task_id}")
+
+        # 查看当前队列状态
+        queue_status = agent.get_queue_status()
+        print(f"  队列长度: {queue_status['queue_length']}, 活跃: {queue_status['active_tasks']}")
 
     # 等待所有任务完成
-    results = await asyncio.gather(
-        *[fast_agent.wait_for_result_async(tid) for tid in tasks]
-    )
+    for task_id in task_ids:
+        result = agent.wait_for_result(task_id)
+        print(f"任务 {task_id} 完成: 成功={result.success}")
 
-    # 获取所有任务统计
-    all_tasks = task_manager.get_all_tasks() if hasattr(task_manager, 'get_all_tasks') else []
-
-    print(f"总任务数: {len(all_tasks)}")
-    for i, result in enumerate(results, 1):
-        print(f"  任务{i}: 成功={result.success}")
-
-    return results
+    # 查看最终统计
+    stats = agent.get_stats()
+    print(f"\n处理统计: 总提交={stats['total_submitted']}, 完成={stats['total_completed']}, 失败={stats['total_failed']}")
 
 
 async def main():
@@ -279,8 +269,8 @@ async def main():
     # 多配置对比
     await multi_config_demo()
 
-    # 共享任务管理器
-    await shared_task_manager_demo()
+    # 队列控制
+    await queue_control_demo()
 
 
 if __name__ == "__main__":

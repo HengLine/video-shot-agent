@@ -62,7 +62,7 @@ class StoryboardState(BaseModel):
 class StoryboardWorkflowNodes:
     """分镜生成工作流节点"""
 
-    def __init__(self, config: Optional[ShotConfig] = None):
+    def __init__(self, config: Optional[ShotConfig] = None, max_concurrent: int = 5):
         """
         初始化工作流节点
 
@@ -70,7 +70,8 @@ class StoryboardWorkflowNodes:
             config: 全局配置
         """
         self.config = config or ShotConfig()
-        self.agent = PenshotFunction(config=self.config)
+        self.max_concurrent = max_concurrent
+        self.agent = PenshotFunction(config=self.config, max_concurrent=max_concurrent)
 
     async def submit_task_node(self, state: StoryboardState) -> Dict[str, Any]:
         """

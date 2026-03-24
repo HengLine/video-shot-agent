@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from penshot.api import PenshotFunction
 from penshot.neopen import ShotConfig
 from penshot.neopen.shot_language import Language
+from penshot.neopen.task.task_models import TaskStatus
 
 
 # ============================================================================
@@ -205,7 +206,7 @@ def create_web_app(
 
                 return TaskResponse(
                     task_id=task_id,
-                    status="pending",
+                    status=TaskStatus.PENDING,
                     message="任务已提交，请使用 /api/status/{task_id} 查询状态",
                     created_at=datetime.now(timezone.utc)
                 )

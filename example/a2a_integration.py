@@ -68,7 +68,7 @@ class StoryboardA2AAgent:
         self.max_concurrent = max_concurrent
 
         # 创建 Penshot 智能体
-        self.penshot = PenshotFunction(config=self.config)
+        self.penshot = PenshotFunction(config=self.config, max_concurrent=max_concurrent)
 
         # 任务管理
         self.tasks: Dict[str, A2ATask] = {}
