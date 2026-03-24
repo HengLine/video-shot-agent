@@ -10,9 +10,11 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import traceback
+
 
 #
 # 导入模型API路由器
@@ -91,34 +93,32 @@ async def add_cache_control_header(request, call_next):
 
 
 # ========== 错误处理器 ==========
-
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
-    """HTTP异常处理器"""
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """全局 HTTP 异常处理器"""
+    error(f"[ERROR] HTTPException: {exc.status_code} - {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error": exc.detail,
-            "path": request.url.path,
-            "timestamp": datetime.now().isoformat()
+            "status_code": exc.status_code,
+            "path": request.url.path
         }
     )
 
-
 @app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    """通用异常处理器"""
-    error(f"未处理的异常: {exc}")
+async def general_exception_handler(request: Request, exc: Exception):
+    """全局异常处理器"""
+    error(f"[ERROR] Unhandled exception: {str(exc)}")
+    traceback.print_exc()
     return JSONResponse(
         status_code=500,
         content={
-            "error": "内部服务器错误",
-            "message": str(exc),
-            "path": request.url.path,
-            "timestamp": datetime.now().isoformat()
+            "error": "Internal server error",
+            "detail": str(exc),
+            "path": request.url.path
         }
     )
-
 
 # =====================router======================
 app.include_router(proxy_router)

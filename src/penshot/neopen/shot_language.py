@@ -64,23 +64,23 @@ def set_language(lang: Language) -> bool:
     :param lang: 语言字符串，支持'zh', 'en', '中文', '英文'
     :return: 设置成功返回True，失败返回False
     """
-    global _current_language
-    # lang_enum = Language.from_string(lang)
-    lang_enum = lang
-    if lang_enum:
-        _current_language = lang_enum
-        return True
+    if lang:
+        global _current_language
+        lang_enum = lang
+        if lang_enum:
+            _current_language = lang_enum
+            return True
     return False
 
 
-def set_language_from_request(lang: str) -> bool:
+def set_str_language(lang: str) -> bool:
     """
     从请求参数设置语言
     :param lang: 语言字符串，支持'zh', 'en', '中文', '英文'
     :return: 设置成功返回True，失败返回False
     """
     # 请求参数的优先级高于环境变量
-    return set_language(lang)
+    return set_language(Language.from_string(lang))
 
 
 def get_language() -> Language:
