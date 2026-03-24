@@ -537,6 +537,46 @@ class TaskFactory:
 
         info("任务工厂已关闭")
 
+    #     ============================ 恢复任务 ================================
+    def recover_pending_tasks(self, max_age_hours: int = 2):
+        """
+        恢复所有未完成的任务（只恢复两小时内的任务）
+
+        Args:
+            max_age_hours: 最大任务年龄（小时），默认2小时
+
+        Returns:
+            int: 恢复的任务数量
+        """
+        info(f"开始恢复未完成的任务（{max_age_hours}小时内）...")
+
+        # 先恢复任务状态
+        recovered_ids = self.task_manager.recover_all_pending_tasks(max_age_hours=max_age_hours)
+
+        if recovered_ids:
+            # 将恢复的任务加入处理器队列
+            async def recover_in_background():
+                self.processor.recover_pending_tasks(max_age_hours=max_age_hours)
+
+            self._run_async_in_background(recover_in_background())
+
+            info(f"已恢复 {len(recovered_ids)} 个任务（{max_age_hours}小时内）")
+        else:
+            info(f"没有需要恢复的任务（{max_age_hours}小时内）")
+
+
+    def get_pending_tasks(self, max_age_hours: int = 2) -> List[Dict[str, Any]]:
+        """
+        获取所有未完成的任务（只返回两小时内的任务）
+
+        Args:
+            max_age_hours: 最大任务年龄（小时）
+
+        Returns:
+            List[Dict]: 未完成的任务列表
+        """
+        return self.task_manager.get_pending_tasks(max_age_hours=max_age_hours)
+
     # ==================== 辅助方法 ====================
 
     def _generate_task_id(self) -> str:

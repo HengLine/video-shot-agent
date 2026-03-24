@@ -8,7 +8,6 @@
 import os
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +23,7 @@ from penshot.config.config import settings
 from penshot.logger import error
 from penshot.neopen.shot_context import RequestContextMiddleware
 from .proxy import router as proxy_router
+from ..neopen.task.task_init import startup_with_recovery
 from ..utils.path_utils import PathResolver
 
 
@@ -42,9 +42,11 @@ async def app_startup():
     pass
 
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await app_startup()
+    await startup_with_recovery()
     yield
 
 

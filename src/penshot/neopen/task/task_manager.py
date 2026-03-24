@@ -20,12 +20,12 @@ import copy
 import json
 import uuid
 from dataclasses import is_dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from threading import RLock
 from collections import OrderedDict
 from typing import Optional, Dict, Any, List, TYPE_CHECKING
 
-from penshot.logger import info
+from penshot.logger import info, error
 
 if TYPE_CHECKING:
     from penshot.neopen.agent import MultiAgentPipeline
@@ -565,5 +565,192 @@ class TaskManager:
                 self._local_tasks[task_id]["callback_url"] = callback_url
                 self._local_tasks[task_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
                 return True
+
+
+#     ============================ 恢复任务 ================================
+    def get_pending_tasks(self, max_age_hours: int = 2) -> List[Dict[str, Any]]:
+        """
+        获取所有未完成的任务（PENDING 或 PROCESSING 状态）
+
+        Args:
+            max_age_hours: 最大任务年龄（小时），只返回创建时间在此范围内的任务
+
+        Returns:
+            List[Dict]: 未完成的任务列表
+        """
+        pending_tasks = []
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+
+        if self.use_redis and self.redis:
+            try:
+                # 从 Redis 获取所有任务ID
+                task_ids = self.list_tasks()
+                for task_id in task_ids:
+                    task = self.get_task(task_id)
+                    if task:
+                        status = task.get("status")
+                        # 只处理未完成的任务
+                        if status in [TaskStatus.PENDING, TaskStatus.PROCESSING]:
+                            # 检查任务创建时间
+                            created_at = task.get("created_at")
+                            if created_at:
+                                try:
+                                    if isinstance(created_at, str):
+                                        created_at_dt = datetime.fromisoformat(created_at)
+                                    else:
+                                        created_at_dt = created_at
+
+                                    # 只保留两小时内的任务
+                                    if created_at_dt >= cutoff_time:
+                                        pending_tasks.append(task)
+                                except Exception as e:
+                                    error(f"解析任务创建时间失败: {task_id}, 错误: {e}")
+                                    # 时间解析失败的任务也加入，但记录警告
+                                    pending_tasks.append(task)
+            except Exception as e:
+                error(f"从 Redis 获取未完成任务失败: {e}")
+        else:
+            with self._lock:
+                for task_id, task in self._local_tasks.items():
+                    status = task.get("status")
+                    if status in [TaskStatus.PENDING, TaskStatus.PROCESSING]:
+                        # 检查任务创建时间
+                        created_at = task.get("created_at")
+                        if created_at:
+                            try:
+                                if isinstance(created_at, str):
+                                    created_at_dt = datetime.fromisoformat(created_at)
+                                else:
+                                    created_at_dt = created_at
+
+                                # 只保留两小时内的任务
+                                if created_at_dt >= cutoff_time:
+                                    pending_tasks.append(copy.deepcopy(task))
+                            except Exception as e:
+                                error(f"解析任务创建时间失败: {task_id}, 错误: {e}")
+                                pending_tasks.append(copy.deepcopy(task))
+                        else:
+                            # 没有创建时间的任务也加入
+                            pending_tasks.append(copy.deepcopy(task))
+
+        return pending_tasks
+
+    def get_pending_tasks_with_filter(
+            self,
+            max_age_hours: int = 2,
+            status_filter: Optional[List[TaskStatus]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        获取符合条件的未完成任务
+
+        Args:
+            max_age_hours: 最大任务年龄（小时）
+            status_filter: 状态过滤器，默认 [PENDING, PROCESSING]
+
+        Returns:
+            List[Dict]: 符合条件的任务列表
+        """
+        if status_filter is None:
+            status_filter = [TaskStatus.PENDING, TaskStatus.PROCESSING]
+
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+        filtered_tasks = []
+
+        if self.use_redis and self.redis:
+            try:
+                task_ids = self.list_tasks()
+                for task_id in task_ids:
+                    task = self.get_task(task_id)
+                    if task:
+                        status = task.get("status")
+                        if status in status_filter:
+                            created_at = task.get("created_at")
+                            if self._is_task_within_age(created_at, cutoff_time):
+                                filtered_tasks.append(task)
+            except Exception as e:
+                error(f"获取任务失败: {e}")
+        else:
+            with self._lock:
+                for task_id, task in self._local_tasks.items():
+                    status = task.get("status")
+                    if status in status_filter:
+                        created_at = task.get("created_at")
+                        if self._is_task_within_age(created_at, cutoff_time):
+                            filtered_tasks.append(copy.deepcopy(task))
+
+        return filtered_tasks
+
+    def _is_task_within_age(self, created_at: Any, cutoff_time: datetime) -> bool:
+        """检查任务是否在有效时间内"""
+        if not created_at:
+            return True  # 没有时间信息的任务默认恢复
+
+        try:
+            if isinstance(created_at, str):
+                created_at_dt = datetime.fromisoformat(created_at)
+            else:
+                created_at_dt = created_at
+
+            return created_at_dt >= cutoff_time
+        except Exception:
+            return True  # 时间解析失败的任务默认恢复
+
+    def recover_all_pending_tasks(self, max_age_hours: int = 2) -> List[str]:
+        """
+        恢复所有未完成的任务（只恢复两小时内的任务）
+
+        Args:
+            max_age_hours: 最大任务年龄（小时）
+
+        Returns:
+            List[str]: 恢复的任务ID列表
+        """
+        pending_tasks = self.get_pending_tasks(max_age_hours=max_age_hours)
+        recovered_ids = []
+
+        for task in pending_tasks:
+            task_id = task.get("task_id")
+            if self.recover_task(task_id):
+                recovered_ids.append(task_id)
+                info(f"恢复任务: {task_id}, 创建时间: {task.get('created_at')}")
+
+        return recovered_ids
+
+    def recover_task(self, task_id: str) -> bool:
+        """恢复单个任务（将状态重置为 PENDING）"""
+        task = self.get_task(task_id)
+        if not task:
+            return False
+
+        # 只恢复未完成的任务
+        if task.get("status") in [TaskStatus.PENDING, TaskStatus.PROCESSING]:
+            if self.use_redis and self.redis:
+                key = self._redis_key(task_id)
+                raw = self.redis.get(key)
+                if raw:
+                    try:
+                        rec = json.loads(raw)
+                        rec["status"] = TaskStatus.PENDING
+                        rec["stage"] = "recovered"
+                        rec["progress"] = 0
+                        rec["updated_at"] = datetime.now(timezone.utc).isoformat()
+                        rec.pop("completed_at", None)
+                        self.redis.set(key, json.dumps(obj_to_dict(rec), ensure_ascii=False))
+                        return True
+                    except Exception:
+                        pass
+            else:
+                with self._lock:
+                    if task_id in self._local_tasks:
+                        self._local_tasks[task_id]["status"] = TaskStatus.PENDING
+                        self._local_tasks[task_id]["stage"] = "recovered"
+                        self._local_tasks[task_id]["progress"] = 0
+                        self._local_tasks[task_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
+                        self._local_tasks[task_id].pop("completed_at", None)
+                        return True
+
+        return False
+#     ============================ 恢复任务 ================================
+
 
 # end of TaskManager

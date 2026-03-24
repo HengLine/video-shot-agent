@@ -4,9 +4,11 @@
 @Author: HiPeng
 @Time: 2026/3/23 18:54
 """
+import asyncio
+import functools
 import random
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, HTTPException, status
@@ -16,7 +18,7 @@ from penshot.logger import info, error, log_with_context
 from penshot.neopen.shot_config import ShotConfig
 from penshot.neopen.shot_context import task_id_ctx
 from penshot.neopen.shot_language import set_language, Language
-from penshot.neopen.task.task_factory import create_task_factory, TaskFactory
+from penshot.neopen.task.task_init import get_task_factory
 from penshot.neopen.task.task_models import (
     ProcessingStatus, TaskStatus, TaskResponse
 )
@@ -128,25 +130,6 @@ class BatchProcessRequest(BaseModel):
 
 router = APIRouter(prefix="/api/v1", tags=["Penshot"])
 
-# 使用 TaskFactory 替代原始的 TaskManager + TaskProcessor
-task_factory: TaskFactory = None
-
-
-def init_task_factory(max_concurrent: int = 10, queue_size: int = 1000):
-    """初始化任务工厂（在应用启动时调用）"""
-    global task_factory
-    task_factory = create_task_factory(
-        max_concurrent=max_concurrent,
-        queue_size=queue_size
-    )
-
-
-def get_task_factory() -> TaskFactory:
-    """获取任务工厂实例"""
-    if task_factory is None:
-        init_task_factory()
-    return task_factory
-
 
 # ============================================================================
 # 分镜生成接口
@@ -230,11 +213,6 @@ async def generate_storyboard_sync(
     同步分镜生成接口
 
     等待任务完成后返回结果
-
-    - **script**: 剧本文本内容
-    - **timeout**: 等待超时时间（秒）
-    - **language**: 输出语言
-    - **config**: 可选配置
     """
     try:
         log_with_context(
@@ -247,13 +225,14 @@ async def generate_storyboard_sync(
 
         factory = get_task_factory()
 
-        # 使用工厂的同步提交方法
-        result: TaskResponse = factory.submit_and_wait(
-            script=request.script,
-            task_id=request.task_id,
-            config=request.config,
-            language=request.language,
-            timeout=request.timeout
+        result: TaskResponse = await asyncio.to_thread(
+            lambda: factory.submit_and_wait(
+                script=request.script,
+                task_id=request.task_id,
+                config=request.config,
+                language=request.language,
+                timeout=request.timeout
+            )
         )
 
         if result.success:
@@ -356,10 +335,6 @@ async def batch_process_scripts_sync(
 ):
     """
     批量处理多个剧本（同步，等待全部完成）
-
-    - **scripts**: 剧本列表（最多20个）
-    - **config**: 统一配置（可选）
-    - **language**: 输出语言
     """
     try:
         log_with_context(
@@ -377,13 +352,17 @@ async def batch_process_scripts_sync(
 
         factory = get_task_factory()
 
-        # 使用工厂的批量同步方法
-        results = factory.batch(
+        # 使用 functools.partial 绑定参数
+        func = functools.partial(
+            factory.batch,
             scripts=request.scripts,
             config=request.config,
             language=request.language,
             timeout=600  # 10分钟超时
         )
+
+        # 将同步阻塞操作放到线程池中执行
+        results: List[TaskResponse] = await asyncio.to_thread(func)
 
         # 转换为 ProcessResult 列表
         return [
@@ -588,6 +567,98 @@ def get_stats():
     return factory.get_stats()
 
 
+@router.get("/pending-tasks")
+def get_pending_tasks(
+        max_age_hours: int = 2,
+        include_older: bool = False
+):
+    """
+    获取所有未完成的任务
+
+    - **max_age_hours**: 最大任务年龄（小时），默认2小时
+    - **include_older**: 是否包含超过时间范围的任务，默认False
+    """
+    factory = get_task_factory()
+
+    if include_older:
+        # 获取所有未完成任务（不限时间）
+        all_pending = factory.task_manager.get_pending_tasks(max_age_hours=999)
+    else:
+        # 只获取指定时间内的任务
+        all_pending = factory.get_pending_tasks(max_age_hours=max_age_hours)
+
+    # 分类统计
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=max_age_hours)
+
+    within_range = []
+    out_of_range = []
+
+    for task in all_pending:
+        created_at = task.get("created_at")
+        if created_at:
+            try:
+                if isinstance(created_at, str):
+                    created_at_dt = datetime.fromisoformat(created_at)
+                else:
+                    created_at_dt = created_at
+
+                if created_at_dt >= cutoff:
+                    within_range.append(task)
+                else:
+                    out_of_range.append(task)
+            except Exception:
+                within_range.append(task)  # 解析失败默认在范围内
+        else:
+            within_range.append(task)
+
+    return {
+        "total_pending": len(all_pending),
+        "within_range": {
+            "count": len(within_range),
+            "max_age_hours": max_age_hours,
+            "cutoff_time": cutoff.isoformat(),
+            "tasks": [
+                {
+                    "task_id": t.get("task_id"),
+                    "status": t.get("status"),
+                    "stage": t.get("stage"),
+                    "progress": t.get("progress"),
+                    "created_at": t.get("created_at")
+                }
+                for t in within_range[:50]  # 限制返回数量
+            ]
+        },
+        "out_of_range": {
+            "count": len(out_of_range),
+            "tasks": [
+                {
+                    "task_id": t.get("task_id"),
+                    "status": t.get("status"),
+                    "created_at": t.get("created_at")
+                }
+                for t in out_of_range[:10]
+            ] if include_older else None
+        }
+    }
+
+
+@router.post("/recover-tasks")
+async def recover_tasks(max_age_hours: int = 2):
+    """
+    手动触发任务恢复
+
+    - **max_age_hours**: 恢复多少小时内的任务，默认2小时
+    """
+    factory = get_task_factory()
+    recovered_count = factory.recover_pending_tasks(max_age_hours=max_age_hours)
+
+    return {
+        "recovered_count": recovered_count,
+        "max_age_hours": max_age_hours,
+        "message": f"已恢复 {recovered_count} 个任务（{max_age_hours}小时内）"
+    }
+
 # ============================================================================
 # 配置接口
 # ============================================================================
@@ -627,20 +698,3 @@ def health_check():
         "stats": stats,
         "queue": queue_status
     }
-
-
-# ============================================================================
-# 应用启动/关闭钩子
-# ============================================================================
-
-async def startup_event():
-    """应用启动时执行"""
-    init_task_factory(max_concurrent=10, queue_size=1000)
-    info("REST API 服务器启动完成")
-
-
-async def shutdown_event():
-    """应用关闭时执行"""
-    factory = get_task_factory()
-    await factory.shutdown(wait_for_completion=True, timeout=30)
-    info("REST API 服务器已关闭")

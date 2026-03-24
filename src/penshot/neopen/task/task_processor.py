@@ -471,6 +471,49 @@ class AsyncTaskProcessor:
 
         return False
 
+    #     ============================ 恢复任务 ================================
+    def recover_pending_tasks(self, max_age_hours: int = 2):
+        """
+        恢复未完成的任务到队列（只恢复两小时内的任务）
+
+        Args:
+            max_age_hours: 最大任务年龄（小时）
+        """
+        pending_tasks = self.task_manager.get_pending_tasks(max_age_hours=max_age_hours)
+
+        if not pending_tasks:
+            info("没有需要恢复的未完成任务（两小时内）")
+            return
+
+        info(f"发现 {len(pending_tasks)} 个未完成的任务（两小时内），开始恢复...")
+
+        # 显示即将恢复的任务信息
+        for task in pending_tasks:
+            created_at = task.get("created_at")
+            info(f"  待恢复任务: {task.get('task_id')}, 状态: {task.get('status')}, 创建时间: {created_at}")
+
+        # 将任务重新加入队列
+        for task in pending_tasks:
+            task_id = task.get("task_id")
+
+            # 创建 QueuedTask 并加入队列
+            queued_task = QueuedTask(
+                task_id=task_id,
+                priority=TaskPriority.NORMAL,
+                callback=None
+            )
+            queued_task.enqueued_at = datetime.now(timezone.utc)
+
+            # 直接加入队列
+            self._queue.append(queued_task)
+            self._queue_waiting += 1
+            self._stats["total_submitted"] += 1
+
+            info(f"任务已恢复并加入队列: {task_id}")
+
+        info(f"任务恢复完成，队列长度: {len(self._queue)}")
+    #     ============================ 恢复任务 ================================
+
     def get_queue_status(self) -> Dict:
         """获取队列状态"""
         return {
