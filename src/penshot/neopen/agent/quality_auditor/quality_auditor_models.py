@@ -48,6 +48,7 @@ class IssueType(str, Enum):
     CHARACTER = "character"  # 角色不一致
     ACTION = "action"  # 动作不连贯
     DIALOGUE = "dialogue"  # 对话问题
+    CONTINUITY = "continuity" #  连续性问题
     PROMPT = "prompt"  # 提示词质量问题
     DURATION = "duration"  # 时长不合理
     STYLE = "style"  # 风格不一致
@@ -58,6 +59,16 @@ class IssueType(str, Enum):
 
 class RuleType(Enum):
     LLM_COHERENCE = ("llm_coherence", "LLM连贯性检查")
+    # shot
+    SHOT_MISSING = ("shot_missing", "未能生成任何镜头")
+    SHOT_INSUFFICIENT = ("shot_insufficient", "镜头数量不足")
+    SHOT_DURATION_TOO_SHORT = ("shot_duration_too_short", "镜头时长过短")
+    SHOT_DURATION_TOO_LONG = ("shot_duration_too_long", "镜头时长过长")
+    SHOT_DESCRIPTION_MISSING = ("shot_description_missing", "镜头描述过短")
+    SHOT_TYPE_UNIFORM = ("shot_type_uniform", "镜头类型单一")
+    SHOT_REPETITIVE = ("shot_repetitive", "镜头类型相同且连续")
+    CHARACTER_NOT_IN_SHOTS = ("character_not_in_shots", "角色未在镜头中出现")
+    #
     DURATION_LIMIT = ("duration_limit", "片段时长限制")
     PROMPT_NOT_EMPTY = ("prompt_not_empty", "提示词非空")
     PROMPT_LENGTH = ("prompt_length", "提示词长度")

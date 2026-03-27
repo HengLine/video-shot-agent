@@ -17,16 +17,33 @@ from penshot.neopen.agent.script_parser.script_parser_models import EmotionType
 
 class ShotType(str, Enum):
     """MVP镜头类型（简化）"""
+    """
+        人物对话时的表情变化
+        重要道具展示
+        情感表达（喜悦、悲伤、愤怒）
+        角色反应镜头
+    """
     CLOSE_UP = "close_up"
+    """
+        眼睛特写（表现恐惧、震惊）
+        扣动扳机的手指
+        时钟指针跳动
+        瞳孔放大/缩小
+        泪水滑落瞬间
+    """
+    EXTREME_CLOSE_UP = "extreme_close_up"
     MEDIUM_SHOT = "medium_shot"
     WIDE_SHOT = "wide_shot"
+    LONG_SHOT = "long_shot"
 
     @staticmethod
     def get_type_mapping():
         return {
             ShotType.CLOSE_UP: "特写",
+            ShotType.EXTREME_CLOSE_UP: "极特写",
             ShotType.MEDIUM_SHOT: "中景",
             ShotType.WIDE_SHOT: "全景",
+            ShotType.LONG_SHOT: "远景",
         }
 
 

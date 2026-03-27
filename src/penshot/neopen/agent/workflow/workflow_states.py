@@ -32,7 +32,6 @@ class ScriptParsingState(BaseModel):
     parsed_script: ParsedScript = None  # 结构化剧本
     parse_errors: List[str] = []  # 解析错误信息
     parse_warnings: List[str] = []  # 解析警告信息
-    parse_issues: List[BasicViolation] = []  # 解析中的问题
     parse_stats: Optional[Dict] = {}    # 解析统计
 
 
@@ -41,6 +40,7 @@ class ShotGeneratorState(BaseModel):
     shot_sequence: ShotSequence = None  # 镜头序列
     current_shot_index: int = None  # 当前处理的镜头索引
     shot_errors: Dict[str, List] = None  # 按镜头存储的错误
+    segment_stats: Optional[Dict] = {}    # 分镜统计
 
 
 class VideoSegmenterState(BaseModel):
@@ -68,6 +68,7 @@ class OutputState(BaseModel):
     # execution_plan: Optional[Dict] = None  # 执行计划说明
     error: Optional[str] = None  # 错误信息
     error_source: Optional[PipelineNode] = None  # 错误来源节点
+    node_issues: Dict[PipelineNode, List[BasicViolation]] = {}  # 各节点中的出现的问题
 
 
 class NodeLoopState(BaseModel):

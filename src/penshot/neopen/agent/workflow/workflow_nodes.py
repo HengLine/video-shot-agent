@@ -93,7 +93,7 @@ class WorkflowNodes:
                 parse_issues = self.script_parser.detect_issues(parsed_script, state.raw_script)
                 if parse_issues:
                     debug(f"解析过程发现问题: {len(parse_issues)}个")
-                    state.parse_issues.extend(parse_issues)
+                    state.node_issues.setdefault(PipelineNode.PARSE_SCRIPT, []).extend(parse_issues)
 
             state.parsed_script = parsed_script
             state.current_stage = AgentStage.PARSER
@@ -130,21 +130,71 @@ class WorkflowNodes:
 
     def split_shots_node(self, state: WorkflowState) -> WorkflowState:
         """
-        镜头拆分节点
-        功能：将结构化剧本拆分为视觉镜头
-        输入：parsed_script
-        输出：shots (带时间戳的镜头序列)
+        镜头拆分节点（增强版）
+        功能：将结构化剧本拆分为视觉镜头，支持修复参数
+
+        新增功能：
+        - 支持修复参数传递（来自质量审查的修复建议）
+        - 记录分镜过程中的问题
+        - 更新修复历史
         """
         try:
-            shot_sequence = self.shot_segmenter.shot_process(state.parsed_script)
-            debug(f"分镜解析完成，镜头数: {len(shot_sequence.shots)}")
+            # 检查是否有修复参数需要传递
+            repair_params = state.repair_params.get(PipelineNode.SEGMENT_SHOT, None)
 
-            # 保存剧本解析结果
+            if repair_params:
+                info(f"分镜生成节点收到修复参数，问题类型: {repair_params.issue_types}")
+                info(f"修复建议: {repair_params.suggestions}")
+                # 记录修复来源
+                state.repair_history.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "node": PipelineNode.SEGMENT_SHOT,
+                    "repair_params": repair_params
+                })
+            else:
+                debug("分镜生成节点执行（无修复参数）")
+
+            # 执行分镜生成（传入修复参数）
+            shot_sequence = self.shot_segmenter.shot_process(
+                state.parsed_script,
+                repair_params=repair_params
+            )
+
+            if not shot_sequence:
+                raise Exception("分镜生成返回空结果")
+
+            debug(f"分镜解析完成，镜头数: {len(shot_sequence.shots)}")
+            debug(f"总时长: {sum(s.duration for s in shot_sequence.shots):.1f}秒")
+
+            # 统计镜头类型分布
+            shot_types = {}
+            for shot in shot_sequence.shots:
+                shot_types[shot.shot_type.value] = shot_types.get(shot.shot_type.value, 0) + 1
+            debug(f"镜头类型分布: {shot_types}")
+
+            # 保存分镜结果
             self.storage.save_obj_result(state.task_id, shot_sequence, "shot_segmenter_result.json")
+
+            # 检测分镜过程中发现的问题（用于后续质量审查）
+            segment_issues = self.shot_segmenter.detect_issues(shot_sequence, state.parsed_script)
+            if segment_issues:
+                debug(f"分镜过程发现问题: {len(segment_issues)}个")
+                state.node_issues.setdefault(PipelineNode.SEGMENT_SHOT, []).extend(segment_issues)
 
             state.shot_sequence = shot_sequence
             state.current_stage = AgentStage.SEGMENTER
             state.current_node = PipelineNode.SEGMENT_SHOT
+
+            # 更新分镜统计
+            state.segment_stats.update({
+                "shot_count": len(shot_sequence.shots),
+                "total_duration": sum(s.duration for s in shot_sequence.shots),
+                "avg_duration": sum(s.duration for s in shot_sequence.shots) / len(shot_sequence.shots) if shot_sequence.shots else 0,
+                "shot_types": shot_types,
+                "repair_applied": repair_params is not None,
+            })
+
+            info(f"分镜生成节点完成，镜头数: {state.segment_stats.get('shot_count')}")
 
         except Exception as e:
             print_log_exception()

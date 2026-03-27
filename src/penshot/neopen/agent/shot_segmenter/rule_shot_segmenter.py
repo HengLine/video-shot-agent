@@ -8,6 +8,7 @@
 from typing import List, Optional
 
 from penshot.neopen.agent.base_models import ElementType
+from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityRepairParams
 from penshot.neopen.agent.script_parser.script_parser_models import ParsedScript, BaseElement, SceneInfo
 from penshot.neopen.agent.shot_segmenter.base_shot_segmenter import BaseShotSegmenter
 from penshot.neopen.agent.shot_segmenter.shot_segmenter_models import ShotSequence, ShotInfo, ShotType
@@ -28,7 +29,7 @@ class RuleShotSegmenter(BaseShotSegmenter):
             "max_dialogue_duration": 5.0,  # 最长对话时长
         }
 
-    def split(self, parsed_script: ParsedScript) -> ShotSequence:
+    def split(self, parsed_script: ParsedScript, repair_params: Optional[QualityRepairParams]) -> ShotSequence:
         """使用简单规则拆分剧本"""
         info(f"开始分镜拆分，剧本: {parsed_script.title}")
 
