@@ -110,7 +110,7 @@ class AsyncTaskProcessor:
         """启动后台事件循环"""
 
         def run_loop():
-            info(f"[AsyncTaskProcessor] 后台线程启动，创建事件循环")
+            debug(f"[AsyncTaskProcessor] 后台线程启动，创建事件循环")
             # 创建新的事件循环
             self._background_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._background_loop)
