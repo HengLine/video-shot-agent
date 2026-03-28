@@ -31,9 +31,11 @@ class TaskFactory:
             max_concurrent: int = 10,
             queue_size: int = 1000,
             default_config: Optional[ShotConfig] = None,
-            default_language: Language = Language.ZH
+            default_language: Language = Language.ZH,
+            max_cache_size: int = 64,
+            task_ttl_seconds: int = 86400  # 新增参数，默认24小时
     ):
-        self.task_manager = task_manager or TaskManager()
+        self.task_manager = task_manager or TaskManager(max_cache_size=max_cache_size, task_ttl_seconds=task_ttl_seconds)
         self.processor = AsyncTaskProcessor(
             task_manager=self.task_manager,
             max_concurrent=max_concurrent,
@@ -680,12 +682,14 @@ def create_task_factory(
         max_concurrent: int = 10,
         queue_size: int = 1000,
         default_config: Optional[ShotConfig] = None,
-        default_language: Language = Language.ZH
+        default_language: Language = Language.ZH,
+        task_ttl_seconds: int = 7 * 86400
 ) -> TaskFactory:
     """创建任务工厂实例"""
     return TaskFactory(
         max_concurrent=max_concurrent,
         queue_size=queue_size,
         default_config=default_config,
-        default_language=default_language
+        default_language=default_language,
+        task_ttl_seconds=task_ttl_seconds
     )

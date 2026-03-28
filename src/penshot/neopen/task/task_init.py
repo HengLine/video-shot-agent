@@ -16,7 +16,8 @@ def init_task_factory(max_concurrent: int = 10, queue_size: int = 1000):
     global task_factory
     task_factory = create_task_factory(
         max_concurrent=max_concurrent,
-        queue_size=queue_size
+        queue_size=queue_size,
+        task_ttl_seconds=20 * 86400
     )
 
 
