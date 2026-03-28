@@ -156,9 +156,6 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoop
     last_audit_result: Optional[Dict] = None  # 上一次质量审查结果
 
     # 修复
-    needs_auto_fix: bool = False  # 是否需要自动修复
-    auto_fix_issues: Optional[List[BasicViolation]] = []
-    # node_issues: Dict[PipelineNode, List[BasicViolation]] = {}  # 各节点中的出现的问题
     fix_summary: Optional[Dict[str, Any]] = {}
     repair_params: Dict[PipelineNode, QualityRepairParams] = {} # 按来源的修复参数
     repair_history: List[Dict[str, Any]] = [] # 修复记录
