@@ -6,6 +6,7 @@
 @Time: 2025/10 - 2025/11
 """
 import uuid
+from dataclasses import field
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
@@ -32,7 +33,8 @@ class ScriptParsingState(BaseModel):
     parsed_script: ParsedScript = None  # 结构化剧本
     parse_errors: List[str] = []  # 解析错误信息
     parse_warnings: List[str] = []  # 解析警告信息
-    parse_stats: Optional[Dict] = {}    # 解析统计
+    parse_stats: Dict[str, Any] = field(default_factory=dict)  # 解析统计信息
+    parse_issues: List[BasicViolation] = field(default_factory=list)  # 解析过程中的问题
 
 
 class ShotGeneratorState(BaseModel):
@@ -40,13 +42,16 @@ class ShotGeneratorState(BaseModel):
     shot_sequence: ShotSequence = None  # 镜头序列
     current_shot_index: int = None  # 当前处理的镜头索引
     shot_errors: Dict[str, List] = None  # 按镜头存储的错误
-    segment_stats: Optional[Dict] = {}    # 分镜统计
+    segment_stats: Dict[str, Any] = field(default_factory=dict)  # 分镜统计信息
+    segment_issues: List[BasicViolation] = field(default_factory=list)  # 分镜过程中的问题
 
 
 class VideoSegmenterState(BaseModel):
     """视频拆分相关状态"""
     fragment_sequence: FragmentSequence = None  # AI视频片段序列
     fragment_quality_scores: Dict[str, float] = None  # 片段质量评分
+    split_stats: Dict[str, Any] = field(default_factory=dict)  # 分割统计信息
+    split_issues: List[BasicViolation] = field(default_factory=list)  # 分割过程中的问题
 
 
 class PromptConverterState(BaseModel):
@@ -58,8 +63,8 @@ class PromptConverterState(BaseModel):
 class QualityAuditorState(BaseModel):
     """质量审查相关状态"""
     audit_report: Optional[QualityAuditReport] = None  # 质量审查报告
-    audit_failures: List[str] = []  # 审查失败项
-    audit_warnings: List[str] = []  # 审查警告项
+    audit_failures: List[str] = field(default_factory=list)  # 审查失败项
+    audit_warnings: List[str] = field(default_factory=list)  # 审查警告项
 
 
 class OutputState(BaseModel):
@@ -68,7 +73,6 @@ class OutputState(BaseModel):
     # execution_plan: Optional[Dict] = None  # 执行计划说明
     error: Optional[str] = None  # 错误信息
     error_source: Optional[PipelineNode] = None  # 错误来源节点
-    node_issues: Dict[PipelineNode, List[BasicViolation]] = {}  # 各节点中的出现的问题
 
 
 class NodeLoopState(BaseModel):
@@ -152,6 +156,7 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoop
     # 修复
     needs_auto_fix: bool = False  # 是否需要自动修复
     auto_fix_issues: Optional[List[BasicViolation]] = []
+    # node_issues: Dict[PipelineNode, List[BasicViolation]] = {}  # 各节点中的出现的问题
     fix_summary: Optional[Dict[str, Any]] = {}
     repair_params: Dict[PipelineNode, QualityRepairParams] = {} # 按来源的修复参数
     repair_history: List[Dict[str, Any]] = [] # 修复记录

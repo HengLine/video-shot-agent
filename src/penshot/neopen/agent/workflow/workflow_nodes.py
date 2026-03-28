@@ -89,11 +89,11 @@ class WorkflowNodes:
                 self.storage.save_obj_result(state.task_id, state.repair_history, "script_parser_repair_history.json")
 
             # 检测解析过程中发现的问题（用于后续质量审查）
-            if hasattr(self.script_parser, 'detect_issues'):
-                parse_issues = self.script_parser.detect_issues(parsed_script, state.raw_script)
-                if parse_issues:
-                    debug(f"解析过程发现问题: {len(parse_issues)}个")
-                    state.node_issues.setdefault(PipelineNode.PARSE_SCRIPT, []).extend(parse_issues)
+            parse_issues = self.script_parser.detect_issues(parsed_script, state.raw_script)
+            if parse_issues:
+                debug(f"解析过程发现问题: {len(parse_issues)}个")
+                # state.node_issues.setdefault(PipelineNode.PARSE_SCRIPT, []).extend(parse_issues)
+                state.parse_issues.extend(parse_issues)
 
             state.parsed_script = parsed_script
             state.current_stage = AgentStage.PARSER
@@ -179,7 +179,8 @@ class WorkflowNodes:
             segment_issues = self.shot_segmenter.detect_issues(shot_sequence, state.parsed_script)
             if segment_issues:
                 debug(f"分镜过程发现问题: {len(segment_issues)}个")
-                state.node_issues.setdefault(PipelineNode.SEGMENT_SHOT, []).extend(segment_issues)
+                # state.node_issues.setdefault(PipelineNode.SEGMENT_SHOT, []).extend(segment_issues)
+                state.segment_issues.extend(segment_issues)
 
             state.shot_sequence = shot_sequence
             state.current_stage = AgentStage.SEGMENTER
@@ -214,25 +215,82 @@ class WorkflowNodes:
 
     def fragment_for_ai_node(self, state: WorkflowState) -> WorkflowState:
         """
-        AI分段节点
-        功能：将镜头按5秒限制切分为AI可处理的片段
-        输入：shots
-        输出：fragments (符合5秒限制的片段序列)
-        """
-        # 1. 检查镜头时长，>5秒的进行切分
-        # 2. <2秒的考虑合并
-        # 3. 在动作边界自然切分
-        # 4. 生成片段级连续性锚点
-        try:
-            fragment_sequence = self.video_splitter.video_process(state.shot_sequence, state.parsed_script)
-            debug(f"视频分段完成，视频片段数: {len(fragment_sequence.fragments)}")
+        AI分段节点（增强版）
+        功能：将镜头按限制切分为AI可处理的片段，支持修复参数
 
-            # 保存剧本解析结果
+        新增功能：
+        - 支持修复参数传递（来自质量审查的修复建议）
+        - 记录分割过程中的问题
+        - 更新修复历史
+        """
+        try:
+            # 检查是否有修复参数需要传递
+            repair_params = state.repair_params.get(PipelineNode.SPLIT_VIDEO, None)
+
+            if repair_params:
+                info(f"视频分割节点收到修复参数，问题类型: {repair_params.issue_types}")
+                info(f"修复建议: {repair_params.suggestions}")
+                # 记录修复来源
+                state.repair_history.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "node": PipelineNode.SPLIT_VIDEO.value,
+                    "repair_params": {
+                        "issue_types": repair_params.issue_types,
+                        "suggestions": repair_params.suggestions
+                    }
+                })
+            else:
+                debug("视频分割节点执行（无修复参数）")
+
+            # 执行视频分割（传入修复参数）
+            fragment_sequence = self.video_splitter.video_process(
+                state.shot_sequence,
+                state.parsed_script,
+                repair_params=repair_params
+            )
+
+            if not fragment_sequence:
+                raise Exception("视频分割返回空结果")
+
+            debug(f"视频分段完成，视频片段数: {len(fragment_sequence.fragments)}")
+            total_duration = sum(f.duration for f in fragment_sequence.fragments)
+            debug(f"总时长: {total_duration:.1f}秒")
+
+            # 统计片段时长分布
+            durations = [f.duration for f in fragment_sequence.fragments]
+            debug(f"时长分布: 最小={min(durations):.1f}s, 最大={max(durations):.1f}s, 平均={sum(durations) / len(durations):.1f}s")
+
+            # 保存分割结果
             self.storage.save_obj_result(state.task_id, fragment_sequence, "video_splitter_result.json")
+
+            # 检测分割过程中发现的问题（用于后续质量审查）
+            split_issues = self.video_splitter.detect_issues(fragment_sequence, state.shot_sequence)
+            if split_issues:
+                debug(f"分割过程发现问题: {len(split_issues)}个")
+                state.split_issues.extend(split_issues)
 
             state.fragment_sequence = fragment_sequence
             state.current_stage = AgentStage.SPLITTER
             state.current_node = PipelineNode.SPLIT_VIDEO
+
+            # 更新分割统计
+            state.split_stats.update({
+                "fragment_count": len(fragment_sequence.fragments),
+                "total_duration": total_duration,
+                "avg_duration": total_duration / len(fragment_sequence.fragments) if fragment_sequence.fragments else 0,
+                "min_duration": min(durations) if durations else 0,
+                "max_duration": max(durations) if durations else 0,
+                "repair_applied": repair_params is not None,
+            })
+
+            # 如果有metadata，记录分割方法统计
+            metadata = getattr(fragment_sequence, 'metadata', {})
+            state.split_stats.update({
+                "ai_split_count": metadata.get('ai_split_count', 0),
+                "rule_split_count": metadata.get('rule_split_count', 0),
+            })
+
+            info(f"视频分割节点完成，片段数: {state.split_stats.get('fragment_count')}")
 
         except Exception as e:
             print_log_exception()

@@ -67,15 +67,9 @@ class ShotSegmenterAgent:
         attempt = len(self.segment_history) + 1
         self.segment_history.append({"attempt": attempt, "timestamp": time.time()})
 
-        need_repair_params = None
-        if repair_params and repair_params.fix_needed:
-            info(f"分镜生成节点收到修复参数，问题类型: {repair_params.issue_types}")
-            info(f"修复建议: {repair_params.suggestions}")
-            need_repair_params = repair_params
-
         try:
             # 1. 先生成分镜（LLM或规则）
-            shot_sequence = self.segmenter.split(structured_script, need_repair_params)
+            shot_sequence = self.segmenter.split(structured_script, repair_params)
 
             if not shot_sequence:
                 error("分镜生成失败")
@@ -103,8 +97,6 @@ class ShotSegmenterAgent:
 
             # 4. 记录修复历史
             if repair_params and repair_params.fix_needed:
-                if not hasattr(shot_sequence, 'metadata'):
-                    shot_sequence.metadata = {}
                 if "repair_history" not in shot_sequence.metadata:
                     shot_sequence.metadata["repair_history"] = []
                 shot_sequence.metadata["repair_history"].append({
