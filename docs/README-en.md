@@ -212,7 +212,7 @@ Configuration notes:
 >    LLM__DEFAULT__MODEL_NAME=gpt-4-turbo-preview
 >    LLM__DEFAULT__TIMEOUT=30
 >    LLM__DEFAULT__MAX_TOKENS=4000
->          
+>             
 >    # ================= LLM Backup config =================
 >    LLM__FALLBACK__BASE_URL=http://localhost:11434
 >    LLM__FALLBACK__MODEL_NAME=qwen3:4b
@@ -233,13 +233,15 @@ from penshot.neopen.shot_language import Language
 
 async def async_usage():
     """异步用法示例"""
+    print("\n=== 异步用法示例 ===")
 
     agent = PenshotFunction(language=Language.ZH, max_concurrent=5)
 
     script = """
     早晨，一个女孩在咖啡馆读书，阳光透过窗户...
     """
-    
+
+    # 异步提交任务
     task_id = agent.breakdown_script_async(
         script,
         callback=lambda r: print(f"回调: 任务 {r.task_id} 完成")
@@ -255,6 +257,7 @@ async def async_usage():
     result = await agent.wait_for_result_async(task_id)
 
     print(f"最终结果: 成功={result.success}, 状态={result.status}")
+    print(f"result={result}")
 
     return result
 ```
