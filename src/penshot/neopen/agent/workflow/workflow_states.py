@@ -58,6 +58,8 @@ class PromptConverterState(BaseModel):
     """指令转换相关状态"""
     instructions: AIVideoInstructions = None  # AI生成指令
     prompt_templates_used: List[str] = None  # 使用的Prompt模板
+    convert_stats: Dict[str, Any] = field(default_factory=dict)  # 转换统计信息
+    convert_issues: List[BasicViolation] = field(default_factory=list)  # 转换过程中的问题
 
 
 class QualityAuditorState(BaseModel):

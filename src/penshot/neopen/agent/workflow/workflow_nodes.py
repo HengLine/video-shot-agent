@@ -62,7 +62,8 @@ class WorkflowNodes:
 
             if repair_params:
                 info(f"剧本解析节点收到修复参数，问题类型: {repair_params.issue_types}")
-                info(f"修复建议: {repair_params.suggestions}")
+                if repair_params.suggestions:
+                    info(f"修复建议: {repair_params.suggestions}")
                 # 记录修复来源
                 state.repair_history.append({
                     "timestamp": datetime.now().isoformat(),
@@ -144,7 +145,8 @@ class WorkflowNodes:
 
             if repair_params:
                 info(f"分镜生成节点收到修复参数，问题类型: {repair_params.issue_types}")
-                info(f"修复建议: {repair_params.suggestions}")
+                if repair_params.suggestions:
+                    info(f"修复建议: {repair_params.suggestions}")
                 # 记录修复来源
                 state.repair_history.append({
                     "timestamp": datetime.now().isoformat(),
@@ -229,7 +231,8 @@ class WorkflowNodes:
 
             if repair_params:
                 info(f"视频分割节点收到修复参数，问题类型: {repair_params.issue_types}")
-                info(f"修复建议: {repair_params.suggestions}")
+                if repair_params.suggestions:
+                    info(f"修复建议: {repair_params.suggestions}")
                 # 记录修复来源
                 state.repair_history.append({
                     "timestamp": datetime.now().isoformat(),
@@ -310,26 +313,88 @@ class WorkflowNodes:
 
     def generate_prompts_node(self, state: WorkflowState) -> WorkflowState:
         """
-        Prompt生成节点
-        功能：为每个片段生成AI视频生成提示词
-        输入：fragments
-        输出：ai_instructions (包含Prompt和技术参数)
-        """
-        # 1. 选择AI视频模型模板
-        # 2. 使用LLM优化视觉描述
-        # 3. 嵌入连续性约束
-        # 4. 生成技术参数
+        Prompt生成节点（增强版）
+        功能：为每个片段生成AI视频生成提示词，支持修复参数
 
+        新增功能：
+        - 支持修复参数传递（来自质量审查的修复建议）
+        - 记录转换过程中的问题
+        - 更新修复历史
+        """
         try:
-            instructions = self.prompt_converter.prompt_process(state.fragment_sequence, state.parsed_script)
+            # 检查是否有修复参数需要传递
+            repair_params = state.repair_params.get(PipelineNode.CONVERT_PROMPT, None)
+
+            if repair_params:
+                info(f"提示词转换节点收到修复参数，问题类型: {repair_params.issue_types}")
+                if repair_params.suggestions:
+                    info(f"修复建议: {repair_params.suggestions}")
+                # 记录修复来源
+                state.repair_history.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "node": PipelineNode.CONVERT_PROMPT.value,
+                    "repair_params": {
+                        "issue_types": repair_params.issue_types,
+                        "suggestions": repair_params.suggestions
+                    }
+                })
+            else:
+                debug("提示词转换节点执行（无修复参数）")
+
+            # 执行提示词转换（传入修复参数）
+            instructions = self.prompt_converter.prompt_process(
+                state.fragment_sequence,
+                state.parsed_script,
+                repair_params=repair_params
+            )
+
+            if not instructions:
+                raise Exception("提示词转换返回空结果")
+
             debug(f"片段指令转换完成，指令片段数: {len(instructions.fragments)}")
 
-            # 保存剧本解析结果
+            # 统计提示词信息
+            prompt_lengths = [len(f.prompt) for f in instructions.fragments]
+            debug(f"提示词长度统计: 平均={sum(prompt_lengths) / len(prompt_lengths):.0f}, "
+                  f"最小={min(prompt_lengths)}, 最大={max(prompt_lengths)}")
+
+            # 统计音频提示词
+            audio_count = sum(1 for f in instructions.fragments if f.audio_prompt)
+            debug(f"音频提示词: {audio_count}/{len(instructions.fragments)}个片段")
+
+            # 统计风格分布
+            styles = {}
+            for f in instructions.fragments:
+                if f.style:
+                    styles[f.style] = styles.get(f.style, 0) + 1
+            if styles:
+                debug(f"风格分布: {styles}")
+
+            # 保存转换结果
             self.storage.save_obj_result(state.task_id, instructions, "prompt_converter_result.json")
+
+            # 检测转换过程中发现的问题（用于后续质量审查）
+            convert_issues = self.prompt_converter.detect_issues(instructions, state.fragment_sequence)
+            if convert_issues:
+                debug(f"转换过程发现问题: {len(convert_issues)}个")
+                state.convert_issues.extend(convert_issues)
 
             state.instructions = instructions
             state.current_stage = AgentStage.CONVERTER
             state.current_node = PipelineNode.CONVERT_PROMPT
+
+            # 更新转换统计
+            state.convert_stats.update({
+                "prompt_count": len(instructions.fragments),
+                "avg_prompt_length": sum(prompt_lengths) / len(prompt_lengths) if prompt_lengths else 0,
+                "min_prompt_length": min(prompt_lengths) if prompt_lengths else 0,
+                "max_prompt_length": max(prompt_lengths) if prompt_lengths else 0,
+                "audio_prompt_count": audio_count,
+                "style_distribution": styles,
+                "repair_applied": repair_params is not None,
+            })
+
+            info(f"提示词转换节点完成，指令数: {state.convert_stats.get('prompt_count')}")
 
         except Exception as e:
             print_log_exception()

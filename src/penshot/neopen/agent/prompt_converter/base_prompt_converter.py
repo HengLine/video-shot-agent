@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 from penshot.neopen.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
+from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityRepairParams
 from penshot.neopen.agent.script_parser.script_parser_models import ParsedScript
 from penshot.neopen.agent.video_splitter.video_splitter_models import FragmentSequence, VideoFragment
 from penshot.neopen.shot_config import ShotConfig
@@ -27,7 +28,7 @@ class BasePromptConverter(ABC):
         info(f"初始化提示词转换器: {self.__class__.__name__}")
 
     @abstractmethod
-    def convert(self, fragment_sequence: FragmentSequence, parsed_script: ParsedScript) -> AIVideoInstructions:
+    def convert(self, fragment_sequence: FragmentSequence, parsed_script: ParsedScript, repair_params: Optional[QualityRepairParams]) -> AIVideoInstructions:
         """将片段序列转换为AI提示词（抽象方法）"""
         pass
 

@@ -48,6 +48,7 @@ class IssueType(str, Enum):
     CHARACTER = "character"  # 角色不一致
     ACTION = "action"  # 动作不连贯
     DIALOGUE = "dialogue"  # 对话问题
+    AUDIO = "audio"  # 音频问题
     CONTINUITY = "continuity" #  连续性问题
     PROMPT = "prompt"  # 提示词质量问题
     DURATION = "duration"  # 时长不合理
@@ -78,6 +79,19 @@ class RuleType(Enum):
     FRAGMENT_OVERLAP = ("fragment_overlap", "片段间存在重叠")
     FRAGMENT_NO_ELEMENTS = ("fragment_no_elements", "片段未关联剧本元素")
     FRAGMENT_NO_CONTINUITY = ("fragment_no_continuity", "片段缺少连续性注释")
+    # prompt
+    PROMPT_MISSING = ("prompt_missing", "未生成任何提示词")
+    PROMPT_EMPTY = ("prompt_empty", "片段提示词为空")
+    PROMPT_TOO_LONG = ("prompt_too_long", "片段提示词过长")
+    PROMPT_TOO_SHORT = ("prompt_too_short", "片段提示词过短")
+    PROMPT_TRUNCATED = ("prompt_truncated", "片段提示词被截断")
+    STYLE_INCONSISTENT = ("style_inconsistent", "多种不同风格")
+    NEGATIVE_PROMPT_MISSING = ("negative_prompt_missing", "缺少负面提示词")
+    AUDIO_PROMPT_TOO_SHORT = ("audio_prompt_too_short", "片段音频提示词过短")
+    AUDIO_DURATION_MISMATCH = ("audio_duration_mismatch", "片段音频时长与视频时长不匹配")
+    AUDIO_PROMPT_MISSING = ("audio_prompt_missing", "片段缺少音频提示词")
+    MODEL_UNSUPPORTED = ("model_unsupported", "不支持的模型")
+
     #
     DURATION_LIMIT = ("duration_limit", "片段时长限制")
     PROMPT_NOT_EMPTY = ("prompt_not_empty", "提示词非空")
