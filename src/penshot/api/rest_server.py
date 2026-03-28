@@ -82,7 +82,7 @@ class ProcessResult(BaseModel):
     """处理结果响应模型（用于回调和最终响应）"""
     task_id: str
     status: TaskStatus = Field(..., description="success | failed")
-    success: bool
+    success: bool = False
     data: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
     processing_time_ms: Optional[int] = None
@@ -559,7 +559,7 @@ def get_task_result(task_id: str):
 
     return ProcessResult(
         task_id=result.task_id,
-        success=result.success,
+        success=True,
         status=result.status,
         data=result.data,
         message=message,

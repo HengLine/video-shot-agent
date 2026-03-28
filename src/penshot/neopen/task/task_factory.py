@@ -128,10 +128,13 @@ class TaskFactory:
 
         def on_task_complete(task_id: str, result: TaskResponse):
             debug(f"[TaskFactory] 任务完成回调: {task_id}")
+
+            # 直接存储 TaskResponse
             self._task_results[task_id] = result
             future = self._task_futures.pop(task_id, None)
             if future and not future.done():
-                future.set_result(result)
+                future.set_result(result)  # 直接传递 TaskResponse
+
             if task_id in self._callbacks:
                 try:
                     self._callbacks[task_id](result)
@@ -322,14 +325,19 @@ class TaskFactory:
             return self._wait_by_polling(task_id, timeout)
 
         try:
-            # 使用 Future.result() 等待，这会释放 GIL，允许其他线程运行
-            result = future.result(timeout=timeout)
+            # 使用 Future.result() 等待
+            result_data = future.result(timeout=timeout)
 
+            # 如果 result_data 已经是 TaskResponse，直接返回
+            if isinstance(result_data, TaskResponse):
+                return result_data
+
+            # 否则创建 TaskResponse
             return TaskResponse(
                 task_id=task_id,
                 success=True,
                 status=TaskStatus.SUCCESS,
-                data=result,
+                data=result_data,
             )
 
         except TimeoutError:
@@ -371,6 +379,7 @@ class TaskFactory:
             status=TaskStatus.TIMEOUT,
             error=f"等待超时 ({timeout}秒)"
         )
+
 
     def _cleanup_task(self, task_id: str):
         """清理任务相关资源"""
