@@ -36,15 +36,15 @@ async def basic_usage():
     if result.success:
         data = result.data or {}
         instructions = data.get("instructions", {})
-        shots = instructions.fragments
-        project_info = instructions.project_info
+        shots = instructions.get("fragments", [])
+        project_info = instructions.get("project_info", {})
 
         print(f"镜头数量: {project_info.get('total_fragments', len(shots))}")
         print(f"总时长: {project_info.get('total_duration', 0):.1f}秒")
 
         # 显示前3个镜头
         for i, shot in enumerate(shots[:3], 1):
-            print(f" 片段提示词 {i}: {shot.prompt[:50]}...")
+            print(f" 片段提示词 {i}: {shot.get('prompt')[:50]}...")
 
     return result
 

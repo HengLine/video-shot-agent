@@ -194,11 +194,6 @@ class VideoModelType(str, PrefixValueEnum):
     DALLE = "dalle"
 
 
-def parse_model_name(full_name: str) -> Optional[VideoModelType]:
-    """从完整模型名解析基础模型"""
-    return EnumPrefixMatcher.match(VideoModelType, full_name.strip(), min_length=3)
-
-
 class AudioModelType(str, Enum):
     """AI音频模型类型枚举"""
     XTTSv2 = "XTTSv2"  # 台词、旁白、人声
@@ -228,3 +223,7 @@ class BaseMetadata(BaseModel):
     updated_at: Optional[datetime] = None
     version: str = Field(default="1.0", description="模型版本")
 
+
+def parse_model_name(full_name: str) -> Optional[VideoModelType]:
+    """从完整模型名解析基础模型"""
+    return EnumPrefixMatcher.match(VideoModelType, full_name.strip(), min_length=3)

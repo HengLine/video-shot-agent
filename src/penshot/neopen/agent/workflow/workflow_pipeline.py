@@ -507,7 +507,7 @@ class MultiAgentPipeline:
             else:
                 warning("工作流输出修复验证有问题，但继续返回结果")
 
-            return final_result
+            return self.output_fixer.parse_result_to_dict(final_result)
 
         except Exception as e:
             error(f"增强工作流执行失败: {str(e)}")

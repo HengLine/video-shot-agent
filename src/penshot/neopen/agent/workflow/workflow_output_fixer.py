@@ -8,10 +8,11 @@
 import time
 from typing import Dict, Any, Optional, List
 
+from penshot.logger import info, warning, error, debug
 from penshot.neopen.agent.video_splitter.video_splitter_models import FragmentSequence
 from penshot.neopen.agent.workflow.workflow_states import WorkflowState
-from penshot.logger import info, warning, error, debug
 from penshot.utils.log_utils import print_log_exception
+from penshot.utils.obj_utils import convert_data_dict_safe
 
 
 class WorkflowOutputFixer:
@@ -67,6 +68,18 @@ class WorkflowOutputFixer:
                 "task_id": getattr(initial_state, 'task_id', 'unknown'),
                 "workflow_status": "exception"
             }
+
+    def parse_result_to_dict(self, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """尝试将数据转换为字典"""
+        try:
+            data = result.get("data", {})
+            if data:
+                result["data"] = convert_data_dict_safe(data)
+
+        except Exception as e:
+            error(f"转换数据为字典时出错: {str(e)}")
+
+        return result
 
     def _analyze_and_fix_output(self, final_state: Any, initial_state: WorkflowState) -> Dict[str, Any]:
         """
