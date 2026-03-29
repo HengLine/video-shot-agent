@@ -19,6 +19,8 @@ from penshot.neopen.shot_language import Language
 from penshot.neopen.task.task_manager import TaskManager
 from penshot.neopen.task.task_models import ProcessingStatus, TaskStatus, TaskResponse, BatchTaskResponse
 from penshot.neopen.task.task_processor import AsyncTaskProcessor, TaskPriority
+from penshot.utils.log_utils import print_log_exception
+
 
 class TaskFactory:
     """任务工厂 - 封装任务提交和执行"""
@@ -29,9 +31,11 @@ class TaskFactory:
             max_concurrent: int = 10,
             queue_size: int = 1000,
             default_config: Optional[ShotConfig] = None,
-            default_language: Language = Language.ZH
+            default_language: Language = Language.ZH,
+            max_cache_size: int = 64,
+            task_ttl_seconds: int = 86400  # 新增参数，默认24小时
     ):
-        self.task_manager = task_manager or TaskManager()
+        self.task_manager = task_manager or TaskManager(max_cache_size=max_cache_size, task_ttl_seconds=task_ttl_seconds)
         self.processor = AsyncTaskProcessor(
             task_manager=self.task_manager,
             max_concurrent=max_concurrent,
@@ -124,15 +128,19 @@ class TaskFactory:
 
         def on_task_complete(task_id: str, result: TaskResponse):
             debug(f"[TaskFactory] 任务完成回调: {task_id}")
+
+            # 直接存储 TaskResponse
             self._task_results[task_id] = result
             future = self._task_futures.pop(task_id, None)
             if future and not future.done():
-                future.set_result(result)
+                future.set_result(result)  # 直接传递 TaskResponse
+
             if task_id in self._callbacks:
                 try:
                     self._callbacks[task_id](result)
                 except Exception as e:
                     error(f"回调执行失败: {task_id}, 错误: {e}")
+                    print_log_exception()
                 finally:
                     del self._callbacks[task_id]
 
@@ -317,9 +325,21 @@ class TaskFactory:
             return self._wait_by_polling(task_id, timeout)
 
         try:
-            # 使用 Future.result() 等待，这会释放 GIL，允许其他线程运行
-            result = future.result(timeout=timeout)
-            return result
+            # 使用 Future.result() 等待
+            result_data = future.result(timeout=timeout)
+
+            # 如果 result_data 已经是 TaskResponse，直接返回
+            if isinstance(result_data, TaskResponse):
+                return result_data
+
+            # 否则创建 TaskResponse
+            return TaskResponse(
+                task_id=task_id,
+                success=True,
+                status=TaskStatus.SUCCESS,
+                data=result_data,
+            )
+
         except TimeoutError:
             return TaskResponse(
                 task_id=task_id,
@@ -359,6 +379,7 @@ class TaskFactory:
             status=TaskStatus.TIMEOUT,
             error=f"等待超时 ({timeout}秒)"
         )
+
 
     def _cleanup_task(self, task_id: str):
         """清理任务相关资源"""
@@ -670,12 +691,14 @@ def create_task_factory(
         max_concurrent: int = 10,
         queue_size: int = 1000,
         default_config: Optional[ShotConfig] = None,
-        default_language: Language = Language.ZH
+        default_language: Language = Language.ZH,
+        task_ttl_seconds: int = 7 * 86400
 ) -> TaskFactory:
     """创建任务工厂实例"""
     return TaskFactory(
         max_concurrent=max_concurrent,
         queue_size=queue_size,
         default_config=default_config,
-        default_language=default_language
+        default_language=default_language,
+        task_ttl_seconds=task_ttl_seconds
     )

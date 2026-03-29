@@ -10,12 +10,15 @@ import traceback
 from datetime import datetime
 from typing import Dict, Any, List
 
+from penshot.logger import error, debug, info, warning
+from penshot.neopen.agent.continuity_guardian.continuity_guardian_checker import ContinuityGuardianChecker
+from penshot.neopen.agent.continuity_guardian.continuity_guardian_models import ContinuityCheckResult, ContinuityIssueType, ContinuityIssue
+from penshot.neopen.agent.continuity_guardian.continuity_repair_generator import ContinuityRepairGenerator
 from penshot.neopen.agent.human_decision.human_decision_intervention import HumanIntervention
-from penshot.neopen.agent.quality_auditor.quality_auditor_models import AuditStatus
+from penshot.neopen.agent.quality_auditor.quality_auditor_models import AuditStatus, QualityAuditReport, SeverityLevel, QualityRepairParams
 from penshot.neopen.agent.workflow.workflow_models import AgentStage, PipelineNode
 from penshot.neopen.agent.workflow.workflow_states import WorkflowState
 from penshot.neopen.tools.result_storage_tool import create_result_storage
-from penshot.logger import error, debug, info, warning
 from penshot.utils.log_utils import print_log_exception
 
 
@@ -46,23 +49,74 @@ class WorkflowNodes:
         self.human_intervention = HumanIntervention(timeout_seconds=180)
         self.storage = create_result_storage()
 
+        # 连续性守护
+        self.generator = ContinuityRepairGenerator()
+        self.checker = ContinuityGuardianChecker()
+
     def parse_script_node(self, state: WorkflowState) -> WorkflowState:
         """
-        剧本解析节点
-        功能：将原始剧本解析为结构化元素序列
-        输入：raw_script
-        输出：parsed_script (包含顺序保持的元素列表)
+        剧本解析节点（增强版）
+        功能：将原始剧本解析为结构化元素序列，支持修复参数
+
+        新增功能：
+        - 支持修复参数传递（来自质量审查的修复建议）
+        - 记录解析过程中的问题
+        - 更新修复历史
         """
         try:
-            parsed_script = self.script_parser.parser_process(state.raw_script, state.repair_params)
-            debug(f"剧本解析完成，场景数: {len(parsed_script.scenes)}")
+            # 检查是否有修复参数需要传递
+            repair_params = state.repair_params.get(PipelineNode.PARSE_SCRIPT, None)
+
+            if repair_params:
+                self.script_parser.apply_repair_params(repair_params)
+                info(f"剧本解析节点收到修复参数，问题类型: {repair_params.issue_types}")
+                if repair_params.suggestions:
+                    info(f"修复建议: {repair_params.suggestions}")
+                # 记录修复来源
+                state.repair_history.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "node": PipelineNode.PARSE_SCRIPT,
+                    "repair_params": repair_params
+                })
+            else:
+                debug("剧本解析节点执行（无修复参数）")
+
+            # 执行剧本解析（传入修复参数）
+            parsed_script = self.script_parser.process(
+                state.raw_script,
+                repair_params=repair_params
+            )
+
+            debug(f"剧本解析完成，场景数: {len(parsed_script.scenes)}，角色数: {len(parsed_script.characters)}")
+            debug(f"完整性评分: {parsed_script.stats.get('completeness_score', 0)}")
 
             # 保存剧本解析结果
             self.storage.save_obj_result(state.task_id, parsed_script, "script_parser_result.json")
 
+            # 如果有修复历史，也保存到文件
+            if hasattr(state, 'repair_history') and state.repair_history:
+                self.storage.save_obj_result(state.task_id, state.repair_history, "script_parser_repair_history.json")
+
+            # 检测解析过程中发现的问题（用于后续质量审查）
+            parse_issues = self.script_parser.detect_issues(parsed_script, state.raw_script)
+            if parse_issues:
+                debug(f"解析过程发现问题: {len(parse_issues)}个")
+                # state.node_issues.setdefault(PipelineNode.PARSE_SCRIPT, []).extend(parse_issues)
+                state.parse_issues.extend(parse_issues)
+
             state.parsed_script = parsed_script
             state.current_stage = AgentStage.PARSER
             state.current_node = PipelineNode.PARSE_SCRIPT
+
+            # 更新解析统计
+            state.parse_stats.update({
+                "parse_attempts": parsed_script.stats.get("parse_attempts", 1),
+                "completeness_score": parsed_script.stats.get("completeness_score", 0),
+                "parsing_confidence": parsed_script.stats.get("parsing_confidence", {}),
+                "repair_applied": repair_params is not None,
+            })
+
+            info(f"剧本解析节点完成，置信度: {state.parse_stats.get('parsing_confidence', {}).get('overall', 0)}")
 
         except Exception as e:
             print_log_exception()
@@ -70,14 +124,11 @@ class WorkflowNodes:
             error_msg = f"剧本解析失败: {str(e)}"
             error(error_msg)
             state.error = error_msg
+            # 添加到错误信息
+            state.error_messages.append(error_msg)
 
             # 记录堆栈跟踪（开发环境）
             debug(f"解析异常堆栈: {traceback.format_exc()}")
-
-            # 添加到错误信息
-            if not hasattr(state, 'error_messages'):
-                state.error_messages = []
-            state.error_messages.append(error_msg)
 
             # 设置错误状态
             state.current_node = PipelineNode.PARSE_SCRIPT
@@ -88,21 +139,74 @@ class WorkflowNodes:
 
     def split_shots_node(self, state: WorkflowState) -> WorkflowState:
         """
-        镜头拆分节点
-        功能：将结构化剧本拆分为视觉镜头
-        输入：parsed_script
-        输出：shots (带时间戳的镜头序列)
+        镜头拆分节点（增强版）
+        功能：将结构化剧本拆分为视觉镜头，支持修复参数
+
+        新增功能：
+        - 支持修复参数传递（来自质量审查的修复建议）
+        - 记录分镜过程中的问题
+        - 更新修复历史
         """
         try:
-            shot_sequence = self.shot_segmenter.shot_process(state.parsed_script)
-            debug(f"分镜解析完成，镜头数: {len(shot_sequence.shots)}")
+            # 检查是否有修复参数需要传递
+            repair_params = state.repair_params.get(PipelineNode.SEGMENT_SHOT, None)
 
-            # 保存剧本解析结果
+            if repair_params:
+                self.shot_segmenter.apply_repair_params(repair_params)
+                info(f"分镜生成节点收到修复参数，问题类型: {repair_params.issue_types}")
+                if repair_params.suggestions:
+                    info(f"修复建议: {repair_params.suggestions}")
+                # 记录修复来源
+                state.repair_history.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "node": PipelineNode.SEGMENT_SHOT,
+                    "repair_params": repair_params
+                })
+            else:
+                debug("分镜生成节点执行（无修复参数）")
+
+            # 执行分镜生成（传入修复参数）
+            shot_sequence = self.shot_segmenter.process(
+                state.parsed_script,
+                repair_params=repair_params
+            )
+
+            if not shot_sequence:
+                raise Exception("分镜生成返回空结果")
+
+            debug(f"分镜解析完成，镜头数: {len(shot_sequence.shots)}")
+            debug(f"总时长: {sum(s.duration for s in shot_sequence.shots):.1f}秒")
+
+            # 统计镜头类型分布
+            shot_types = {}
+            for shot in shot_sequence.shots:
+                shot_types[shot.shot_type.value] = shot_types.get(shot.shot_type.value, 0) + 1
+            debug(f"镜头类型分布: {shot_types}")
+
+            # 保存分镜结果
             self.storage.save_obj_result(state.task_id, shot_sequence, "shot_segmenter_result.json")
+
+            # 检测分镜过程中发现的问题（用于后续质量审查）
+            segment_issues = self.shot_segmenter.detect_issues(shot_sequence, state.parsed_script)
+            if segment_issues:
+                debug(f"分镜过程发现问题: {len(segment_issues)}个")
+                # state.node_issues.setdefault(PipelineNode.SEGMENT_SHOT, []).extend(segment_issues)
+                state.segment_issues.extend(segment_issues)
 
             state.shot_sequence = shot_sequence
             state.current_stage = AgentStage.SEGMENTER
             state.current_node = PipelineNode.SEGMENT_SHOT
+
+            # 更新分镜统计
+            state.segment_stats.update({
+                "shot_count": len(shot_sequence.shots),
+                "total_duration": sum(s.duration for s in shot_sequence.shots),
+                "avg_duration": sum(s.duration for s in shot_sequence.shots) / len(shot_sequence.shots) if shot_sequence.shots else 0,
+                "shot_types": shot_types,
+                "repair_applied": repair_params is not None,
+            })
+
+            info(f"分镜生成节点完成，镜头数: {state.segment_stats.get('shot_count')}")
 
         except Exception as e:
             print_log_exception()
@@ -110,10 +214,7 @@ class WorkflowNodes:
             error_msg = f"分镜解析节点异常: {str(e)}"
             error(error_msg)
             state.error = error_msg
-
             # 添加到错误信息
-            if not hasattr(state, 'error_messages'):
-                state.error_messages = []
             state.error_messages.append(error_msg)
 
             # 设置错误状态
@@ -125,25 +226,84 @@ class WorkflowNodes:
 
     def fragment_for_ai_node(self, state: WorkflowState) -> WorkflowState:
         """
-        AI分段节点
-        功能：将镜头按5秒限制切分为AI可处理的片段
-        输入：shots
-        输出：fragments (符合5秒限制的片段序列)
-        """
-        # 1. 检查镜头时长，>5秒的进行切分
-        # 2. <2秒的考虑合并
-        # 3. 在动作边界自然切分
-        # 4. 生成片段级连续性锚点
-        try:
-            fragment_sequence = self.video_splitter.video_process(state.shot_sequence, state.parsed_script)
-            debug(f"视频分段完成，视频片段数: {len(fragment_sequence.fragments)}")
+        AI分段节点（增强版）
+        功能：将镜头按限制切分为AI可处理的片段，支持修复参数
 
-            # 保存剧本解析结果
+        新增功能：
+        - 支持修复参数传递（来自质量审查的修复建议）
+        - 记录分割过程中的问题
+        - 更新修复历史
+        """
+        try:
+            # 检查是否有修复参数需要传递
+            repair_params = state.repair_params.get(PipelineNode.SPLIT_VIDEO, None)
+
+            if repair_params:
+                self.video_splitter.apply_repair_params(repair_params)
+                info(f"视频分割节点收到修复参数，问题类型: {repair_params.issue_types}")
+                if repair_params.suggestions:
+                    info(f"修复建议: {repair_params.suggestions}")
+                # 记录修复来源
+                state.repair_history.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "node": PipelineNode.SPLIT_VIDEO.value,
+                    "repair_params": {
+                        "issue_types": repair_params.issue_types,
+                        "suggestions": repair_params.suggestions
+                    }
+                })
+            else:
+                debug("视频分割节点执行（无修复参数）")
+
+            # 执行视频分割（传入修复参数）
+            fragment_sequence = self.video_splitter.process(
+                state.shot_sequence,
+                parsed_script=state.parsed_script,
+                repair_params=repair_params
+            )
+
+            if not fragment_sequence:
+                raise Exception("视频分割返回空结果")
+
+            debug(f"视频分段完成，视频片段数: {len(fragment_sequence.fragments)}")
+            total_duration = sum(f.duration for f in fragment_sequence.fragments)
+            debug(f"总时长: {total_duration:.1f}秒")
+
+            # 统计片段时长分布
+            durations = [f.duration for f in fragment_sequence.fragments]
+            debug(f"时长分布: 最小={min(durations):.1f}s, 最大={max(durations):.1f}s, 平均={sum(durations) / len(durations):.1f}s")
+
+            # 保存分割结果
             self.storage.save_obj_result(state.task_id, fragment_sequence, "video_splitter_result.json")
+
+            # 检测分割过程中发现的问题（用于后续质量审查）
+            split_issues = self.video_splitter.detect_issues(fragment_sequence, state.shot_sequence)
+            if split_issues:
+                debug(f"分割过程发现问题: {len(split_issues)}个")
+                state.split_issues.extend(split_issues)
 
             state.fragment_sequence = fragment_sequence
             state.current_stage = AgentStage.SPLITTER
             state.current_node = PipelineNode.SPLIT_VIDEO
+
+            # 更新分割统计
+            state.split_stats.update({
+                "fragment_count": len(fragment_sequence.fragments),
+                "total_duration": total_duration,
+                "avg_duration": total_duration / len(fragment_sequence.fragments) if fragment_sequence.fragments else 0,
+                "min_duration": min(durations) if durations else 0,
+                "max_duration": max(durations) if durations else 0,
+                "repair_applied": repair_params is not None,
+            })
+
+            # 如果有metadata，记录分割方法统计
+            metadata = getattr(fragment_sequence, 'metadata', {})
+            state.split_stats.update({
+                "ai_split_count": metadata.get('ai_split_count', 0),
+                "rule_split_count": metadata.get('rule_split_count', 0),
+            })
+
+            info(f"视频分割节点完成，片段数: {state.split_stats.get('fragment_count')}")
 
         except Exception as e:
             print_log_exception()
@@ -151,10 +311,7 @@ class WorkflowNodes:
             error_msg = f"视频分段异常: {str(e)}"
             error(error_msg)
             state.error = error_msg
-
             # 添加到错误信息
-            if not hasattr(state, 'error_messages'):
-                state.error_messages = []
             state.error_messages.append(error_msg)
 
             # 设置错误状态
@@ -166,26 +323,89 @@ class WorkflowNodes:
 
     def generate_prompts_node(self, state: WorkflowState) -> WorkflowState:
         """
-        Prompt生成节点
-        功能：为每个片段生成AI视频生成提示词
-        输入：fragments
-        输出：ai_instructions (包含Prompt和技术参数)
-        """
-        # 1. 选择AI视频模型模板
-        # 2. 使用LLM优化视觉描述
-        # 3. 嵌入连续性约束
-        # 4. 生成技术参数
+        Prompt生成节点（增强版）
+        功能：为每个片段生成AI视频生成提示词，支持修复参数
 
+        新增功能：
+        - 支持修复参数传递（来自质量审查的修复建议）
+        - 记录转换过程中的问题
+        - 更新修复历史
+        """
         try:
-            instructions = self.prompt_converter.prompt_process(state.fragment_sequence, state.parsed_script)
+            # 检查是否有修复参数需要传递
+            repair_params = state.repair_params.get(PipelineNode.CONVERT_PROMPT, None)
+
+            if repair_params:
+                self.prompt_converter.apply_repair_params(repair_params)
+                info(f"提示词转换节点收到修复参数，问题类型: {repair_params.issue_types}")
+                if repair_params.suggestions:
+                    info(f"修复建议: {repair_params.suggestions}")
+                # 记录修复来源
+                state.repair_history.append({
+                    "timestamp": datetime.now().isoformat(),
+                    "node": PipelineNode.CONVERT_PROMPT.value,
+                    "repair_params": {
+                        "issue_types": repair_params.issue_types,
+                        "suggestions": repair_params.suggestions
+                    }
+                })
+            else:
+                debug("提示词转换节点执行（无修复参数）")
+
+            # 执行提示词转换（传入修复参数）
+            instructions = self.prompt_converter.process(
+                state.fragment_sequence,
+                parsed_script=state.parsed_script,
+                repair_params=repair_params
+            )
+
+            if not instructions:
+                raise Exception("提示词转换返回空结果")
+
             debug(f"片段指令转换完成，指令片段数: {len(instructions.fragments)}")
 
-            # 保存剧本解析结果
+            # 统计提示词信息
+            prompt_lengths = [len(f.prompt) for f in instructions.fragments]
+            debug(f"提示词长度统计: 平均={sum(prompt_lengths) / len(prompt_lengths):.0f}, "
+                  f"最小={min(prompt_lengths)}, 最大={max(prompt_lengths)}")
+
+            # 统计音频提示词
+            audio_count = sum(1 for f in instructions.fragments if f.audio_prompt)
+            debug(f"音频提示词: {audio_count}/{len(instructions.fragments)}个片段")
+
+            # 统计风格分布
+            styles = {}
+            for f in instructions.fragments:
+                if f.style:
+                    styles[f.style] = styles.get(f.style, 0) + 1
+            if styles:
+                debug(f"风格分布: {styles}")
+
+            # 保存转换结果
             self.storage.save_obj_result(state.task_id, instructions, "prompt_converter_result.json")
+
+            # 检测转换过程中发现的问题（用于后续质量审查）
+            convert_issues = self.prompt_converter.detect_issues(instructions, state.fragment_sequence)
+            if convert_issues:
+                debug(f"转换过程发现问题: {len(convert_issues)}个")
+                state.convert_issues.extend(convert_issues)
 
             state.instructions = instructions
             state.current_stage = AgentStage.CONVERTER
             state.current_node = PipelineNode.CONVERT_PROMPT
+
+            # 更新转换统计
+            state.convert_stats.update({
+                "prompt_count": len(instructions.fragments),
+                "avg_prompt_length": sum(prompt_lengths) / len(prompt_lengths) if prompt_lengths else 0,
+                "min_prompt_length": min(prompt_lengths) if prompt_lengths else 0,
+                "max_prompt_length": max(prompt_lengths) if prompt_lengths else 0,
+                "audio_prompt_count": audio_count,
+                "style_distribution": styles,
+                "repair_applied": repair_params is not None,
+            })
+
+            info(f"提示词转换节点完成，指令数: {state.convert_stats.get('prompt_count')}")
 
         except Exception as e:
             print_log_exception()
@@ -193,10 +413,7 @@ class WorkflowNodes:
             error_msg = f"片段指令转换异常: {str(e)}"
             error(error_msg)
             state.error = error_msg
-
             # 添加到错误信息
-            if not hasattr(state, 'error_messages'):
-                state.error_messages = []
             state.error_messages.append(error_msg)
 
             # 设置错误状态
@@ -208,18 +425,30 @@ class WorkflowNodes:
 
     def quality_audit_node(self, state: WorkflowState) -> WorkflowState:
         """
-        质量审查节点
-        功能：检查输出质量，包括时长、连贯性等
-        输入：ai_instructions
-        输出：audit_report (审查报告和建议)
+        质量审查节点（增强版）
+        功能：合并基本规则审查和LLM深度审查，输出详细的审查报告
+
+        变更说明：
+        - 新增LLM深度审查能力
+        - 支持问题分类和来源追溯
+        - 生成增强的修复参数
+        - 自动调用各阶段修复器
         """
-        # 1. 硬规则检查：时长≤5.2秒
-        # 2. 连续性基础检查
-        # 3. 使用LLM评估视觉连贯性
-        # 4. 生成修正建议
+        # 问题汇总 - 收集所有阶段的问题
+        all_stage_issues = {
+            PipelineNode.PARSE_SCRIPT: getattr(state, 'parse_issues', []),
+            PipelineNode.SEGMENT_SHOT: getattr(state, 'segment_issues', []),
+            PipelineNode.SPLIT_VIDEO: getattr(state, 'split_issues', []),
+            PipelineNode.CONVERT_PROMPT: getattr(state, 'convert_issues', []),
+        }
+
+        # 记录各阶段问题数量
+        for node, issues in all_stage_issues.items():
+            if issues:
+                info(f"汇总阶段 {node.value} 的问题: {len(issues)}个")
+
         # 检查是否已经执行过
         if state.audit_executed and state.audit_timestamp:
-            # 如果10秒内重复执行，跳过
             last_time = datetime.fromisoformat(state.audit_timestamp)
             current_time = datetime.now()
             time_diff = (current_time - last_time).total_seconds()
@@ -228,67 +457,227 @@ class WorkflowNodes:
                 warning(f"质量审查在 {time_diff:.1f} 秒内重复执行，使用上次结果")
                 return state
 
-        info(f"进入质量审查节点，当前阶段={state.current_stage.value}")
-        info(f"审计前状态: 片段数={len(state.fragment_sequence.fragments) if state.fragment_sequence else 0}")
+        info(f"进入质量审查节点（增强版），当前阶段={state.current_stage.value}")
+        info(f"审查前状态: 片段数={len(state.fragment_sequence.fragments) if state.fragment_sequence else 0}")
 
         try:
-            result = self.quality_auditor.qa_process(state.instructions)
-            debug(f"质量审查完成，违规记录数: {len(result.violations)}")
+            # 执行质量审查（传入各阶段问题）
+            result = self.quality_auditor.qa_process(state.instructions, all_stage_issues)
+
+            debug(f"质量审查完成:")
+            debug(f"  - 审查状态: {result.status.value}")
+            debug(f"  - 质量分数: {result.score}%")
+            debug(f"  - 总问题数: {len(result.violations)}")
+            debug(f"  - 检查项数: {len(result.checks)}")
 
             # 更新执行标志
             state.audit_executed = True
+            state.repair_params = result.repair_params
             state.audit_timestamp = datetime.now().isoformat()
             state.last_audit_result = {
                 "status": result.status.value,
                 "score": result.score,
-                "stats": result.stats
+                "stats": result.stats,
+                "violations_count": len(result.violations),
+                "has_llm_audit": self.quality_auditor.llm_auditor is not None,
             }
 
-            info(f"审计结果: 状态={result.status.value}, 分数={result.score}%, 通过检查={result.stats}")
+            info(f"审计结果汇总: 状态={result.status.value}, 分数={result.score}%, 问题统计={result.stats}")
 
-            # 记录错误来源
-            if result.status == AuditStatus.FAILED:
+            # 记录错误来源（根据审查结果）
+            if result.status in [AuditStatus.FAILED, AuditStatus.CRITICAL_ISSUES]:
                 state.error_source = PipelineNode.AUDIT_QUALITY
+                critical_issues = [
+                    v for v in result.violations
+                    if v.severity in [SeverityLevel.CRITICAL, SeverityLevel.ERROR]
+                ]
+                if critical_issues:
+                    state.error = f"质量审查发现严重问题: {len(critical_issues)}个"
+                    state.error_messages.extend([
+                        f"[{v.severity.value}] {v.description}"
+                        for v in critical_issues[:3]
+                    ])
 
-            # 保存剧本解析结果
+            # ========== 关键修复：调用各阶段修复器 ==========
+            if result.repair_params:
+                repair_count = 0
+                for node, params in result.repair_params.items():
+                    if not params.fix_needed:
+                        continue
+
+                    info(f"开始修复阶段 {node.value}，问题类型: {params.issue_types}")
+
+                    try:
+                        if node == PipelineNode.PARSE_SCRIPT:
+                            # 修复剧本解析
+                            state.parsed_script = self.script_parser.repair_result(
+                                state.parsed_script,
+                                params.issues if hasattr(params, 'issues') else [],
+                                state.raw_script
+                            )
+                            repair_count += 1
+                            info(f"剧本解析修复完成，执行了{len(params.issues) if hasattr(params, 'issues') else 0}个修复")
+
+                        elif node == PipelineNode.SEGMENT_SHOT:
+                            # 修复分镜生成
+                            state.shot_sequence = self.shot_segmenter.repair_result(
+                                state.shot_sequence,
+                                params.issues if hasattr(params, 'issues') else [],
+                                state.parsed_script
+                            )
+                            repair_count += 1
+                            info(f"分镜生成修复完成")
+
+                        elif node == PipelineNode.SPLIT_VIDEO:
+                            # 修复视频分割
+                            state.fragment_sequence = self.video_splitter.repair_result(
+                                state.fragment_sequence,
+                                params.issues if hasattr(params, 'issues') else [],
+                                state.shot_sequence
+                            )
+                            repair_count += 1
+                            info(f"视频分割修复完成")
+
+                        elif node == PipelineNode.CONVERT_PROMPT:
+                            # 修复提示词转换
+                            state.instructions = self.prompt_converter.repair_result(
+                                state.instructions,
+                                params.issues if hasattr(params, 'issues') else [],
+                                state.fragment_sequence
+                            )
+                            repair_count += 1
+                            info(f"提示词转换修复完成")
+
+                    except Exception as e:
+                        error(f"修复阶段 {node.value} 时出错: {str(e)}")
+                        print_log_exception()
+                        state.error_messages.append(f"修复{node.value}失败: {str(e)}")
+
+                if repair_count > 0:
+                    info(f"质量审查后自动修复完成，共修复{repair_count}个阶段")
+                    # 清空已修复的问题
+                    for node in all_stage_issues.keys():
+                        if node == PipelineNode.PARSE_SCRIPT:
+                            state.parse_issues = []
+                        elif node == PipelineNode.SEGMENT_SHOT:
+                            state.segment_issues = []
+                        elif node == PipelineNode.SPLIT_VIDEO:
+                            state.split_issues = []
+                        elif node == PipelineNode.CONVERT_PROMPT:
+                            state.convert_issues = []
+
+            # 保存审查结果
             self.storage.save_obj_result(state.task_id, result, "quality_auditor_result.json")
+
+            if hasattr(result, 'detailed_analysis'):
+                self.storage.save_obj_result(state.task_id, result.detailed_analysis, "quality_auditor_detailed_analysis.json")
 
             state.audit_report = result
             state.current_stage = AgentStage.AUDITOR
             state.current_node = PipelineNode.AUDIT_QUALITY
 
+            # 根据审查状态决定后续流程
+            if result.status == AuditStatus.PASSED:
+                info("质量审查通过，继续执行后续流程")
+            elif result.status == AuditStatus.MINOR_ISSUES:
+                info("质量审查发现轻微问题，可以继续但建议关注")
+            elif result.status in [AuditStatus.MODERATE_ISSUES, AuditStatus.MAJOR_ISSUES]:
+                warning(f"质量审查发现中等问题，需要修复")
+            elif result.status in [AuditStatus.CRITICAL_ISSUES, AuditStatus.FAILED]:
+                error(f"质量审查发现严重问题，需要人工干预")
+                state.needs_human_review = True
+                state.error_source = PipelineNode.AUDIT_QUALITY
+
         except Exception as e:
             print_log_exception()
-            # 捕获异常，记录错误
             error_msg = f"质量审查异常: {str(e)}"
             error(error_msg)
             state.error = error_msg
-
-            # 添加到错误信息
-            if not hasattr(state, 'error_messages'):
-                state.error_messages = []
             state.error_messages.append(error_msg)
 
-            # 设置错误状态
             state.current_node = PipelineNode.AUDIT_QUALITY
             state.current_stage = AgentStage.ERROR_HANDLER
+            state.error_source = PipelineNode.AUDIT_QUALITY
+
+            state.audit_report = self._create_fallback_audit_report(state)
 
         return state
 
     def continuity_check_node(self, state: WorkflowState) -> WorkflowState:
         """
-        连续性检查节点
-        功能：检查跨片段的视觉连续性
-        输入：ai_instructions, fragments
-        输出：continuity_issues (连续性问题列表)
+        连续性守护节点
+
+        职责：
+        1. 检查所有阶段的连续性（视觉、角色、场景、动作）
+        2. 识别连续性问题的来源阶段
+        3. 生成修复方案并触发重试
         """
-        # TODO: 实现连续性检查逻辑
-        # 1. 跟踪角色服装、道具状态
-        # 2. 检查场景一致性
-        # 3. 验证位置和动作连续性
-        # 4. 标记不连续点
-        state.continuity_issues = []
-        state.current_stage = AgentStage.CONTINUITY
+        info("进入连续性守护节点")
+
+        try:
+            # 1. 收集所有阶段的输出
+            continuity_context = {
+                "parsed_script": state.parsed_script,
+                "shot_sequence": state.shot_sequence,
+                "fragment_sequence": state.fragment_sequence,
+                "instructions": state.instructions,
+            }
+
+            # 2. 执行连续性检查（返回 ContinuityCheckResult）
+            check_result = self._check_continuity(continuity_context)
+
+            # 3. 如果没有问题，通过检查
+            if check_result.passed and check_result.total_issues == 0:
+                info("连续性检查通过")
+                state.continuity_passed = True
+                state.current_stage = AgentStage.CONTINUITY
+                return state
+
+            # 4. 获取问题列表
+            continuity_issues = check_result.issues
+
+            # 5. 分析问题来源
+            issues_by_stage = self._analyze_continuity_issues(continuity_issues, continuity_context)
+
+            warning(f"发现 {len(continuity_issues)} 个连续性问题，分布在: {[s.name for s in issues_by_stage.keys()]}")
+
+            # 6. 检查重试限制
+            if self._can_retry_continuity(state):
+                # 7. 生成修复参数并触发重试
+                for stage, issues in issues_by_stage.items():
+                    repair_params = self._create_continuity_repair_params(issues, stage)
+                    state.repair_params[stage] = repair_params
+                    info(f"为阶段 {stage.value} 生成连续性修复参数，共{len(issues)}个问题")
+
+                # 标记需要重试
+                state.continuity_retry_count = getattr(state, 'continuity_retry_count', 0) + 1
+                state.needs_continuity_repair = True
+                state.error_source = PipelineNode.CONTINUITY_CHECK
+
+                # 返回到需要修复的阶段
+                return self._route_to_fix_stage(state, issues_by_stage)
+            else:
+                # 重试次数超限，需要人工干预
+                error(f"连续性修复重试次数超限: {state.continuity_retry_count}")
+                state.needs_human_review = True
+                state.error_source = PipelineNode.CONTINUITY_GUARDIAN
+
+            state.continuity_issues = continuity_issues
+            state.current_stage = AgentStage.CONTINUITY
+
+        except Exception as e:
+            error(f"连续性守护节点异常: {e}")
+            print_log_exception()
+            error_msg = f"连续性检查失败: {str(e)}"
+            error(error_msg)
+            state.error = error_msg
+            state.error_messages.append(error_msg)
+
+            state.current_node = PipelineNode.CONTINUITY_CHECK
+            state.current_stage = AgentStage.ERROR_HANDLER
+            state.error_source = PipelineNode.CONTINUITY_CHECK
+
+            state.audit_report = self._create_fallback_audit_report(state)
 
         return state
 
@@ -311,8 +700,9 @@ class WorkflowNodes:
         error_time = time.time()
 
         # 确保有错误信息集合
-        if not hasattr(graph_state, 'error_messages') or not graph_state.error_messages:
+        if not graph_state.error_messages:
             graph_state.error_messages = ["未知错误：进入错误处理节点但没有错误信息"]
+            warning("错误处理节点没有接收到错误信息")
 
         # 获取最近的重要错误
         recent_errors = graph_state.error_messages[-5:] if len(graph_state.error_messages) > 5 else graph_state.error_messages
@@ -337,8 +727,6 @@ class WorkflowNodes:
         }
 
         # 保存错误处理历史
-        if not hasattr(graph_state, 'error_handling_history'):
-            graph_state.error_handling_history = []
         graph_state.error_handling_history.append(error_details)
 
         # 清理过长的错误历史（保留最近10次）
@@ -462,9 +850,6 @@ class WorkflowNodes:
                 warning(f"节点 '{current_node}' 循环次数接近限制: {current_node_loops}/{node_max_loops}")
 
         # 4. 记录节点进入详情（可选，便于调试）
-        if not hasattr(graph_state, 'node_loop_details'):
-            graph_state.node_loop_details = []
-
         graph_state.node_loop_details.append({
             "node": current_node,
             "node_loop": current_node_loops,
@@ -478,6 +863,22 @@ class WorkflowNodes:
         return graph_state
 
     # =============================================== 私有方法 ===============================================
+
+    def _create_fallback_audit_report(self, state: WorkflowState) -> QualityAuditReport:
+        """创建回退报告（当审查异常时）"""
+        return QualityAuditReport(
+            project_info={
+                "title": getattr(state.instructions, 'project_info', {}).get("title", "未知项目"),
+                "fragment_count": len(state.instructions.fragments) if state.instructions else 0,
+                "total_duration": getattr(state.instructions, 'project_info', {}).get("total_duration", 0.0)
+            },
+            status=AuditStatus.FAILED,
+            checks=[],
+            violations=[],
+            stats={"error": "audit_exception", "message": state.error},
+            score=0.0
+        )
+
     def _analyze_errors(self, error_list: List[str]) -> Dict[str, Any]:
         """分析错误列表，分类错误类型
 
@@ -711,3 +1112,139 @@ class WorkflowNodes:
             # 未知行动，默认重试
             warning(f"未知恢复行动: {action}，使用默认重试")
             state.error_messages = state.error_messages[-3:]
+
+    #     ======================== 连续性节点 ========================
+    def _check_continuity(self, context: Dict[str, Any]) -> ContinuityCheckResult:
+        """
+        执行连续性检查
+
+        Args:
+            context: 包含各阶段输出的上下文
+                - parsed_script: 解析后的剧本
+                - shot_sequence: 镜头序列
+                - fragment_sequence: 片段序列
+                - instructions: AI指令
+
+        Returns:
+            ContinuityCheckResult: 连续性检查结果对象
+        """
+        info("开始执行连续性检查...")
+
+        # 执行连续性检查
+        result = self.checker.check_all_continuity(context)
+
+        # 记录检查结果摘要
+        summary = result.get_summary()
+        info(f"连续性检查完成: 通过={summary['passed']}, "
+             f"问题总数={summary['total_issues']}, "
+             f"严重={summary['critical']}, "
+             f"主要={summary['major']}, "
+             f"中度={summary['moderate']}, "
+             f"轻微={summary['minor']}")
+
+        # 记录每个问题的详细信息
+        for issue in result.issues:
+            warning(f"连续性问题 [{issue.severity.value}]: {issue.type.value} - {issue.description}")
+            if issue.suggestion:
+                debug(f"  修复建议: {issue.suggestion}")
+
+        return result
+
+    def _analyze_continuity_issues(self, issues: List[ContinuityIssue],
+                                   context: Dict) -> Dict[PipelineNode, List[ContinuityIssue]]:
+        """
+        分析连续性问题的来源阶段
+
+        Args:
+            issues: ContinuityIssue 列表
+            context: 上下文信息
+
+        Returns:
+            按阶段分组的问题字典
+        """
+        issues_by_stage = {
+            PipelineNode.PARSE_SCRIPT: [],
+            PipelineNode.SEGMENT_SHOT: [],
+            PipelineNode.SPLIT_VIDEO: [],
+            PipelineNode.CONVERT_PROMPT: [],
+        }
+
+        for issue in issues:
+            # 使用 issue 自带的 source_stage
+            if issue.source_stage:
+                # source_stage 可能是字符串，需要转换为 PipelineNode
+                try:
+                    stage = PipelineNode(issue.source_stage)
+                    if stage in issues_by_stage:
+                        issues_by_stage[stage].append(issue)
+                        continue
+                except ValueError:
+                    pass
+
+            # 根据问题类型推断来源
+            source = self._infer_issue_source(issue.type)
+            issues_by_stage[source].append(issue)
+
+        # 返回非空的阶段
+        return {k: v for k, v in issues_by_stage.items() if v}
+
+    def _infer_issue_source(self, issue_type: ContinuityIssueType) -> PipelineNode:
+        """根据问题类型推断来源阶段"""
+        source_mapping = {
+            ContinuityIssueType.CHARACTER_MISSING: PipelineNode.SEGMENT_SHOT,
+            ContinuityIssueType.CHARACTER_APPEARANCE_CHANGE: PipelineNode.CONVERT_PROMPT,
+            ContinuityIssueType.SCENE_JUMP: PipelineNode.SEGMENT_SHOT,
+            ContinuityIssueType.SCENE_TOO_FREQUENT: PipelineNode.SEGMENT_SHOT,
+            ContinuityIssueType.ACTION_BREAK: PipelineNode.SEGMENT_SHOT,
+            ContinuityIssueType.STYLE_INCONSISTENT: PipelineNode.CONVERT_PROMPT,
+            ContinuityIssueType.STYLE_SUDDEN_CHANGE: PipelineNode.CONVERT_PROMPT,
+            ContinuityIssueType.TIME_GAP: PipelineNode.SPLIT_VIDEO,
+            ContinuityIssueType.TIME_OVERLAP: PipelineNode.SPLIT_VIDEO,
+            ContinuityIssueType.PROP_CHANGE: PipelineNode.PARSE_SCRIPT,
+            ContinuityIssueType.PROP_DISAPPEAR: PipelineNode.PARSE_SCRIPT,
+            ContinuityIssueType.PROP_APPEAR: PipelineNode.PARSE_SCRIPT,
+            ContinuityIssueType.LIGHTING_CHANGE: PipelineNode.CONVERT_PROMPT,
+            ContinuityIssueType.COLOR_INCONSISTENT: PipelineNode.CONVERT_PROMPT,
+        }
+        return source_mapping.get(issue_type, PipelineNode.CONVERT_PROMPT)
+
+    def _create_continuity_repair_params(self, issues: List, stage: PipelineNode) -> QualityRepairParams:
+        """创建连续性修复参数"""
+
+        return self.generator.generate_repair_params(issues, stage)
+
+    def _can_retry_continuity(self, state: WorkflowState) -> bool:
+        """检查连续性修复是否可重试"""
+        max_retries = getattr(state, 'max_continuity_retries', 3)
+        current_retries = getattr(state, 'continuity_retry_count', 0)
+        return current_retries < max_retries
+
+    def _route_to_fix_stage(self, state: WorkflowState, issues_by_stage: Dict) -> WorkflowState:
+        """路由到需要修复的阶段"""
+        # 选择最早的问题阶段进行修复
+        stage_priority = [
+            PipelineNode.PARSE_SCRIPT,
+            PipelineNode.SEGMENT_SHOT,
+            PipelineNode.SPLIT_VIDEO,
+            PipelineNode.CONVERT_PROMPT,
+        ]
+
+        for stage in stage_priority:
+            if stage in issues_by_stage:
+                info(f"路由到阶段 {stage.value} 进行连续性修复")
+                state.current_node = stage
+
+                # 设置对应的 AgentStage
+                stage_mapping = {
+                    PipelineNode.PARSE_SCRIPT: AgentStage.PARSER,
+                    PipelineNode.SEGMENT_SHOT: AgentStage.SEGMENTER,
+                    PipelineNode.SPLIT_VIDEO: AgentStage.SPLITTER,
+                    PipelineNode.CONVERT_PROMPT: AgentStage.CONVERTER,
+                }
+                state.current_stage = stage_mapping.get(stage, AgentStage.CONVERTER)
+                return state
+
+        # 默认回到提示词生成
+        state.current_node = PipelineNode.CONVERT_PROMPT
+        state.current_stage = AgentStage.CONVERTER
+        return state

@@ -6,16 +6,12 @@ build-backend = "setuptools.build_meta"
 version = {attr = "penshot.__version__"}
 
 [project]
-name = "neoshot"
-#neovoice     # 未来：语音合成
-#neovision    # 未来：图像处理
-#neostudio    # 未来：创意工作室
-version = "0.2.0"
+name = "penshot"
+version = "0.2.1"
 description = "长剧本分镜智能体：支持将任意自然语言剧本，转换为结构化分镜数据，支持视频生成与编辑。"
-#description="Peng's intelligent shot breakdown and video generation pipeline"
 readme = "README.md"
 authors = [
-    {name = "Haeng", email = "helpenx@gmail.com"}
+    {name = "HiPeng", email = "helpenx+shot@gmail.com"}
 ]
 license = {text = "MIT"}
 requires-python = ">=3.8"
@@ -66,6 +62,7 @@ dependencies = [
     # 数据处理
     "numpy>=1.24.0",
     "jieba>=0.42.1",
+    "redis",
 
     # 工具库
 #    "requests>=2.31.0",
@@ -149,6 +146,7 @@ penshot = [
     "config/*.yaml",
     "config/**/*.yaml",
     "neopen/prompts/**/*.yaml",
+    "neopen/config/**/*.yaml",
     ".env.example"
 ]
 

@@ -257,6 +257,7 @@ class MultiAgentPipeline:
         workflow.add_conditional_edges(
             PipelineNode.ERROR_HANDLER,  # 当前节点：错误处理
             lambda graph_state: self.decision_funcs.decide_next_after_error(graph_state),  # 决策函数：处理后判断
+            # 这里不需要映射字典，因为 decide_next_after_error 直接返回节点名称
             # {
             #     # 错误可恢复（如验证错误），根据错误来源决定重试节点
             #     PipelineState.VALID: self.decision_funcs.decide_retry_node_based_on_error_source,  # 根据错误来源决定
@@ -506,7 +507,7 @@ class MultiAgentPipeline:
             else:
                 warning("工作流输出修复验证有问题，但继续返回结果")
 
-            return final_result
+            return self.output_fixer.parse_result_to_dict(final_result)
 
         except Exception as e:
             error(f"增强工作流执行失败: {str(e)}")

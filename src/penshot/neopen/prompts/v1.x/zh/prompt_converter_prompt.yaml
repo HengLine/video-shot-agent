@@ -3,6 +3,7 @@ changelog: |
   - 2026-03-18: 规范化提示词、增加视觉风格参数、完整示例
   - 2026-03-15: 优化情感枚举
   - 2026-03-10: 修复音频参数
+  - 2026-03-28: 添加修复参数，通过修复建议和问题修复问题
 
 prompt_converter_system:
   name: "prompt_converter_system"
@@ -83,6 +84,8 @@ prompt_converter_user:
     
     【场景上下文】
       {scene_info}
+    
+    {repair_hint}
     
     【本片段原始元素】
       {element_info}

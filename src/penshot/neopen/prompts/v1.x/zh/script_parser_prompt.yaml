@@ -2,6 +2,7 @@
 version: "1.3"
 changelog: |
   - 2026-03-18: 规范化提示词，细节性示例优化
+  - 2026-03-27: 添加修复参数，通过修复建议和问题修复问题
 
 
 script_parser_system:
@@ -287,15 +288,13 @@ script_parser_user:
   description: "用户输入提示词模板，适用于剧本解析任务"
   template: |
     请解析以下剧本内容，返回完整的JSON解析结果。
-    
-    【问题类型】
-    {issue_types}
-    
-    【修复建议】
-    {suggestions}
 
+    {repair_hint}
+    
+    
     【剧本内容】
     {script_text}
+    
     
     【音频解析规则】
       1. 环境音识别：

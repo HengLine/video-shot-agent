@@ -82,10 +82,9 @@ class ProcessResult(BaseModel):
     """处理结果响应模型（用于回调和最终响应）"""
     task_id: str
     status: TaskStatus = Field(..., description="success | failed")
-    success: bool
+    success: bool = False
     data: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
-    error: Optional[str] = None
     processing_time_ms: Optional[int] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: Optional[datetime] = None
@@ -381,7 +380,6 @@ async def batch_process_scripts_sync(
                 status=TaskStatus.SUCCESS if r.success else TaskStatus.FAILED,
                 data=r.data,
                 message=r.error if not r.success else None,
-                error=r.error if not r.success else None,
                 processing_time_ms=r.processing_time_ms,
                 created_at=r.created_at,
                 completed_at=r.completed_at
@@ -551,19 +549,20 @@ def get_task_result(task_id: str):
         )
 
     # 任务处理中
+    message = result.error if not result.success else None
     if result.status in [TaskStatus.PENDING, TaskStatus.PROCESSING]:
-        raise HTTPException(
-            status_code=status.HTTP_202_ACCEPTED,
-            detail=f"任务仍在处理中，当前状态: {result.status}"
-        )
+        # raise HTTPException(
+        #     status_code=status.HTTP_202_ACCEPTED,
+        #     detail=f"任务仍在处理中，当前状态: {result.status}"
+        # )
+        message = f"任务仍在处理中，当前状态: {result.status}"
 
     return ProcessResult(
         task_id=result.task_id,
-        success=result.success,
-        status=TaskStatus.SUCCESS if result.success else TaskStatus.FAILED,
+        success=True,
+        status=result.status,
         data=result.data,
-        message=result.error if not result.success else None,
-        error=result.error if not result.success else None,
+        message=message,
         processing_time_ms=result.processing_time_ms,
         created_at=result.created_at,
         completed_at=result.completed_at

@@ -16,6 +16,7 @@ from penshot.neopen.shot_config import ShotConfig
 from penshot.neopen.shot_language import Language, set_language
 from penshot.neopen.task.task_factory import create_task_factory, TaskFactory, TaskResponse, TaskPriority
 from penshot.neopen.task.task_models import TaskStatus
+from penshot.utils.log_utils import print_log_exception
 
 
 @dataclass
@@ -71,7 +72,8 @@ class PenshotFunction:
             max_concurrent=max_concurrent,
             queue_size=queue_size,
             default_config=config,
-            default_language=language
+            default_language=language,
+            task_ttl_seconds=30 * 86400
         )
 
         # 保持兼容性
@@ -185,12 +187,12 @@ class PenshotFunction:
 
     def _on_task_complete(self, task_id: str, task_response: TaskResponse):
         """任务完成回调"""
-        # 转换为 PenshotResult
+        # task_response 已经是 TaskResponse，直接使用
         result = PenshotResult(
             task_id=task_response.task_id,
             success=task_response.success,
             status=task_response.status,
-            data=task_response.data,
+            data=task_response.data,  # 直接是业务数据
             error=task_response.error,
             processing_time_ms=task_response.processing_time_ms
         )
@@ -201,7 +203,8 @@ class PenshotFunction:
             try:
                 callback(result)
             except Exception as e:
-                error(f"回调执行失败: {task_id}, 错误: {str(e)}")
+                error(f"回调失败: {task_id}, 错误: {str(e)}")
+                print_log_exception()
             finally:
                 del self._callbacks[task_id]
 
@@ -253,36 +256,38 @@ class PenshotFunction:
             processing_time_ms=result.processing_time_ms
         )
 
+
     def wait_for_result(
             self,
             task_id: str,
-            timeout: float = 300.0,
-            poll_interval: float = 0.5
-    ) -> PenshotResult:
+            timeout: float = 300.0
+    ) -> Optional[PenshotResult]:
         """
         同步等待任务完成
 
         Args:
             task_id: 任务ID
             timeout: 超时时间（秒）
-            poll_interval: 轮询间隔（秒）
 
         Returns:
             PenshotResult: 任务结果
         """
-        result = self.task_factory.wait_for_result(
+        task_response = self.task_factory.wait_for_result(
             task_id=task_id,
             timeout=timeout,
-            poll_interval=poll_interval
         )
 
+        if not task_response:
+            return None
+
+        # task_response 已经是 TaskResponse，直接使用
         return PenshotResult(
-            task_id=result.task_id,
-            success=result.success,
-            status=result.status,
-            data=result.data,
-            error=result.error,
-            processing_time_ms=result.processing_time_ms
+            task_id=task_response.task_id,
+            success=task_response.success,
+            status=task_response.status,
+            data=task_response.data,
+            error=task_response.error,
+            processing_time_ms=task_response.processing_time_ms
         )
 
     async def wait_for_result_async(
@@ -340,17 +345,7 @@ class PenshotFunction:
     ) -> List[PenshotResult]:
         """
         批量处理多个剧本（同步，等待全部完成）
-
-        Args:
-            scripts: 剧本列表
-            language: 输出语言
-            wait_timeout: 单个任务超时时间
-            priority: 任务优先级
-
-        Returns:
-            List[PenshotResult]: 结果列表
         """
-        # 使用 TaskFactory 的批量处理方法
         results = self.task_factory.batch(
             scripts=scripts,
             config=self.config,
@@ -359,18 +354,19 @@ class PenshotFunction:
             timeout=wait_timeout
         )
 
-        # 转换为 PenshotResult
+        # 每个 result 已经是 TaskResponse
         return [
             PenshotResult(
                 task_id=r.task_id,
                 success=r.success,
                 status=r.status,
-                data=r.data,
+                data=r.data,  # 直接是业务数据
                 error=r.error,
                 processing_time_ms=r.processing_time_ms
             )
             for r in results
         ]
+
 
     async def batch_breakdown_async(
             self,
@@ -381,15 +377,6 @@ class PenshotFunction:
     ) -> List[PenshotResult]:
         """
         批量处理多个剧本（异步，支持并发控制）
-
-        Args:
-            scripts: 剧本列表
-            language: 输出语言
-            max_concurrent: 最大并发数
-            priority: 任务优先级
-
-        Returns:
-            List[PenshotResult]: 结果列表
         """
         results = await self.task_factory.batch_async(
             scripts=scripts,
@@ -404,12 +391,13 @@ class PenshotFunction:
                 task_id=r.task_id,
                 success=r.success,
                 status=r.status,
-                data=r.data,
+                data=r.data,  # 直接是业务数据
                 error=r.error,
                 processing_time_ms=r.processing_time_ms
             )
             for r in results
         ]
+
 
     # ==================== 队列监控方法 ====================
 

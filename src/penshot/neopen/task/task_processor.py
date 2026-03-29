@@ -15,7 +15,7 @@ from penshot.logger import info, warning, error, debug
 from penshot.neopen.shot_config import ShotConfig
 from penshot.neopen.task.task_handler import CallbackHandler
 from penshot.neopen.task.task_manager import TaskManager
-from penshot.neopen.task.task_models import CallbackPayload, TaskPriority, TaskStatus
+from penshot.neopen.task.task_models import CallbackPayload, TaskPriority, TaskStatus, TaskResponse
 from penshot.utils.log_utils import print_log_exception
 from penshot.utils.obj_utils import dict_to_obj
 
@@ -110,7 +110,7 @@ class AsyncTaskProcessor:
         """启动后台事件循环"""
 
         def run_loop():
-            info(f"[AsyncTaskProcessor] 后台线程启动，创建事件循环")
+            debug(f"[AsyncTaskProcessor] 后台线程启动，创建事件循环")
             # 创建新的事件循环
             self._background_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._background_loop)
@@ -268,6 +268,7 @@ class AsyncTaskProcessor:
                             queued_task.callback(task_id, result)
                     except Exception as e:
                         error(f"任务回调执行失败: {task_id}, 错误: {str(e)}")
+                        print_log_exception()
 
         except asyncio.CancelledError:
             self._stats["total_cancelled"] += 1
@@ -285,11 +286,16 @@ class AsyncTaskProcessor:
             self._active_tasks.pop(task_id, None)
             debug(f"任务结束: {task_id}, 剩余活跃: {self._active_count}")
 
-    async def _process_script_task_internal(self, task_id: str) -> Dict:
-        """内部任务处理逻辑"""
+    async def _process_script_task_internal(self, task_id: str) -> TaskResponse:
+        """内部任务处理逻辑，返回 TaskResponse"""
         task = self.task_manager.get_task(task_id)
         if not task:
-            raise ValueError(f"任务不存在: {task_id}")
+            return TaskResponse(
+                task_id=task_id,
+                success=False,
+                status=TaskStatus.FAILED,
+                error=f"任务不存在: {task_id}"
+            )
 
         config = dict_to_obj(task["config"], ShotConfig) if task.get("config") else ShotConfig()
 
@@ -302,23 +308,57 @@ class AsyncTaskProcessor:
 
             # 执行处理
             self.task_manager.update_task_progress(task_id, "parsing_script", 20)
-            result = await workflow.run_process(task["script"], config)
+            result_dict = await workflow.run_process(task["script"], config)
 
             # 更新进度
             self.task_manager.update_task_progress(task_id, "finalizing", 90)
 
+            # 获取时间信息
+            created_at = task.get("created_at")
+            completed_at = datetime.now(timezone.utc)
+
+            if isinstance(created_at, str):
+                try:
+                    created_at = datetime.fromisoformat(created_at)
+                except:
+                    created_at = None
+
+            # 计算处理时间
+            processing_time_ms = None
+            if created_at and completed_at:
+                processing_time_ms = int((completed_at - created_at).total_seconds() * 1000)
+
+            # 创建 TaskResponse
+            result = TaskResponse(
+                task_id=task_id,
+                success=result_dict.get("success", False),
+                status=TaskStatus.SUCCESS if result_dict.get("success") else TaskStatus.FAILED,
+                data=result_dict.get("data"),
+                error=result_dict.get("error"),
+                processing_time_ms=processing_time_ms,
+                created_at=created_at,
+                completed_at=completed_at
+            )
+
             # 完成任务
-            self.task_manager.complete_task(task_id, result)
+            self.task_manager.complete_task(task_id, result_dict)
 
             # 处理回调
             if task.get("callback_url"):
-                await self._handle_callback(task_id, result)
+                await self._handle_callback(task_id, result_dict)
 
             return result
 
         except Exception as e:
             error(f"任务处理失败: {task_id}, 错误: {str(e)}")
-            raise
+
+            # 创建错误响应
+            return TaskResponse(
+                task_id=task_id,
+                success=False,
+                status=TaskStatus.FAILED,
+                error=str(e)
+            )
 
     async def _handle_callback(self, task_id: str, result: Dict):
         """处理回调通知"""

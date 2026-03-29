@@ -1,17 +1,20 @@
 """
-@FileName: llm_quality_auditor.py
-@Description: 
+@FileName: rule_quality_auditor.py
+@Description: 基于基本规则的审查器
 @Author: HiPeng
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/27 0:00
 """
 from typing import Optional
 
+from penshot.logger import info, warning
+from penshot.neopen.agent.base_models import parse_model_name
 from penshot.neopen.agent.prompt_converter.prompt_converter_models import AIVideoInstructions
 from penshot.neopen.agent.quality_auditor.base_quality_auditor import BaseQualityAuditor
 from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityAuditReport, RuleType, SeverityLevel, IssueType
+from penshot.neopen.agent.workflow.workflow_models import PipelineNode
 from penshot.neopen.shot_config import ShotConfig
-from penshot.logger import info, warning
+from penshot.utils.str_count_utils import only_count_en
 
 
 class RuleQualityAuditor(BaseQualityAuditor):
@@ -19,27 +22,17 @@ class RuleQualityAuditor(BaseQualityAuditor):
 
     def __init__(self, config: Optional[ShotConfig]):
         super().__init__(config)
-        # 定义基本规则
-        self.rules = [
-            {"id": "duration_limit", "name": "片段时长限制", "severity": "error"},
-            {"id": "prompt_not_empty", "name": "提示词非空", "severity": "error"},
-            {"id": "prompt_length", "name": "提示词长度", "severity": "warning"},
-            {"id": "fragment_count", "name": "片段数量", "severity": "info"},
-            {"id": "model_supported", "name": "模型支持", "severity": "warning"}
-        ]
         self.last_audit_result = None
         self.audit_count = 0
 
     def audit(self, instructions: AIVideoInstructions) -> QualityAuditReport:
         """执行基本规则审查"""
-        info(f"开始质量审查，片段数: {len(instructions.fragments)}")
+        info(f"开始基本规则审查，片段数: {len(instructions.fragments)}")
 
-        # 如果短时间内重复调用，返回缓存结果
         if self._should_use_cached_result():
             warning(f"使用缓存的审查结果，避免重复审查")
             return self.last_audit_result
 
-        # 初始化报告
         report = QualityAuditReport(
             project_info={
                 "title": instructions.project_info.get("title", "未命名项目"),
@@ -55,30 +48,26 @@ class RuleQualityAuditor(BaseQualityAuditor):
         self._check_fragment_count(instructions, report)
         self._check_model_support(instructions, report)
 
-        # 保存结果
         self.last_audit_result = report
         self.audit_count += 1
 
-        # 后处理
         return self.post_process(report)
 
     def _should_use_cached_result(self) -> bool:
-        """检查是否应该使用缓存结果"""
-        # 例如：如果1秒内重复调用，使用缓存
-        return False  # 根据实际需求实现
+        return False
 
     def _check_fragment_duration(self, instructions: AIVideoInstructions, report: QualityAuditReport) -> None:
-        """检查片段时长是否超过限制"""
+        """检查片段时长"""
         check_name = "片段时长限制检查"
-
         violations_count = 0
+
         for fragment in instructions.fragments:
-            # 检查是否超过最大时长
             if fragment.duration > self.config.duration_split_threshold:
                 self._add_violation(
                     report=report,
-                    rule_type=RuleType.DURATION_LIMIT,
+                    rule_type=RuleType.FRAGMENT_DURATION_LIMIT,
                     issue_type=IssueType.DURATION,
+                    source_node=PipelineNode.SEGMENT_SHOT,
                     description=f"片段 {fragment.fragment_id} 时长 {fragment.duration}秒 超过 {self.config.duration_split_threshold}秒 限制",
                     severity=SeverityLevel.ERROR,
                     fragment_id=fragment.fragment_id,
@@ -86,12 +75,12 @@ class RuleQualityAuditor(BaseQualityAuditor):
                 )
                 violations_count += 1
 
-            # 检查是否低于最小时长
             if fragment.duration < self.config.min_fragment_duration:
                 self._add_violation(
                     report=report,
-                    rule_type=RuleType.DURATION_LIMIT,
+                    rule_type=RuleType.FRAGMENT_DURATION_LIMIT,
                     issue_type=IssueType.DURATION,
+                    source_node=PipelineNode.SEGMENT_SHOT,
                     description=f"片段 {fragment.fragment_id} 时长 {fragment.duration}秒 低于 {self.config.min_fragment_duration}秒 最低要求",
                     severity=SeverityLevel.WARNING,
                     fragment_id=fragment.fragment_id,
@@ -107,14 +96,15 @@ class RuleQualityAuditor(BaseQualityAuditor):
     def _check_prompt_content(self, instructions: AIVideoInstructions, report: QualityAuditReport) -> None:
         """检查提示词内容"""
         check_name = "提示词内容检查"
-
         empty_count = 0
+
         for fragment in instructions.fragments:
             if not fragment.prompt or not fragment.prompt.strip():
                 self._add_violation(
                     report=report,
-                    rule_type=RuleType.PROMPT_NOT_EMPTY,
+                    rule_type=RuleType.PROMPT_EMPTY,
                     issue_type=IssueType.PROMPT,
+                    source_node=PipelineNode.CONVERT_PROMPT,
                     description=f"片段 {fragment.fragment_id} 的提示词为空",
                     severity=SeverityLevel.ERROR,
                     fragment_id=fragment.fragment_id,
@@ -130,34 +120,32 @@ class RuleQualityAuditor(BaseQualityAuditor):
     def _check_prompt_length(self, instructions: AIVideoInstructions, report: QualityAuditReport) -> None:
         """检查提示词长度"""
         check_name = "提示词长度检查"
-
         too_long_count = 0
         too_short_count = 0
 
         for fragment in instructions.fragments:
-            prompt_length = len(fragment.prompt)
+            prompt_length = only_count_en(fragment.prompt)
 
-            # 检查是否过长
-            max_prompt_length = self.config.max_prompt_length * 10
-            if prompt_length > max_prompt_length:
+            if prompt_length > self.config.prompt_length_max_threshold:
                 self._add_violation(
                     report=report,
-                    rule_type=RuleType.PROMPT_LENGTH,
+                    rule_type=RuleType.PROMPT_TOO_LONG,
+                    source_node=PipelineNode.CONVERT_PROMPT,
                     issue_type=IssueType.PROMPT,
-                    description=f"片段 {fragment.fragment_id} 提示词过长: {prompt_length}字符 (限制长度: {max_prompt_length})",
+                    description=f"片段 {fragment.fragment_id} 提示词过长: {prompt_length} 单词 (限制长度: {self.config.max_prompt_length} 个单词)",
                     severity=SeverityLevel.WARNING,
                     fragment_id=fragment.fragment_id,
-                    suggestion=f"将提示词缩短到{max_prompt_length}字符以内"
+                    suggestion=f"将提示词缩短到{self.config.max_prompt_length} 个单词以内"
                 )
                 too_long_count += 1
 
-            # 检查是否过短
-            if prompt_length < self.config.min_prompt_length:
+            if prompt_length < self.config.prompt_length_min_threshold:
                 self._add_violation(
                     report=report,
-                    rule_type=RuleType.PROMPT_LENGTH,
+                    rule_type=RuleType.PROMPT_TOO_SHORT,
+                    source_node=PipelineNode.CONVERT_PROMPT,
                     issue_type=IssueType.PROMPT,
-                    description=f"片段 {fragment.fragment_id} 提示词过短: {prompt_length}字符 (建议: ≥{self.config.min_prompt_length})",
+                    description=f"片段 {fragment.fragment_id} 提示词过短: {prompt_length} 单词 (建议: ≥{self.config.min_prompt_length} 个单词)",
                     severity=SeverityLevel.WARNING,
                     fragment_id=fragment.fragment_id,
                     suggestion="添加更多描述性内容到提示词"
@@ -182,7 +170,8 @@ class RuleQualityAuditor(BaseQualityAuditor):
         if fragment_count == 0:
             self._add_violation(
                 report=report,
-                rule_type=RuleType.FRAGMENT_COUNT,
+                rule_type=RuleType.FRAGMENT_MISSING,
+                source_node=PipelineNode.SEGMENT_SHOT,
                 issue_type=IssueType.FRAGMENT,
                 description="没有找到任何视频片段",
                 severity=SeverityLevel.ERROR,
@@ -194,17 +183,18 @@ class RuleQualityAuditor(BaseQualityAuditor):
     def _check_model_support(self, instructions: AIVideoInstructions, report: QualityAuditReport) -> None:
         """检查模型支持"""
         check_name = "模型支持检查"
-
         unsupported_models = []
+
         for fragment in instructions.fragments:
-            if fragment.model not in ["runway_gen2", "sora", "pika"]:  # MVP支持的基础模型
+            if not parse_model_name(fragment.model):
                 unsupported_models.append(fragment.model)
 
         if unsupported_models:
             unique_models = list(set(unsupported_models))
             self._add_violation(
                 report=report,
-                rule_type=RuleType.MODEL_SUPPORTED,
+                rule_type=RuleType.MODEL_UNSUPPORTED,
+                source_node=PipelineNode.CONVERT_PROMPT,
                 issue_type=IssueType.MODEL,
                 description=f"不支持的AI模型: {', '.join(unique_models)}",
                 severity=SeverityLevel.WARNING,

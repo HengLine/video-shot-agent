@@ -35,7 +35,13 @@ from penshot.neopen.shot_config import ShotConfig
 class TaskManager:
     """任务状态管理器，支持内存或 Redis 后端（可选）。"""
 
-    def __init__(self, max_workflow_cache_size: int = 64):
+    def __init__(self, max_cache_size: int = 64, task_ttl_seconds: int = 86400):
+        """
+            Args:
+                max_cache_size: 工作流缓存最大数量
+                task_ttl_seconds: 任务数据在 Redis 中的过期时间（秒），默认24小时
+            """
+
         # in-memory task store (used when Redis not configured)
         self._local_tasks: Dict[str, Dict[str, Any]] = {}
         # raw config objects for internal use when local
@@ -43,7 +49,9 @@ class TaskManager:
 
         # workflow cache (in-memory) and pipeline factory
         self.workflow_cache: "OrderedDict[str, Any]" = OrderedDict()
-        self.max_workflow_cache_size = max_workflow_cache_size
+        self.max_cache_size = max_cache_size
+        self.task_ttl_seconds = task_ttl_seconds  # 新增
+
         self.pipeline_factory = None
 
         # concurrency
@@ -123,7 +131,7 @@ class TaskManager:
 
     # ---------------------- redis helpers ----------------------
     def _redis_key(self, task_id: str) -> str:
-        return f"penshot:task:{task_id}"
+        return f"penshot:tasks:data:{task_id}"
 
     def _redis_tasks_set_key(self) -> str:
         return "penshot:tasks:ids"
@@ -155,8 +163,19 @@ class TaskManager:
             key = self._redis_key(task_id)
             # store JSON and add to set
             try:
-                self.redis.set(key, json.dumps(obj_to_dict(record), ensure_ascii=False))
-                self.redis.sadd(self._redis_tasks_set_key(), task_id)
+                if self.task_ttl_seconds < 1:
+                    self.redis.set(key, json.dumps(obj_to_dict(record), ensure_ascii=False))
+                    self.redis.sadd(self._redis_tasks_set_key(), task_id)
+                else:
+                    self.redis.setex(
+                        key,
+                        self.task_ttl_seconds,  # 设置过期时间
+                        json.dumps(obj_to_dict(record), ensure_ascii=False)
+                    )
+                    self.redis.sadd(self._redis_tasks_set_key(), task_id)
+                    # 为任务ID集合也设置过期时间（可选，使用较长时间）
+                    self.redis.expire(self._redis_tasks_set_key(), self.task_ttl_seconds * 2)
+
                 # increment metrics in redis
                 try:
                     self.redis.incr(self._redis_metrics_key("created"))
@@ -206,7 +225,6 @@ class TaskManager:
     def update_task_progress(self, task_id: str, stage: str, progress: float = None):
         if self.use_redis and self.redis:
             key = self._redis_key(task_id)
-            # simple read-modify-write
             raw = self.redis.get(key)
             if not raw:
                 return
@@ -222,7 +240,8 @@ class TaskManager:
                 except Exception:
                     pass
             rec["updated_at"] = datetime.now(timezone.utc).isoformat()
-            self.redis.set(key, json.dumps(obj_to_dict(rec), ensure_ascii=False))
+            # 更新时刷新过期时间
+            self.redis.setex(key, self.task_ttl_seconds, json.dumps(obj_to_dict(rec), ensure_ascii=False))
         else:
             with self._lock:
                 if task_id not in self._local_tasks:
@@ -240,7 +259,6 @@ class TaskManager:
     def update_task_result(self, task_id: str, partial_result: Dict[str, Any]) -> bool:
         if self.use_redis and self.redis:
             key = self._redis_key(task_id)
-            # optimistic retry using WATCH
             tries = 3
             for _ in range(tries):
                 pipe = None
@@ -266,7 +284,8 @@ class TaskManager:
                     rec["result"] = cur
                     rec["updated_at"] = datetime.now(timezone.utc).isoformat()
                     pipe.multi()
-                    pipe.set(key, json.dumps(rec, ensure_ascii=False))
+                    # 更新时刷新过期时间
+                    pipe.setex(key, self.task_ttl_seconds, json.dumps(rec, ensure_ascii=False))
                     pipe.execute()
                     return True
                 except Exception:
@@ -366,7 +385,8 @@ class TaskManager:
             rec["error"] = result.get("error")
             rec["updated_at"] = datetime.now(timezone.utc).isoformat()
             rec["completed_at"] = datetime.now(timezone.utc).isoformat()
-            self.redis.set(key, json.dumps(obj_to_dict(rec), ensure_ascii=False))
+            # 完成后保留一段时间再过期
+            self.redis.setex(key, self.task_ttl_seconds, json.dumps(obj_to_dict(rec), ensure_ascii=False))
             try:
                 if result.get("success", False):
                     self.redis.incr(self._redis_metrics_key("completed"))
@@ -403,7 +423,8 @@ class TaskManager:
             rec["status"] = TaskStatus.FAILED
             rec["error"] = error_message
             rec["updated_at"] = datetime.now(timezone.utc).isoformat()
-            self.redis.set(key, json.dumps(obj_to_dict(rec), ensure_ascii=False))
+            # 失败后保留一段时间再过期
+            self.redis.setex(key, self.task_ttl_seconds, json.dumps(obj_to_dict(rec), ensure_ascii=False))
             try:
                 self.redis.incr(self._redis_metrics_key("failed"))
             except Exception:
@@ -505,7 +526,7 @@ class TaskManager:
 
         # insert into LRU cache
         with self._lock:
-            if self.max_workflow_cache_size > 0 and len(self.workflow_cache) >= self.max_workflow_cache_size:
+            if self.max_cache_size > 0 and len(self.workflow_cache) >= self.max_cache_size:
                 try:
                     oldest_key, _ = self.workflow_cache.popitem(last=False)
                     info(f"Evicted oldest workflow cache key: {oldest_key}")
@@ -537,13 +558,13 @@ class TaskManager:
         with self._lock:
             return dict(self._metrics)
 
-    def set_max_workflow_cache_size(self, size: int):
+    def set_max_cache_size(self, size: int):
         if not isinstance(size, int) or size < 0:
-            raise ValueError("max_workflow_cache_size must be a non-negative integer")
+            raise ValueError("max_cache_size must be a non-negative integer")
         with self._lock:
-            self.max_workflow_cache_size = size
+            self.max_cache_size = size
             try:
-                while self.max_workflow_cache_size > 0 and len(self.workflow_cache) > self.max_workflow_cache_size:
+                while self.max_cache_size > 0 and len(self.workflow_cache) > self.max_cache_size:
                     self.workflow_cache.popitem(last=False)
             except Exception:
                 pass
@@ -627,8 +648,7 @@ class TaskManager:
                 self._local_tasks[task_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
                 return True
 
-
-#     ============================ 恢复任务 ================================
+    #     ============================ 恢复任务 ================================
     def get_pending_tasks(self, max_age_hours: int = 2) -> List[Dict[str, Any]]:
         """
         获取所有未完成的任务（PENDING 或 PROCESSING 状态）
@@ -796,7 +816,8 @@ class TaskManager:
                         rec["progress"] = 0
                         rec["updated_at"] = datetime.now(timezone.utc).isoformat()
                         rec.pop("completed_at", None)
-                        self.redis.set(key, json.dumps(obj_to_dict(rec), ensure_ascii=False))
+                        # 恢复时刷新过期时间
+                        self.redis.setex(key, self.task_ttl_seconds, json.dumps(obj_to_dict(rec), ensure_ascii=False))
                         return True
                     except Exception:
                         pass
