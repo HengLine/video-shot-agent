@@ -2,6 +2,7 @@
 @FileName: function_calls.py
 @Description: Function Call接口 - 供其他Python智能体调用
 @Author: HiPeng
+@Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/3/23 18:39
 """
 
