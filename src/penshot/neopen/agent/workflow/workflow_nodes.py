@@ -19,6 +19,7 @@ from penshot.neopen.agent.quality_auditor.quality_auditor_models import AuditSta
 from penshot.neopen.agent.workflow.workflow_models import AgentStage, PipelineNode
 from penshot.neopen.agent.workflow.workflow_output import WorkflowOutputWriter
 from penshot.neopen.agent.workflow.workflow_states import WorkflowState
+from penshot.neopen.task.task_models import TaskStage
 from penshot.neopen.tools.memory.memory_manager import MemoryManager, MemoryType
 from penshot.neopen.tools.result_storage_tool import create_result_storage
 from penshot.utils.log_utils import print_log_exception
@@ -27,7 +28,8 @@ from penshot.utils.log_utils import print_log_exception
 class WorkflowNodes:
     """工作流节点集合，封装所有工作流执行功能"""
 
-    def __init__(self, script_parser, shot_segmenter, video_splitter, prompt_converter, quality_auditor, llm, embeddings):
+    def __init__(self, script_parser, shot_segmenter, video_splitter, prompt_converter, quality_auditor,
+                 llm, embeddings, task_manager):
         """
         初始化工作流节点集合
         
@@ -41,6 +43,8 @@ class WorkflowNodes:
         """
         self.llm = llm
         self.embeddings = embeddings
+        self.task_manager = task_manager
+
         # 初始化记忆管理器时配置记忆层级
         self.memory = MemoryManager(
             llm=self.llm,
@@ -76,6 +80,9 @@ class WorkflowNodes:
         功能：将原始剧本解析为结构化元素序列，支持修复参数
         """
         try:
+            # 更新状态：开始解析
+            self._update_task_progress(state.task_id, TaskStage.PARSING_START, 0)
+
             # ========== 1. 加载历史上下文 ==========
             recent_strategy = self.memory.recall("parsing_strategy_recent", memory_type=MemoryType.SHORT)
             historical_stats = self.memory.recall("stats_parse_script", memory_type=MemoryType.MEDIUM)
@@ -102,11 +109,22 @@ class WorkflowNodes:
             else:
                 debug("剧本解析节点执行（无修复参数）")
 
+            # 更新状态：解析中
+            self._update_task_progress(state.task_id, TaskStage.PARSING_SCRIPT, 30)
+
             # ========== 3. 执行解析 ==========
             parsed_script = self.script_parser.process(state.raw_script)
 
             debug(f"剧本解析完成，场景数: {len(parsed_script.scenes)}，角色数: {len(parsed_script.characters)}")
             debug(f"完整性评分: {parsed_script.stats.get('completeness_score', 0)}")
+
+            # 更新状态：解析完成
+            self._update_task_progress(state.task_id, TaskStage.PARSING_COMPLETE, 100)
+            self._complete_stage(state.task_id, TaskStage.PARSING_COMPLETE, {
+                "scene_count": len(parsed_script.scenes),
+                "character_count": len(parsed_script.characters),
+                "completeness_score": parsed_script.stats.get("completeness_score", 0)
+            })
 
             # ========== 4. 保存结果 ==========
             self.storage.save_obj_result(state.task_id, parsed_script, "script_parser_result.json")
@@ -191,6 +209,9 @@ class WorkflowNodes:
         功能：将结构化剧本拆分为视觉镜头，支持修复参数
         """
         try:
+            # 更新状态：开始拆分
+            self._update_task_progress(state.task_id, TaskStage.SEGMENT_START, 0)
+
             # ========== 1. 加载历史上下文 ==========
             historical_shot_stats = self.memory.recall(f"stats_{PipelineNode.SEGMENT_SHOT.value}", memory_type=MemoryType.MEDIUM)
             historical_shot_issues = self.memory.recall(f"issues_{PipelineNode.SEGMENT_SHOT.value}", memory_type=MemoryType.SHORT)
@@ -230,8 +251,18 @@ class WorkflowNodes:
             else:
                 debug("分镜生成节点执行（无修复参数）")
 
+            # 更新状态：拆分中
+            self._update_task_progress(state.task_id, TaskStage.SEGMENTING, 50)
+
             # ========== 3. 执行分镜生成 ==========
             shot_sequence = self.shot_segmenter.process(state.parsed_script)
+
+            # 更新状态：拆分完成
+            self._update_task_progress(state.task_id, TaskStage.SEGMENT_COMPLETE, 100)
+            self._complete_stage(state.task_id, TaskStage.SEGMENT_COMPLETE, {
+                "shot_count": len(shot_sequence.shots),
+                "total_duration": sum(s.duration for s in shot_sequence.shots)
+            })
 
             if not shot_sequence:
                 raise Exception("分镜生成返回空结果")
@@ -320,6 +351,9 @@ class WorkflowNodes:
         功能：将镜头按限制切分为AI可处理的片段，支持修复参数
         """
         try:
+            # 更新状态：开始分段
+            self._update_task_progress(state.task_id, TaskStage.SPLIT_START, 0)
+
             # ========== 1. 加载历史上下文 ==========
             historical_split_stats = self.memory.recall(f"stats_{PipelineNode.SPLIT_VIDEO.value}", memory_type=MemoryType.MEDIUM)
             historical_split_issues = self.memory.recall(f"issues_{PipelineNode.SPLIT_VIDEO.value}", memory_type=MemoryType.SHORT)
@@ -358,11 +392,21 @@ class WorkflowNodes:
             else:
                 debug("视频分割节点执行（无修复参数）")
 
+            # 更新状态：分段中
+            self._update_task_progress(state.task_id, TaskStage.SPLITTING, 50)
+
             # ========== 3. 执行视频分割 ==========
             fragment_sequence = self.video_splitter.process(
                 state.shot_sequence,
                 parsed_script=state.parsed_script,
             )
+
+            # 更新状态：分段完成
+            self._update_task_progress(state.task_id, TaskStage.SPLIT_COMPLETE, 100)
+            self._complete_stage(state.task_id, TaskStage.SPLIT_COMPLETE, {
+                "fragment_count": len(fragment_sequence.fragments),
+                "total_duration": sum(f.duration for f in fragment_sequence.fragments)
+            })
 
             if not fragment_sequence:
                 raise Exception("视频分割返回空结果")
@@ -456,6 +500,9 @@ class WorkflowNodes:
         功能：为每个片段生成AI视频生成提示词，支持修复参数
         """
         try:
+            # 更新状态：开始转换
+            self._update_task_progress(state.task_id, TaskStage.CONVERT_START, 0)
+
             # ========== 1. 加载历史上下文 ==========
             historical_convert_stats = self.memory.recall(f"stats_{PipelineNode.CONVERT_PROMPT.value}", memory_type=MemoryType.MEDIUM)
             historical_convert_issues = self.memory.recall(f"issues_{PipelineNode.CONVERT_PROMPT.value}", memory_type=MemoryType.SHORT)
@@ -494,11 +541,21 @@ class WorkflowNodes:
             else:
                 debug("提示词转换节点执行（无修复参数）")
 
+            # 更新状态：转换中
+            self._update_task_progress(state.task_id, TaskStage.CONVERTING, 50)
+
             # ========== 3. 执行提示词转换 ==========
             instructions = self.prompt_converter.process(
                 state.fragment_sequence,
                 parsed_script=state.parsed_script,
             )
+
+            # 更新状态：转换完成
+            self._update_task_progress(state.task_id, TaskStage.CONVERT_COMPLETE, 100)
+            self._complete_stage(state.task_id, TaskStage.CONVERT_COMPLETE, {
+                "prompt_count": len(instructions.fragments),
+                "audio_prompt_count": sum(1 for f in instructions.fragments if f.audio_prompt)
+            })
 
             if not instructions:
                 raise Exception("提示词转换返回空结果")
@@ -604,6 +661,9 @@ class WorkflowNodes:
         - 生成增强的修复参数
         - 自动调用各阶段修复器
         """
+        # 更新状态：开始审查
+        self._update_task_progress(state.task_id, TaskStage.AUDIT_START, 0)
+
         # 从记忆模块获取各阶段问题
         all_stage_issues = {
             PipelineNode.PARSE_SCRIPT: self.memory.recall(f"issues_{PipelineNode.PARSE_SCRIPT.value}", memory_type=MemoryType.SHORT) or [],
@@ -638,6 +698,9 @@ class WorkflowNodes:
         info(f"进入质量审查节点（增强版），当前阶段={state.current_stage.value}")
         info(f"审查前状态: 片段数={len(state.fragment_sequence.fragments) if state.fragment_sequence else 0}")
 
+        # 更新状态：审查中
+        self._update_task_progress(state.task_id, TaskStage.AUDITING, 50)
+
         try:
             # 执行质量审查（传入各阶段问题）
             result = self.quality_auditor.qa_process(state.instructions, all_stage_issues, historical_context=historical_context)
@@ -647,6 +710,14 @@ class WorkflowNodes:
             debug(f"  - 质量分数: {result.score}%")
             debug(f"  - 总问题数: {len(result.violations)}")
             debug(f"  - 检查项数: {len(result.checks)}")
+
+            # 更新状态：审查完成
+            self._update_task_progress(state.task_id, TaskStage.AUDIT_COMPLETE, 100)
+            self._complete_stage(state.task_id, TaskStage.AUDIT_COMPLETE, {
+                "status": result.status.value,
+                "score": result.score,
+                "violations_count": len(result.violations)
+            })
 
             # 更新执行标志
             state.audit_executed = True
@@ -808,6 +879,8 @@ class WorkflowNodes:
         3. 生成修复方案并触发重试
         """
         info("进入连续性守护节点")
+        # 更新状态：开始检查
+        self._update_task_progress(state.task_id, TaskStage.CONTINUITY_START, 0)
 
         try:
             # 回忆历史连续性问题
@@ -829,8 +902,18 @@ class WorkflowNodes:
                 "historical_context": historical_context  # 传递给检查器
             }
 
+            # 更新状态：检查中
+            self._update_task_progress(state.task_id, TaskStage.CONTINUITY_CHECKING, 50)
+
             # 2. 执行连续性检查（返回 ContinuityCheckResult）
             check_result = self._check_continuity(continuity_context)
+
+            # 更新状态：检查完成
+            self._update_task_progress(state.task_id, TaskStage.CONTINUITY_COMPLETE, 100)
+            self._complete_stage(state.task_id, TaskStage.CONTINUITY_COMPLETE, {
+                "passed": check_result.passed,
+                "total_issues": check_result.total_issues
+            })
 
             # 3. 如果没有问题，通过检查
             if check_result.passed and check_result.total_issues == 0:
@@ -973,6 +1056,8 @@ class WorkflowNodes:
         输出：final_output (完整处理结果)
         """
         info("进入生成输出节点")
+        # 更新状态：开始输出
+        self._update_task_progress(state.task_id, TaskStage.OUTPUT_START, 0)
 
         try:
             # 生成最终输出
@@ -995,8 +1080,17 @@ class WorkflowNodes:
             state.current_stage = AgentStage.END
             state.current_node = PipelineNode.GENERATE_OUTPUT
 
+            # 更新状态：生成中
+            self._update_task_progress(state.task_id, TaskStage.OUTPUT_GENERATING, 50)
+
             # ========== 异步保存各类报告（不阻塞） ==========
             self.output_writer.save_all_reports(state, state.task_id)
+
+            # 更新状态：完成
+            self._update_task_progress(state.task_id, TaskStage.COMPLETE, 100)
+            self._complete_stage(state.task_id, TaskStage.COMPLETE, {
+                "status": "completed"
+            })
 
             # ========== 任务完成，清理所有智能体状态 ==========
             self.script_parser.clear_all_state()
@@ -1489,3 +1583,30 @@ class WorkflowNodes:
         repair_patterns = self.memory.recall("repair_success_patterns", memory_type=MemoryType.LONG)
         if repair_patterns:
             debug(f"已加载 {len(repair_patterns)} 条修复成功模式")
+
+    # ============================= 节点任务状态 =============================
+    def _update_task_progress(self, task_id: str, stage: TaskStage, progress: float = None, details: Dict = None):
+        """更新任务进度"""
+        try:
+            if self.task_manager:
+                # 使用枚举的 code 属性
+                self.task_manager.update_task_progress_detail(task_id, stage.code, progress, details)
+        except Exception as e:
+            debug(f"更新任务进度失败: {e}")
+
+    def _complete_stage(self, task_id: str, stage: TaskStage, result: Dict = None):
+        """完成阶段"""
+        try:
+            if self.task_manager:
+                self.task_manager.complete_stage(task_id, stage.code, result)
+        except Exception as e:
+            debug(f"完成阶段失败: {e}")
+
+    def _fail_stage(self, task_id: str, stage: TaskStage, error: str):
+        """阶段失败"""
+        try:
+            if self.task_manager:
+                self.task_manager.update_task_progress_detail(task_id, TaskStage.ERROR_HANDLING.code, 0, {"error": error})
+                self.task_manager.fail_task(task_id, f"{stage.name}失败: {error}")
+        except Exception as e:
+            debug(f"记录阶段失败失败: {e}")

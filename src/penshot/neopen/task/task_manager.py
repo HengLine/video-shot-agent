@@ -1,10 +1,3 @@
-from __future__ import annotations
-
-from penshot.neopen.task.task_models import TaskStatus
-from penshot.utils.log_utils import print_log_exception
-from penshot.utils.obj_utils import obj_to_dict
-from penshot.utils.redis_utils import RedisClient
-
 """
 @FileName: task_manager.py
 @Description: TaskManager with optional Redis backend.
@@ -16,6 +9,8 @@ from penshot.utils.redis_utils import RedisClient
 @Time: 2026/1/26 16:42
 """
 
+from __future__ import annotations
+
 import copy
 import json
 import uuid
@@ -26,6 +21,10 @@ from collections import OrderedDict
 from typing import Optional, Dict, Any, List, TYPE_CHECKING
 
 from penshot.logger import info, error
+from penshot.neopen.task.task_models import TaskStatus, TaskStage
+from penshot.utils.log_utils import print_log_exception
+from penshot.utils.obj_utils import obj_to_dict
+from penshot.utils.redis_utils import RedisClient
 
 if TYPE_CHECKING:
     from penshot.neopen.agent import MultiAgentPipeline
@@ -255,6 +254,184 @@ class TaskManager:
                     except Exception:
                         pass
                 self._local_tasks[task_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+
+    def update_task_progress_detail(
+            self,
+            task_id: str,
+            stage: TaskStage,
+            progress: float = None,
+            details: Dict[str, Any] = None
+    ) -> bool:
+        """
+        更新任务详细进度
+
+        Args:
+            task_id: 任务ID
+            stage: 当前阶段
+            progress: 该阶段进度百分比
+            details: 阶段详细信息
+        """
+        if self.use_redis and self.redis:
+            key = self._redis_key(task_id)
+            raw = self.redis.get(key)
+            if not raw:
+                return False
+            try:
+                rec = json.loads(raw)
+            except Exception:
+                return False
+
+            # 更新当前阶段
+            rec["current_stage"] = stage.value
+            rec["stage"] = stage.value  # 兼容旧版
+            rec["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+            # 初始化进度详情
+            if "progress_details" not in rec:
+                rec["progress_details"] = {}
+
+            # 更新阶段进度
+            if stage.value not in rec["progress_details"]:
+                rec["progress_details"][stage.value] = {
+                    "name": self._get_stage_name(stage),
+                    "progress": 0,
+                    "status": "processing",
+                    "started_at": datetime.now(timezone.utc).isoformat()
+                }
+
+            stage_detail = rec["progress_details"][stage.value]
+            if progress is not None:
+                stage_detail["progress"] = progress
+            if details:
+                stage_detail["details"] = details
+
+            # 计算整体进度
+            rec["progress"] = self._calculate_overall_progress(rec["progress_details"])
+
+            # 更新到 Redis
+            self.redis.setex(key, self.task_ttl_seconds, json.dumps(rec, ensure_ascii=False))
+            return True
+        else:
+            with self._lock:
+                if task_id not in self._local_tasks:
+                    return False
+
+                rec = self._local_tasks[task_id]
+                rec["current_stage"] = stage.value
+                rec["stage"] = stage.value
+                rec["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+                if "progress_details" not in rec:
+                    rec["progress_details"] = {}
+
+                if stage.value not in rec["progress_details"]:
+                    rec["progress_details"][stage.value] = {
+                        "name": self._get_stage_name(stage),
+                        "progress": 0,
+                        "status": "processing",
+                        "started_at": datetime.now(timezone.utc).isoformat()
+                    }
+
+                stage_detail = rec["progress_details"][stage.value]
+                if progress is not None:
+                    stage_detail["progress"] = progress
+                if details:
+                    stage_detail["details"] = details
+
+                rec["progress"] = self._calculate_overall_progress(rec["progress_details"])
+
+                return True
+
+    def complete_stage(
+            self,
+            task_id: str,
+            stage: TaskStage,
+            result: Dict[str, Any] = None
+    ) -> bool:
+        """
+        完成一个阶段
+
+        Args:
+            task_id: 任务ID
+            stage: 完成的阶段
+            result: 阶段结果
+        """
+        if self.use_redis and self.redis:
+            key = self._redis_key(task_id)
+            raw = self.redis.get(key)
+            if not raw:
+                return False
+            try:
+                rec = json.loads(raw)
+            except Exception:
+                return False
+
+            if "progress_details" not in rec:
+                rec["progress_details"] = {}
+
+            if stage.value in rec["progress_details"]:
+                rec["progress_details"][stage.value]["progress"] = 100
+                rec["progress_details"][stage.value]["status"] = "completed"
+                rec["progress_details"][stage.value]["completed_at"] = datetime.now(timezone.utc).isoformat()
+
+            if result:
+                if "stage_results" not in rec:
+                    rec["stage_results"] = {}
+                rec["stage_results"][stage.value] = result
+
+            rec["progress"] = self._calculate_overall_progress(rec["progress_details"])
+            rec["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+            self.redis.setex(key, self.task_ttl_seconds, json.dumps(rec, ensure_ascii=False))
+            return True
+        else:
+            with self._lock:
+                if task_id not in self._local_tasks:
+                    return False
+
+                rec = self._local_tasks[task_id]
+
+                if "progress_details" not in rec:
+                    rec["progress_details"] = {}
+
+                if stage.value in rec["progress_details"]:
+                    rec["progress_details"][stage.value]["progress"] = 100
+                    rec["progress_details"][stage.value]["status"] = "completed"
+                    rec["progress_details"][stage.value]["completed_at"] = datetime.now(timezone.utc).isoformat()
+
+                if result:
+                    if "stage_results" not in rec:
+                        rec["stage_results"] = {}
+                    rec["stage_results"][stage.value] = result
+
+                rec["progress"] = self._calculate_overall_progress(rec["progress_details"])
+                rec["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+                return True
+
+    def _get_stage_name(self, stage: TaskStage) -> str:
+        """获取阶段名称"""
+        return stage.name
+
+    def _calculate_overall_progress(self, progress_details: Dict) -> float:
+        """计算整体进度"""
+        max_progress = 0
+        for stage_code, detail in progress_details.items():
+            # 根据代码获取阶段枚举
+            stage = TaskStage.from_code(stage_code)
+            if stage:
+                weight = stage.weight
+                if detail.get("status") == "completed":
+                    if weight > max_progress:
+                        max_progress = weight
+                elif detail.get("status") == "processing":
+                    stage_progress = weight + (detail.get("progress", 0) / 100) * 10
+                    if stage_progress > max_progress:
+                        max_progress = stage_progress
+
+        return min(100, max_progress)
+
 
     def update_task_result(self, task_id: str, partial_result: Dict[str, Any]) -> bool:
         if self.use_redis and self.redis:
@@ -492,7 +669,7 @@ class TaskManager:
         return True
 
     # keep get_workflow behavior similar to previous (in-memory pipeline cache)
-    def get_workflow(self, task_id: Optional[str] = None, config: Optional[Any] = None) -> "Any":
+    def get_workflow(self, task_manager, task_id: Optional[str] = None, config: Optional[Any] = None) -> "Any":
         # prefer local raw config when available
         if task_id is not None and (config is None or isinstance(config, dict)):
             with self._lock:
@@ -520,9 +697,7 @@ class TaskManager:
         if getattr(self, "pipeline_factory", None) is not None:
             pipeline = self.pipeline_factory(task_id, config)
         else:
-            from penshot.neopen.agent import MultiAgentPipeline  # type: ignore
-
-            pipeline = MultiAgentPipeline(task_id, config)
+            pipeline = MultiAgentPipeline(task_id, config, task_manager)
 
         # insert into LRU cache
         with self._lock:

@@ -5,13 +5,13 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2025/10 - 至今
 """
-from typing import Dict, Optional, Any
+from typing import Dict, Any
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
 
-from penshot.neopen.agent.script_parser_agent import ScriptParserAgent
 from penshot.logger import debug, error, info, warning
+from penshot.neopen.agent.script_parser_agent import ScriptParserAgent
 from penshot.utils.log_utils import print_log_exception
 from .workflow_decision import PipelineDecision
 from .workflow_models import AgentStage, PipelineNode, PipelineState
@@ -28,7 +28,7 @@ from ...shot_config import ShotConfig
 class MultiAgentPipeline:
     """多智能体协作流程"""
 
-    def __init__(self, task_id, config: Optional[ShotConfig]):
+    def __init__(self, task_id, config: ShotConfig, task_manager):
         """
         初始化多智能体流程
         
@@ -41,6 +41,7 @@ class MultiAgentPipeline:
         self.config = config or ShotConfig()
         self.llm = self.config.get_llm_by_config()
         self.embeddings = self.config.get_emd_by_config()
+        self.task_manager = task_manager
         self._init_agents()
         self.workflow = self._build_workflow()
 
@@ -62,7 +63,8 @@ class MultiAgentPipeline:
             prompt_converter=self.prompt_converter,
             quality_auditor=self.quality_auditor,
             llm=self.llm,
-            embeddings=self.embeddings
+            embeddings=self.embeddings,
+            task_manager=self.task_manager
         )
         # 工作流决策函数
         self.decision_funcs = PipelineDecision()

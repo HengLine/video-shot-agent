@@ -8,8 +8,6 @@
 
 # 导入主要模块
 from penshot.logger import (debug, info, warning, error, critical)
-# 定义对外暴露的接口
-from penshot.neopen.shot_agent import generate_storyboard
 
 from penshot.neopen.shot_config import ShotConfig
 
@@ -24,7 +22,6 @@ __all__ = [
     "critical",
     "get_language",
     "ShotConfig",
-    "generate_storyboard"
 ]
 
 # 包版本

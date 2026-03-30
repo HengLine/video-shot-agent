@@ -213,26 +213,34 @@ class PenshotFunction:
 
     def get_task_status(self, task_id: str) -> Optional[Dict]:
         """
-        获取任务状态
+        获取任务状态（增强版）
 
-        Args:
-            task_id: 任务ID
-
-        Returns:
-            Dict: 任务状态信息
+        返回包含详细进度信息的字典
         """
         status = self.task_factory.get_status(task_id)
-        if status:
-            return {
-                "task_id": status.task_id,
-                "status": status.status,
-                "stage": status.stage,
-                "progress": status.progress,
-                "created_at": status.created_at,
-                "updated_at": status.updated_at,
-                "error": status.error_message
-            }
-        return None
+        if not status:
+            return None
+
+        # 构建详细进度信息
+        result = {
+            "task_id": status.task_id,
+            "status": status.status,
+            "stage": status.stage,
+            "stage_name": status.stage_name if hasattr(status, 'stage_name') else status.stage,
+            "progress": status.progress,
+            "created_at": status.created_at,
+            "updated_at": status.updated_at,
+            "error": status.error_message
+        }
+
+        # 添加详细阶段进度
+        if hasattr(status, 'current_stage') and status.current_stage:
+            result["current_stage"] = status.current_stage
+
+        if hasattr(status, 'stages_progress') and status.stages_progress:
+            result["stages_progress"] = status.stages_progress
+
+        return result
 
     def get_task_result(self, task_id: str) -> Optional[PenshotResult]:
         """

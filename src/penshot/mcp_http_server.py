@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from penshot.api.function_calls import create_penshot_agent
 from penshot.neopen.shot_language import Language
+from penshot.neopen.task.task_models import TaskStage
 
 app = FastAPI(title="Penshot MCP Server", version="1.0.0")
 
@@ -165,10 +166,44 @@ async def breakdown_script(request: BreakdownRequest):
 
 @app.post("/tools/get_task_status")
 async def get_task_status(request: TaskRequest):
-    """获取任务状态"""
+    """获取任务状态（增强版）"""
     status = agent.get_task_status(request.task_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"任务不存在: {request.task_id}")
+
+    # 获取详细进度信息
+    task = agent.task_manager.get_task(request.task_id)
+    if task:
+        # 添加当前阶段
+        current_stage_code = task.get("current_stage")
+        if current_stage_code:
+            status["current_stage"] = current_stage_code
+
+            # 添加阶段中文名称
+            stage = TaskStage.from_code(current_stage_code)
+            if stage:
+                status["stage_name"] = stage.name
+
+        # 添加阶段进度详情
+        progress_details = task.get("progress_details")
+        if progress_details:
+            # 转换阶段代码为中文名称
+            formatted_details = {}
+            for stage_code, detail in progress_details.items():
+                stage = TaskStage.from_code(stage_code)
+                if stage:
+                    formatted_details[stage.name] = {
+                        "code": stage_code,
+                        "progress": detail.get("progress", 0),
+                        "status": detail.get("status", "pending"),
+                        "started_at": detail.get("started_at"),
+                        "completed_at": detail.get("completed_at"),
+                        "details": detail.get("details")
+                    }
+                else:
+                    formatted_details[stage_code] = detail
+            status["stages_progress"] = formatted_details
+
     return status
 
 

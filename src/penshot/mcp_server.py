@@ -10,6 +10,9 @@ import json
 import logging
 import sys
 
+from penshot.neopen.task.task_models import TaskStage
+
+
 def setLog():
     # 重定向所有日志到 stderr
     logging.basicConfig(
@@ -125,7 +128,7 @@ class PenshotMCPServer:
             }
 
     def _handle_get_task_status(self, arguments: dict) -> dict:
-        """获取任务状态"""
+        """获取任务状态（增强版）"""
         task_id = arguments.get("task_id")
         if not task_id:
             raise ValueError("task_id is required")
@@ -141,6 +144,40 @@ class PenshotMCPServer:
                 result[key] = value.isoformat()
             else:
                 result[key] = value
+
+        # 获取详细进度信息
+        task = self.task_manager.get_task(task_id)
+        if task:
+            # 添加当前阶段
+            current_stage_code = task.get("current_stage")
+            if current_stage_code:
+                result["current_stage"] = current_stage_code
+
+                # 添加阶段中文名称
+                stage = TaskStage.from_code(current_stage_code)
+                if stage:
+                    result["stage_name"] = stage.name
+
+            # 添加阶段进度详情
+            progress_details = task.get("progress_details")
+            if progress_details:
+                # 转换阶段代码为中文名称
+                formatted_details = {}
+                for stage_code, detail in progress_details.items():
+                    stage = TaskStage.from_code(stage_code)
+                    if stage:
+                        formatted_details[stage.name] = {
+                            "code": stage_code,
+                            "progress": detail.get("progress", 0),
+                            "status": detail.get("status", "pending"),
+                            "started_at": detail.get("started_at"),
+                            "completed_at": detail.get("completed_at"),
+                            "details": detail.get("details")
+                        }
+                    else:
+                        formatted_details[stage_code] = detail
+                result["stages_progress"] = formatted_details
+
         return result
 
     def _handle_get_task_result(self, arguments: dict) -> dict:
