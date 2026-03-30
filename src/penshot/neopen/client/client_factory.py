@@ -5,7 +5,7 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/10 23:13
 """
-from typing import Dict, Type, List
+from typing import Dict, Type, List, Optional
 
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -57,11 +57,11 @@ def get_client(provider: ClientType, config: AIConfig) -> BaseClient:
     return client_class(config)
 
 
-def get_llm_client(config: AIConfig, **kwargs):
+def get_llm_client(config: AIConfig, **kwargs) -> BaseLanguageModel:
     return get_llm_client_by_provider(detect_ai_provider_by_url(config.base_url), config, **kwargs)
 
 
-def get_llm_client_by_provider(provider: ClientType, config: AIConfig = None, **kwargs):
+def get_llm_client_by_provider(provider: ClientType, config: AIConfig = None, **kwargs) -> BaseLanguageModel:
     """
     获取指定 LLM 客户端的语言模型实例
 
@@ -76,7 +76,7 @@ def get_llm_client_by_provider(provider: ClientType, config: AIConfig = None, **
     return get_client(provider, fin_config).llm_model()
 
 
-def get_default_llm(**kwargs):
+def get_default_llm(**kwargs) -> Optional[BaseLanguageModel]:
     # 获取配置
     try:
         return _get_default_llm(settings.get_llm_config(), **kwargs)
@@ -90,7 +90,7 @@ def get_default_llm(**kwargs):
             return None
 
 
-def _get_default_llm(ai_config, **kwargs):
+def _get_default_llm(ai_config, **kwargs) -> BaseLanguageModel:
     """
     获取默认的 LLM 客户端的语言模型实例（默认为 OpenAI）
 
