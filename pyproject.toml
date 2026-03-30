@@ -112,7 +112,7 @@ full = [
 [project.urls]
 Homepage = "https://github.com/neopen/video-shot-agent"
 Repository = "https://github.com/neopen/video-shot-agent"
-Documentation = "https://github.com/neopen/video-shot-agent#README"
+Documentation = "https://github.com/neopen/video-shot-agent/blob/main/docs/#PenShot"
 Changelog = "https://github.com/neopen/video-shot-agent/releases"
 Issues = "https://github.com/neopen/video-shot-agent/issues"
 
