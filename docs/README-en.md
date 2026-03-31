@@ -79,10 +79,16 @@ API__PORT=8000
 ########################## LLM CONFIG #########################
 # Supported providers (openai, qwen, deepseek, ollama).
 LLM__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
-LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 LLM__DEFAULT__MODEL_NAME=qwen-plus
 LLM__DEFAULT__TIMEOUT=60
 LLM__DEFAULT__MAX_TOKENS=4096
+
+# ================ embedding default config ================
+# Supported providers（openai, qwen, HuggingFace, ollama）
+EMBED__DEFAULT__BASE_URL=https://api.openai.com/v1
+EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+EMBED__DEFAULT__MODEL_NAME=text-embedding-v4
 ```
 
 
@@ -178,8 +184,9 @@ Example (abbreviated) JSON output structure:
 
 (Actual output will contain a structured list of fragments with prompts, timing, audio prompts, metadata and continuity notes.)
 
-
 ## Integration examples
+
+### Environment
 
 Notes on packaging and installation:
 
@@ -199,17 +206,18 @@ Configuration notes:
 >
 >    ```python
 >    # ================= LLM default config =================
+>    # Supported providers（openai, qwen, deepseek, ollama）
 >    LLM__DEFAULT__BASE_URL=https://api.openai.com/v1
 >    LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 >    LLM__DEFAULT__MODEL_NAME=gpt-4-turbo-preview
 >    LLM__DEFAULT__TIMEOUT=30
 >    LLM__DEFAULT__MAX_TOKENS=4000
->                      
->    # ================= LLM Backup config =================
->    LLM__FALLBACK__BASE_URL=http://localhost:11434
->    LLM__FALLBACK__MODEL_NAME=qwen3:4b
->    LLM__FALLBACK__TIMEOUT=300
->    LLM__FALLBACK__MAX_TOKENS=5000
+>       
+>    # ================ embedding default config ================
+>    # Supported providers（openai, qwen, HuggingFace, ollama）
+>    EMBED__DEFAULT__BASE_URL=https://api.openai.com/v1
+>    EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+>    EMBED__DEFAULT__MODEL_NAME=text-embedding-v4
 >    ```
 >
 
@@ -523,4 +531,4 @@ Contributions are welcome. Please open issues or PRs for:
 1. Bug reports
 2. Feature requests
 3. Code improvements and refactors
-4. Documentation updates
+   1. Documentation updates

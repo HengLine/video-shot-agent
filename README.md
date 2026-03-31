@@ -95,14 +95,18 @@ API__HOST=localhost
 API__PORT=8000
 
 ########################## LLM 模型配置 #########################
-# LLM 厂商 API，支持的厂商（openai, qwen, deepseek, ollama）
+# 系统支持的厂商（openai, qwen, deepseek, ollama）
 LLM__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
 # LLM 厂商 KAY
 LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 # LLM 厂商 模型
 LLM__DEFAULT__MODEL_NAME=qwen-plus
-# 默认API超时时间（秒）
-LLM__DEFAULT__TIMEOUT=60
+
+########################## 嵌入模型配置 #########################
+# 系统支持的厂商（openai, qwen, HuggingFace, ollama）
+EMBED__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
+EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+EMBED__DEFAULT__MODEL_NAME=text-embedding-v4
 ```
 
 ### 3. 启动应用
@@ -217,16 +221,17 @@ pip install penshot
 >
 > ```properties
 > # ================= LLM默认配置 =================
+> # 系统支持的厂商（openai, qwen, deepseek, ollama）
 > LLM__DEFAULT__BASE_URL=https://api.openai.com/v1
 > LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 > LLM__DEFAULT__MODEL_NAME=gpt-4-turbo-preview
 > LLM__DEFAULT__TIMEOUT=30
 > 
-> # ================= LLM备用配置 =================
-> LLM__FALLBACK__BASE_URL=http://localhost:11434
-> LLM__FALLBACK__MODEL_NAME=qwen3:4b
-> LLM__FALLBACK__TIMEOUT=300
-> LLM__FALLBACK__MAX_TOKENS=5000
+> # ================ 嵌入模型默认配置 ================
+> # 系统支持的厂商（openai, qwen, HuggingFace, ollama）
+> EMBED__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
+> EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+> EMBED__DEFAULT__MODEL_NAME=text-embedding-v4
 > ```
 
 
