@@ -313,8 +313,7 @@ class PipelineDecision:
             PipelineState: 决策结果
         """
         # 检查是否已经审查过且结果有效
-        if hasattr(state, 'last_audit_result') and state.last_audit_result:
-            # 如果短时间内重复调用，使用上次结果
+        if state.audit_executed and state.audit_report:
             warning("检测到可能的重复质量审查调用，使用上次结果")
             return PipelineState.SUCCESS
 

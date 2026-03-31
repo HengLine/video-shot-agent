@@ -5,7 +5,7 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/1/25 21:59
 """
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 
 from penshot.logger import debug, info, error
 from penshot.neopen.agent.base_models import AgentMode
@@ -77,19 +77,32 @@ class QualityAuditorAgent:
             SeverityLevel.ERROR: 50,
         }
 
+
     def qa_process(self, instructions: AIVideoInstructions,
-                   stage_issues: Optional[Dict[PipelineNode, List[BasicViolation]]]) -> Optional[QualityAuditReport]:
+                   stage_issues: Optional[Dict[PipelineNode, List[BasicViolation]]] = None,
+                   historical_context: Optional[Dict[str, Any]] = None) -> Optional[QualityAuditReport]:
         """
         执行质量审查 - 合并基本规则、LLM结果和各阶段问题
 
         Args:
             instructions: AI视频指令
             stage_issues: 各阶段检测到的问题（来自各个智能体的detect_issues方法）
+            historical_context: 历史上下文（可选，用于优化审查）
 
         Returns:
             质量审查报告
         """
         debug("开始质量审查")
+
+        # 记录历史上下文信息
+        if historical_context:
+            debug("使用历史上下文优化质量审查")
+            historical_audit_results = historical_context.get("historical_audit_results")
+            if historical_audit_results:
+                debug(f"加载了 {len(historical_audit_results)} 条历史审查记录")
+            successful_repair_patterns = historical_context.get("successful_repair_patterns")
+            if successful_repair_patterns:
+                debug(f"加载了 {len(successful_repair_patterns) if isinstance(successful_repair_patterns, list) else 1} 条修复成功模式")
 
         # 初始化阶段问题
         if stage_issues is None:
@@ -100,17 +113,17 @@ class QualityAuditorAgent:
             rule_report = self.rule_auditor.audit(instructions)
             info(f"基本规则审查完成，发现{len(rule_report.violations)}个问题")
 
-            # 2. 执行LLM深度审查（如果启用）
+            # 2. 执行LLM深度审查（如果启用），传递历史上下文
             llm_report = None
             if self.llm_auditor:
-                llm_report = self.llm_auditor.audit(instructions)
+                llm_report = self.llm_auditor.audit(instructions, historical_context)  # 传递历史上下文
                 info(f"LLM审查完成，发现{len(llm_report.violations) if llm_report else 0}个问题")
 
             # 3. 合并报告（包含各阶段问题）
             merged_report = self._merge_reports(rule_report, llm_report, instructions, stage_issues)
 
             # 4. 增强报告：添加问题分类和修复参数
-            enhanced_report = self._enhance_report(merged_report, instructions, stage_issues)
+            enhanced_report = self._enhance_report(merged_report, instructions, stage_issues, historical_context)
 
             # 5. 后处理（计算分数、状态等）
             final_report = self._post_process_report(enhanced_report)
@@ -123,61 +136,11 @@ class QualityAuditorAgent:
             error(f"质量审查异常: {e}")
             return self._create_fallback_report(instructions)
 
-    def _merge_reports(self, rule_report: QualityAuditReport,
-                       llm_report: Optional[QualityAuditReport],
-                       instructions: AIVideoInstructions,
-                       stage_issues: Dict[PipelineNode, List[BasicViolation]]) -> QualityAuditReport:
-        """合并基本规则、LLM审查报告和各阶段问题"""
-
-        # 创建合并报告（基于规则报告）
-        merged = QualityAuditReport(
-            project_info=instructions.project_info,
-            checks=rule_report.checks.copy(),
-            violations=rule_report.violations.copy(),
-            stats=rule_report.stats.copy()
-        )
-
-        # 1. 合并LLM报告的问题
-        if llm_report:
-            for violation in llm_report.violations:
-                merged.violations.append(violation)
-
-            for check in llm_report.checks:
-                merged.checks.append(check)
-
-        # 2. 合并各阶段检测到的问题
-        total_stage_issues = 0
-        for node, issues in stage_issues.items():
-            if issues:
-                total_stage_issues += len(issues)
-                for issue in issues:
-                    # 设置问题来源节点
-                    if not hasattr(issue, 'source_node') or not issue.source_node:
-                        issue.source_node = node
-                    merged.violations.append(issue)
-
-                info(f"合并阶段 {node.value} 的问题: {len(issues)}个")
-
-        if total_stage_issues > 0:
-            info(f"总共合并各阶段问题: {total_stage_issues}个")
-
-        # 3. 更新分数（如果合并了问题，需要重新计算）
-        if total_stage_issues > 0:
-            merged.score = self._calculate_weighted_score(merged.violations)
-
-        return merged
-
-    def _calculate_weighted_score(self, violations: List[BasicViolation]) -> float:
-        """根据问题计算加权分数"""
-        base_score = 100.0
-        for violation in violations:
-            penalty = self.severity_weights.get(violation.severity, 5)
-            base_score -= penalty
-        return max(0.0, min(100.0, base_score))
 
     def _enhance_report(self, report: QualityAuditReport,
                         instructions: AIVideoInstructions,
-                        stage_issues: Dict[PipelineNode, List[BasicViolation]]) -> QualityAuditReport:
+                        stage_issues: Dict[PipelineNode, List[BasicViolation]],
+                        historical_context: Optional[Dict[str, Any]] = None) -> QualityAuditReport:
         """增强报告：添加问题分类和修复参数"""
 
         # 初始化分类
@@ -245,6 +208,20 @@ class QualityAuditorAgent:
                     "by_type": self._get_type_summary(issues)
                 }
 
+        # ========== 新增：使用历史上下文优化修复参数 ==========
+        if historical_context:
+            # 获取历史成功修复模式
+            successful_repair_patterns = historical_context.get("successful_repair_patterns")
+            if successful_repair_patterns:
+                # 根据历史成功模式优化修复建议
+                self._optimize_repair_params_with_history(repair_params_by_source, successful_repair_patterns)
+
+            # 获取历史审计结果
+            historical_audit_results = historical_context.get("historical_audit_results")
+            if historical_audit_results:
+                # 根据历史结果调整问题严重程度
+                self._adjust_severity_with_history(repair_params_by_source, historical_audit_results)
+
         # 添加到报告
         report.detailed_analysis = {
             "issues_by_source": {
@@ -262,7 +239,8 @@ class QualityAuditorAgent:
             "repair_params_by_source": {
                 source.value: params.model_dump() for source, params in repair_params_by_source.items()
             },
-            "stage_issue_stats": stage_issue_stats
+            "stage_issue_stats": stage_issue_stats,
+            "historical_context_applied": historical_context is not None  # 标记是否使用了历史上下文
         }
 
         # 保存到报告属性
@@ -270,6 +248,135 @@ class QualityAuditorAgent:
         report.repair_params = repair_params_by_source
 
         return report
+
+    def _optimize_repair_params_with_history(self, repair_params: Dict, successful_patterns: List):
+        """
+        根据历史成功修复模式优化修复参数
+
+        Args:
+            repair_params: 当前修复参数
+            successful_patterns: 历史成功修复模式列表
+        """
+        if not successful_patterns:
+            return
+
+        debug(f"使用 {len(successful_patterns)} 条历史成功模式优化修复建议")
+
+        # 分析成功模式中的问题类型频率
+        pattern_issue_counts = {}
+        for pattern in successful_patterns:
+            if isinstance(pattern, dict):
+                issue_types = pattern.get("issue_types", [])
+                for issue_type in issue_types:
+                    pattern_issue_counts[issue_type] = pattern_issue_counts.get(issue_type, 0) + 1
+
+        # 对于高频问题，增加修复优先级
+        high_freq_issues = {t: c for t, c in pattern_issue_counts.items() if c > 2}
+        if high_freq_issues:
+            debug(f"高频问题模式: {high_freq_issues}")
+
+            # 为高频问题添加额外建议
+            for source, params in repair_params.items():
+                for issue_type in params.issue_types:
+                    if issue_type in high_freq_issues:
+                        if "global" not in params.suggestions:
+                            params.suggestions["global"] = []
+                        params.suggestions["global"].append(
+                            f"根据历史经验，此问题频繁出现，建议优先修复（出现{high_freq_issues[issue_type]}次）"
+                        )
+
+    def _adjust_severity_with_history(self, repair_params: Dict, historical_results: List):
+        """
+        根据历史审计结果调整问题严重程度
+
+        Args:
+            repair_params: 当前修复参数
+            historical_results: 历史审计结果列表
+        """
+        if not historical_results:
+            return
+
+        debug(f"使用 {len(historical_results)} 条历史审计结果调整严重程度")
+
+        # 分析历史中哪些问题导致失败
+        critical_issue_types = set()
+        for result in historical_results[-20:]:  # 最近20条
+            if result.get("status") in ["failed", "critical"]:
+                violations = result.get("violations", [])
+                for v in violations:
+                    if isinstance(v, dict):
+                        issue_type = v.get("issue_type", {}).get("value", "unknown")
+                    else:
+                        issue_type = getattr(v, "issue_type", "unknown")
+                        if hasattr(issue_type, "value"):
+                            issue_type = issue_type.value
+                    critical_issue_types.add(issue_type)
+
+        if critical_issue_types:
+            debug(f"历史严重问题类型: {critical_issue_types}")
+
+            # 提升严重问题的修复优先级
+            for source, params in repair_params.items():
+                for issue_type in params.issue_types:
+                    if issue_type in critical_issue_types:
+                        # 添加高优先级标记
+                        if "global" not in params.suggestions:
+                            params.suggestions["global"] = []
+                        params.suggestions["global"].append(
+                            f"此问题历史中曾导致失败，建议优先修复"
+                        )
+
+
+    def _merge_reports(self, rule_report: QualityAuditReport,
+                       llm_report: Optional[QualityAuditReport],
+                       instructions: AIVideoInstructions,
+                       stage_issues: Dict[PipelineNode, List[BasicViolation]]) -> QualityAuditReport:
+        """合并基本规则、LLM审查报告和各阶段问题"""
+
+        # 创建合并报告（基于规则报告）
+        merged = QualityAuditReport(
+            project_info=instructions.project_info,
+            checks=rule_report.checks.copy(),
+            violations=rule_report.violations.copy(),
+            stats=rule_report.stats.copy()
+        )
+
+        # 1. 合并LLM报告的问题
+        if llm_report:
+            for violation in llm_report.violations:
+                merged.violations.append(violation)
+
+            for check in llm_report.checks:
+                merged.checks.append(check)
+
+        # 2. 合并各阶段检测到的问题
+        total_stage_issues = 0
+        for node, issues in stage_issues.items():
+            if issues:
+                total_stage_issues += len(issues)
+                for issue in issues:
+                    merged.violations.append(issue)
+
+                info(f"合并阶段 {node.value} 的问题: {len(issues)}个")
+
+        if total_stage_issues > 0:
+            info(f"总共合并各阶段问题: {total_stage_issues}个")
+
+        # 3. 更新分数（如果合并了问题，需要重新计算）
+        if total_stage_issues > 0:
+            merged.score = self._calculate_weighted_score(merged.violations)
+
+        return merged
+
+    def _calculate_weighted_score(self, violations: List[BasicViolation]) -> float:
+        """根据问题计算加权分数"""
+        base_score = 100.0
+        for violation in violations:
+            penalty = self.severity_weights.get(violation.severity, 5)
+            base_score -= penalty
+        return max(0.0, min(100.0, base_score))
+
+
 
     def _get_type_summary(self, issues: List[BasicViolation]) -> Dict[str, int]:
         """获取问题类型摘要"""

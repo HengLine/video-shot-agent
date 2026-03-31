@@ -684,6 +684,7 @@ class WorkflowNodes:
         }
 
         # 检查是否已经执行过
+        # 检查是否短时间内重复执行
         if state.audit_executed and state.audit_timestamp:
             last_time = datetime.fromisoformat(state.audit_timestamp)
             current_time = datetime.now()
@@ -693,8 +694,11 @@ class WorkflowNodes:
                 last_result = self.memory.recall("latest_audit_result", memory_type=MemoryType.SHORT)
                 if last_result:
                     warning(f"质量审查在 {time_diff:.1f} 秒内重复执行，使用上次结果")
-                    state.audit_report = QualityAuditReport(**last_result.get("report", {}))
-                    return state
+                    # 从记忆重建报告
+                    report_data = last_result.get("report")
+                    if report_data:
+                        state.audit_report = report_data
+                        return state
 
         info(f"进入质量审查节点（增强版），当前阶段={state.current_stage.value}")
         info(f"审查前状态: 片段数={len(state.fragment_sequence.fragments) if state.fragment_sequence else 0}")
@@ -703,8 +707,12 @@ class WorkflowNodes:
         self._update_task_progress(state.task_id, TaskStage.AUDITING, 50)
 
         try:
-            # 执行质量审查（传入各阶段问题）
-            result = self.quality_auditor.qa_process(state.instructions, all_stage_issues, historical_context)
+            # 执行质量审查（传入各阶段问题和历史上下文）
+            result = self.quality_auditor.qa_process(
+                state.instructions,
+                all_stage_issues,
+                historical_context  # 传递历史上下文
+            )
 
             debug(f"质量审查完成:")
             debug(f"  - 审查状态: {result.status.value}")
