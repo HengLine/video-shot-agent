@@ -59,6 +59,9 @@ class QualityAuditorState(BaseModel):
     audit_report: Optional[QualityAuditReport] = None  # 质量审查报告
     audit_failures: List[str] = field(default_factory=list)  # 审查失败项
     audit_warnings: List[str] = field(default_factory=list)  # 审查警告项
+    audit_history: List[Dict[str, Any]] = []  # 质量审查历史记录
+    audit_executed: bool = False  #
+    audit_timestamp: Optional[str] = None
 
 
 class OutputState(BaseModel):
@@ -143,11 +146,6 @@ class WorkflowState(InputState, ScriptParsingState, ShotGeneratorState, NodeLoop
     # 人工决策
     needs_human_review: bool = False
     human_feedback: Dict[str, Any] = {}
-
-    # 审查
-    audit_history: List[Dict[str, Any]] = []  # 质量审查历史记录
-    audit_executed: bool = False  #
-    audit_timestamp: Optional[str] = None
 
     # 修复
     fix_summary: Optional[Dict[str, Any]] = {}

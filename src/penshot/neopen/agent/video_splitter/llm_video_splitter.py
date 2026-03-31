@@ -55,7 +55,7 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseLLMAgent):
             repair_params: Optional[QualityRepairParams],
             historical_context: Optional[Dict[str, Any]]) -> FragmentSequence:
         """使用LLM智能分割视频，从ParsedScript获取全局信息"""
-        info(f"开始智能视频分割，镜头数: {len(shot_sequence.shots)}")
+        debug(f"开始智能视频分割，镜头数: {len(shot_sequence.shots)}")
 
         # 保存历史上下文
         self.current_historical_context = historical_context
@@ -150,7 +150,6 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseLLMAgent):
             }
         )
 
-        info(f"视频分割完成: 共生成{len(fragments)}个片段")
         return self.post_process(fragment_sequence)
 
 

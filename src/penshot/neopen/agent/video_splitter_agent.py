@@ -162,7 +162,6 @@ class VideoSplitterAgent(BaseRepairableAgent[FragmentSequence, ShotSequence]):
                 error("视频片段分割失败")
                 return None
 
-            info(f"视频分割完成，片段数: {len(fragment_sequence.fragments)}")
             total_duration = sum(f.duration for f in fragment_sequence.fragments)
             debug(f"总时长: {total_duration:.1f}秒")
             debug(f"平均时长: {total_duration / len(fragment_sequence.fragments):.1f}秒")

@@ -12,7 +12,7 @@ from typing import Any
 import yaml
 
 from penshot.neopen.shot_language import Language, get_language
-from penshot.logger import info, error, warning
+from penshot.logger import info, error, warning, debug
 
 
 class BaseConfig:
@@ -69,7 +69,7 @@ class BaseConfig:
 
             self._load_config()
 
-            info(f"成功加载配置文件: {self.config_path}")
+            debug(f"成功加载配置文件: {self.config_path}")
         except FileNotFoundError:
             error(f"配置文件不存在: {self.config_path}")
             self._config_data = {}

@@ -66,7 +66,7 @@ class ResultStorage:
             self._ensure_string_integrity(data_dict)
 
             save_result = self.save_result(uuid, data_dict, result_filename)
-            info(f"成功保存: data/output/{uuid}/{result_filename}")
+            debug(f"成功保存: data/output/{uuid}/{result_filename}")
             return save_result
         except Exception as save_error:
             error(f"保存{result_filename}失败: {str(save_error)}")

@@ -199,8 +199,6 @@ class ShotSegmenterAgent(BaseRepairableAgent[ShotSequence, ParsedScript]):
                 error("分镜生成失败")
                 return None
 
-            info(f"分镜生成完成: {len(shot_sequence.shots)}个镜头")
-
             # 2. 估算每个镜头的时长
             shot_sequence = estimator_factory.estimate_sequence(shot_sequence, structured_script)
 
@@ -214,7 +212,6 @@ class ShotSegmenterAgent(BaseRepairableAgent[ShotSequence, ParsedScript]):
                 )
 
                 if corrections:
-                    info(f"时长增强: 修正{len(corrections)}个镜头")
                     for corr in corrections[:5]:
                         debug(f"  {corr.shot_id}: {corr.original_duration}s -> {corr.corrected_duration}s ({corr.reasons})")
                 shot_sequence = enhanced_sequence

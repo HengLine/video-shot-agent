@@ -100,9 +100,7 @@ class LLMScriptParser(BaseScriptParser, BaseLLMAgent):
         parsed_script = self.post_process(parsed_script)
 
         # 验证结果
-        if self.validate_parsed_result(parsed_script):
-            info("剧本解析成功")
-        else:
+        if not self.validate_parsed_result(parsed_script):
             warning("剧本解析结果可能存在问题")
 
         return parsed_script
