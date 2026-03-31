@@ -12,14 +12,13 @@ from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 from penshot.config.config import settings
-from penshot.config.config_models import LLMProviderConfig, EmbeddingProviderConfig
-from penshot.logger import error, warning, info
 from penshot.neopen.client.base_client import BaseClient
 from penshot.neopen.client.client_config import ClientType, AIConfig, detect_ai_provider_by_url
 from penshot.neopen.client.llm.deepseek_client import DeepSeekClient
 from penshot.neopen.client.llm.ollama_client import OllamaClient
 from penshot.neopen.client.llm.openai_client import OpenAIClient
 from penshot.neopen.client.llm.qwen_client import QwenClient
+from penshot.logger import error, warning, info
 from penshot.utils.log_utils import print_log_exception
 
 CLIENT_REGISTRY: Dict[ClientType, Type[BaseClient]] = {
@@ -60,7 +59,7 @@ def get_client(provider: ClientType, config: AIConfig) -> BaseClient:
 
 
 def get_llm_client(config: AIConfig, **kwargs) -> BaseLanguageModel:
-    return get_llm_client_by_provider(detect_ai_provider_by_url(config.llm_config.base_url), config, **kwargs)
+    return get_llm_client_by_provider(detect_ai_provider_by_url(config.base_url), config, **kwargs)
 
 
 def get_llm_client_by_provider(provider: ClientType, config: AIConfig = None, **kwargs) -> BaseLanguageModel:
@@ -103,7 +102,7 @@ def _get_default_llm(ai_config, **kwargs) -> BaseLanguageModel:
     provider = detect_ai_provider_by_url(ai_config.base_url)
     info(f"使用AI提供商: {provider}, 模型: {ai_config.model_name}")
 
-    llm_config = LLMProviderConfig(
+    config = AIConfig(
         model_name=ai_config.model_name,
         api_key=ai_config.api_key,
         base_url=ai_config.base_url,
@@ -111,8 +110,6 @@ def _get_default_llm(ai_config, **kwargs) -> BaseLanguageModel:
         timeout=ai_config.timeout,
         max_tokens=ai_config.max_tokens,
     )
-
-    config = AIConfig(llm_config=llm_config)
 
     fin_config = _fill_default_config(config, **kwargs)
 
@@ -129,23 +126,12 @@ def _get_default_llm(ai_config, **kwargs) -> BaseLanguageModel:
 
 def _fill_default_config(config: AIConfig = None, **kwargs) -> AIConfig:
     """填充默认配置"""
-    llm_config = LLMProviderConfig(
+    config = config or AIConfig(
         model_name=kwargs.get('model_name', 'gpt-4o'),
         base_url=kwargs.get('base_url', ""),
-        api_key=kwargs.get("api_key"),
+        api_key=kwargs.get("api_key", None),
         temperature=kwargs.get("temperature", 0.1),
         max_tokens=kwargs.get("max_tokens", 10000),
-    )
-
-    embed_config = EmbeddingProviderConfig(
-        model_name=kwargs.get('model_name', 'gpt-4o'),
-        base_url=kwargs.get('base_url', ""),
-        api_key=kwargs.get("api_key")
-    )
-
-    config = config or AIConfig(
-        llm_config=llm_config,
-        embed_config=embed_config
     )
 
     if not kwargs:
@@ -200,7 +186,7 @@ def get_embedding_client(config: AIConfig) -> Embeddings:
     Returns:
         嵌入模型实例
     """
-    client = get_client(detect_ai_provider_by_url(config.embed_config.base_url), config)
+    client = get_client(detect_ai_provider_by_url(config.base_url), config)
     return client.llm_embed()
 
 
@@ -230,13 +216,12 @@ def _get_default_embedding_client(ai_config, **kwargs):
     provider = detect_ai_provider_by_url(ai_config.base_url)
     info(f"使用AI提供商: {provider}, 嵌入模型: {ai_config.model_name}")
 
-    embed_config = EmbeddingProviderConfig(
+    config = AIConfig(
         model_name=ai_config.model_name,
         base_url=ai_config.base_url,
         timeout=ai_config.timeout,
         api_key=ai_config.api_key
     )
-    config = AIConfig(embed_config=embed_config)
 
     fin_config = _fill_default_config(config, **kwargs)
 

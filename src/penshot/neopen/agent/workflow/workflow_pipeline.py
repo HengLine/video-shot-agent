@@ -40,7 +40,7 @@ class MultiAgentPipeline:
         self.memory = MemorySaver()  # 状态记忆器
         self.config = config or ShotConfig()
         self.llm = self.config.get_llm_by_config()
-        self.embeddings = self.config.get_emd_by_config()
+        self.embeddings = self.config.get_embed_by_config()
         self.task_manager = task_manager
         self._init_agents()
         self.workflow = self._build_workflow()
