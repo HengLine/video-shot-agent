@@ -12,11 +12,9 @@ __all__ = [
     "PenshotMCPServer",
     "Language",
     "ShotConfig",
-    "TaskManager"
 ]
 
 from penshot.http_server import HttpServer
 from penshot.mcp_server import PenshotMCPServer
-from penshot.neopen import ShotConfig
+from penshot.neopen.shot_config import ShotConfig
 from penshot.neopen.shot_language import Language
-from penshot.neopen.task import TaskManager
