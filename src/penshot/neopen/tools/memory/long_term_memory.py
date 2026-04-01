@@ -8,9 +8,7 @@
 from datetime import datetime
 from typing import Optional, Any, Dict, List
 
-from langchain.memory import (
-    VectorStoreRetrieverMemory
-)
+from langchain_classic.memory import VectorStoreRetrieverMemory
 from langchain_community.vectorstores import Chroma
 
 from penshot.logger import error, debug

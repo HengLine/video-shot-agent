@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Optional, Any, Dict
 from datetime import datetime
 
-from langchain.memory import ConversationSummaryMemory
-from langchain.prompts import PromptTemplate
-from langchain.llms.base import BaseLLM
+from langchain_classic.memory import ConversationSummaryMemory
+from langchain_core.language_models import BaseLLM
+from langchain_core.prompts import PromptTemplate
 
 from penshot.logger import debug, info, error
 from penshot.neopen.tools.memory.memory_models import MemoryConfig

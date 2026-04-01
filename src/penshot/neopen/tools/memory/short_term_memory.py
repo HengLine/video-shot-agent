@@ -4,12 +4,12 @@
 @Author: HiPeng
 @Time: 2026/4/1
 """
-from typing import Optional, Any, Dict, List
 from collections import deque
+from typing import Optional, Any, Dict, List
 
-from langchain.memory import ConversationBufferMemory
+from langchain_classic.memory import ConversationBufferMemory
 from langchain_community.chat_message_histories import RedisChatMessageHistory
-from langchain.schema import HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from penshot.logger import debug, warning
 from penshot.neopen.tools.memory.memory_models import MemoryConfig
