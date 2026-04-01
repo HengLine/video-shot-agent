@@ -8,7 +8,7 @@
 import json
 from typing import Any, Dict, Optional
 
-from penshot.logger import info, warning, error, debug
+from penshot.logger import warning, error, debug
 from penshot.neopen.agent.base_llm_agent import BaseLLMAgent
 from penshot.neopen.agent.base_models import ScriptType
 from penshot.neopen.agent.quality_auditor.quality_auditor_models import QualityRepairParams
@@ -113,23 +113,9 @@ class LLMScriptParser(BaseScriptParser, BaseLLMAgent):
         hints = []
 
         # 1. 常见问题模式
-        common_issues = historical_context.get("common_issues")
-        if common_issues and isinstance(common_issues, list):
-            issue_counts = {}
-            for issue in common_issues[-30:]:
-                if isinstance(issue, dict):
-                    issue_type = issue.get("issue_type", {}).get("value", "unknown")
-                else:
-                    issue_type = getattr(issue, "issue_type", "unknown")
-                    if hasattr(issue_type, "value"):
-                        issue_type = issue_type.value
-                issue_counts[issue_type] = issue_counts.get(issue_type, 0) + 1
-
-            sorted_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)
-            top_issues = [f"{t}({c}次)" for t, c in sorted_issues[:3]]
-
-            if top_issues:
-                hints.append(f"常见问题类型: {', '.join(top_issues)}，请特别注意避免这些问题。")
+        common_hint = self._get_common_issues_hint(historical_context, "解析问题")
+        if common_hint:
+            hints.append(common_hint)
 
         # 2. 历史统计信息
         historical_stats = historical_context.get("historical_stats")

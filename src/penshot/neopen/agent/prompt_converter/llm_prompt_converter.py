@@ -233,23 +233,9 @@ class LLMPromptConverter(BasePromptConverter, BaseLLMAgent):
         hints = []
 
         # 1. 常见问题模式
-        common_issues = historical_context.get("common_issues")
-        if common_issues and isinstance(common_issues, list):
-            issue_counts = {}
-            for issue in common_issues[-30:]:
-                if isinstance(issue, dict):
-                    issue_type = issue.get("issue_type", {}).get("value", "unknown")
-                else:
-                    issue_type = getattr(issue, "issue_type", "unknown")
-                    if hasattr(issue_type, "value"):
-                        issue_type = issue_type.value
-                issue_counts[issue_type] = issue_counts.get(issue_type, 0) + 1
-
-            sorted_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)
-            top_issues = [f"{t}({c}次)" for t, c in sorted_issues[:3]]
-
-            if top_issues:
-                hints.append(f"常见提示词问题类型: {', '.join(top_issues)}，请特别注意避免这些问题。")
+        common_hint = self._get_common_issues_hint(historical_context, "提示词问题")
+        if common_hint:
+            hints.append(common_hint)
 
         # 2. 历史统计信息
         historical_stats = historical_context.get("historical_stats")
@@ -272,10 +258,9 @@ class LLMPromptConverter(BasePromptConverter, BaseLLMAgent):
 
         # 3. 成功模式参考
         successful_patterns = historical_context.get("successful_patterns")
-        if successful_patterns and isinstance(successful_patterns, list):
-            if successful_patterns:
-                pattern_summary = successful_patterns[0][:100] if isinstance(successful_patterns[0], str) else str(successful_patterns[0])[:100]
-                hints.append(f"参考成功模式: {pattern_summary}...")
+        if successful_patterns and isinstance(successful_patterns, list) and successful_patterns:
+            pattern_summary = successful_patterns[0][:100] if isinstance(successful_patterns[0], str) else str(successful_patterns[0])[:100]
+            hints.append(f"参考成功模式: {pattern_summary}...")
 
         if not hints:
             return ""

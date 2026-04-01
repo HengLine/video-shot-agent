@@ -108,15 +108,7 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseLLMAgent):
             }
 
     def _build_history_hint(self, historical_context: Optional[Dict[str, Any]]) -> str:
-        """
-        构建历史上下文提示
-
-        Args:
-            historical_context: 历史上下文
-
-        Returns:
-            格式化的历史提示
-        """
+        """构建历史上下文提示"""
         if not historical_context:
             return ""
 
@@ -125,23 +117,16 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseLLMAgent):
         # 1. 历史审计结果
         historical_audit_results = historical_context.get("historical_audit_results")
         if historical_audit_results and isinstance(historical_audit_results, list):
-            # 统计历史常见问题
             issue_stats = {}
-            for result in historical_audit_results[-20:]:  # 最近20条
-                status = result.get("status")
+            for result in historical_audit_results[-20:]:
+                status = result.get("status") if isinstance(result, dict) else getattr(result, "status", None)
                 if status in ["failed", "critical"]:
-                    violations = result.get("violations", [])
+                    violations = result.get("violations", []) if isinstance(result, dict) else getattr(result, "violations", [])
                     for v in violations:
-                        if isinstance(v, dict):
-                            issue_type = v.get("issue_type", {}).get("value", "unknown")
-                        else:
-                            issue_type = getattr(v, "issue_type", "unknown")
-                            if hasattr(issue_type, "value"):
-                                issue_type = issue_type.value
+                        issue_type = self._extract_issue_type(v)
                         issue_stats[issue_type] = issue_stats.get(issue_type, 0) + 1
 
             if issue_stats:
-                # 按频率排序
                 sorted_issues = sorted(issue_stats.items(), key=lambda x: x[1], reverse=True)
                 top_issues = [f"{t}({c}次)" for t, c in sorted_issues[:3]]
                 hints.append(f"【历史常见问题】{', '.join(top_issues)}，请重点关注这些问题类型。")
@@ -149,9 +134,8 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseLLMAgent):
         # 2. 成功修复模式
         successful_repair_patterns = historical_context.get("successful_repair_patterns")
         if successful_repair_patterns and isinstance(successful_repair_patterns, list):
-            # 提取成功修复的问题类型
             successful_issue_types = set()
-            for pattern in successful_repair_patterns[:10]:  # 最近10条
+            for pattern in successful_repair_patterns[:10]:
                 if isinstance(pattern, dict):
                     issue_types = pattern.get("issue_types", [])
                     successful_issue_types.update(issue_types)
@@ -161,7 +145,13 @@ class LLMQualityAuditor(BaseQualityAuditor, BaseLLMAgent):
 
         # 3. 历史质量趋势
         if historical_audit_results and len(historical_audit_results) >= 5:
-            recent_scores = [r.get("score", 0) for r in historical_audit_results[-5:]]
+            recent_scores = []
+            for r in historical_audit_results[-5:]:
+                if isinstance(r, dict):
+                    score = r.get("score", 0)
+                else:
+                    score = getattr(r, "score", 0)
+                recent_scores.append(score)
             avg_score = sum(recent_scores) / len(recent_scores)
             if avg_score < 70:
                 hints.append(f"【质量趋势】近期审查平均分数偏低({avg_score:.0f}分)，建议严格审查。")

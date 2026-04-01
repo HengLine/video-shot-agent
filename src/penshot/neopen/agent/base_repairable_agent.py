@@ -5,6 +5,7 @@
 @Github: https://github.com/neopen/video-shot-agent
 @Time: 2026/3/28
 """
+import json
 import time
 from abc import abstractmethod
 from typing import Optional, List, Dict, Any, Generic
@@ -53,6 +54,67 @@ class BaseRepairableAgent(BaseAgent, Generic[T, K]):
         """
         pass
 
+    # ===================== 安全数据转换方法 =====================
+
+    def _safe_get_dict(self, value: Any, default: Dict = None) -> Dict:
+        """
+        安全地将值转换为字典
+
+        Args:
+            value: 任意值
+            default: 默认值
+
+        Returns:
+            字典
+        """
+        if default is None:
+            default = {}
+
+        if isinstance(value, dict):
+            return value
+
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, dict):
+                    return parsed
+            except:
+                pass
+
+        return default
+
+    def _safe_get_list(self, value: Any, default: List = None) -> List:
+        """
+        安全地将值转换为列表
+
+        Args:
+            value: 任意值
+            default: 默认值
+
+        Returns:
+            列表
+        """
+        if default is None:
+            default = []
+
+        if isinstance(value, list):
+            return value
+
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return parsed
+            except:
+                pass
+
+        if value is not None:
+            return [value]
+
+        return default
+
+    # ===================== 历史上下文应用方法 =====================
+
     def apply_historical_context(self, historical_context: Dict[str, Any]) -> None:
         """
         应用历史上下文，优化解析策略（基类实现，子类可重写扩展）
@@ -86,26 +148,28 @@ class BaseRepairableAgent(BaseAgent, Generic[T, K]):
         self._on_historical_context_applied()
 
     def _analyze_common_issues(self, historical_context: Dict[str, Any]) -> None:
-        """分析常见问题模式"""
+        """
+        分析常见问题模式
+        使用基类 BaseAgent 中定义的数据提取函数
+        """
         common_issues = historical_context.get("common_issues")
-        if not common_issues or not isinstance(common_issues, list):
+
+        # 安全处理 common_issues
+        if common_issues is None:
             self._historical_insights["common_issues"] = {}
             return
 
-        # 统计问题类型
+        # 确保是列表
+        common_issues = self._safe_get_list(common_issues, [])
+
+        if not common_issues:
+            self._historical_insights["common_issues"] = {}
+            return
+
+        # 使用基类的 _extract_issue_type 方法统计问题类型
         issue_type_counts = {}
         for issue in common_issues:
-            if isinstance(issue, dict):
-                issue_type = issue.get("issue_type", {})
-                if isinstance(issue_type, dict):
-                    issue_type = issue_type.get("value", "unknown")
-                else:
-                    issue_type = issue_type if issue_type else "unknown"
-            else:
-                issue_type = getattr(issue, "issue_type", "unknown")
-                if hasattr(issue_type, "value"):
-                    issue_type = issue_type.value
-
+            issue_type = self._extract_issue_type(issue)
             issue_type_counts[issue_type] = issue_type_counts.get(issue_type, 0) + 1
 
         self._historical_insights["common_issues"] = issue_type_counts
@@ -123,17 +187,26 @@ class BaseRepairableAgent(BaseAgent, Generic[T, K]):
                 self._historical_insights["high_freq_issues"] = high_freq_issues
 
     def _analyze_historical_stats(self, historical_context: Dict[str, Any]) -> None:
-        """分析历史统计信息"""
+        """
+        分析历史统计信息
+        使用基类的 _safe_get_dict 方法安全处理数据
+        """
         historical_stats = historical_context.get("historical_stats")
-        if not historical_stats or not isinstance(historical_stats, dict):
+
+        # 安全处理 historical_stats
+        if historical_stats is None:
             self._historical_insights["stats"] = {}
             return
 
+        historical_stats = self._safe_get_dict(historical_stats, {})
+
         self._historical_insights["stats"] = historical_stats
 
-        # 提取关键指标
+        # 提取关键指标 - 安全获取 parsing_confidence
         avg_completeness = historical_stats.get("completeness_score", 0)
-        avg_confidence = historical_stats.get("parsing_confidence", {}).get("overall", 0) if isinstance(historical_stats.get("parsing_confidence"), dict) else 0
+        parsing_confidence = historical_stats.get("parsing_confidence", {})
+        parsing_confidence = self._safe_get_dict(parsing_confidence, {})
+        avg_confidence = parsing_confidence.get("overall", 0)
 
         debug(f"历史质量指标: 平均完整度={avg_completeness:.0%}, 平均置信度={avg_confidence:.0%}")
 
@@ -202,10 +275,18 @@ class BaseRepairableAgent(BaseAgent, Generic[T, K]):
         # 最近策略提示
         recent_strategy = self._historical_insights.get("recent_strategy")
         if recent_strategy:
+            # 处理可能是字符串的情况
+            if isinstance(recent_strategy, str):
+                try:
+                    recent_strategy = json.loads(recent_strategy)
+                except:
+                    pass
+
             if isinstance(recent_strategy, dict):
                 strategy_hint = recent_strategy.get("suggestion") or recent_strategy.get("strategy")
             else:
                 strategy_hint = recent_strategy
+
             if strategy_hint:
                 hints.append(f"参考最近成功策略: {strategy_hint}")
 
@@ -226,6 +307,7 @@ class BaseRepairableAgent(BaseAgent, Generic[T, K]):
         self._context_applied = False
         debug("历史上下文已清空")
 
+    # ===================== 修复参数应用方法 =====================
 
     def apply_repair_params(self, node: PipelineNode, repair_params: QualityRepairParams) -> None:
         """
@@ -294,4 +376,3 @@ class BaseRepairableAgent(BaseAgent, Generic[T, K]):
         self.clear_repair_params()
         self.clear_historical_context()
         self.repair_history.clear()
-

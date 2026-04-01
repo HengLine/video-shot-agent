@@ -115,8 +115,6 @@ class ShotSegmenterAgent(BaseRepairableAgent[ShotSequence, ParsedScript]):
             self._prefer_shorter_shots = True
             debug("修复参数：将缩短镜头时长")
 
-    # shot_segmenter_agent.py - 添加历史上下文回调
-
     def _on_historical_context_applied(self) -> None:
         """历史上下文应用后的自定义处理"""
         if not self.current_historical_context:
@@ -124,7 +122,7 @@ class ShotSegmenterAgent(BaseRepairableAgent[ShotSequence, ParsedScript]):
 
         insights = self.get_historical_insights()
 
-        # 1. 根据高频问题调整策略
+        # 使用基类方法获取高频问题
         high_freq_issues = insights.get("high_freq_issues", {})
 
         if "shot_insufficient" in high_freq_issues:
@@ -144,28 +142,29 @@ class ShotSegmenterAgent(BaseRepairableAgent[ShotSequence, ParsedScript]):
             info("根据历史经验，角色缺失问题频繁，将加强角色识别")
             self._focus_on_character_consistency = True
 
-        # 2. 根据质量等级调整
+        # 根据质量等级调整
         if self.should_use_enhanced_validation():
             info("启用增强验证模式，将更严格检查镜头质量")
             self._need_extra_validation = True
 
-        # 3. 应用历史统计信息
+        # 使用基类方法安全获取统计信息
         historical_stats = self.current_historical_context.get("historical_stats")
-        if historical_stats:
+        if historical_stats and isinstance(historical_stats, dict):
             avg_shot_count = historical_stats.get("shot_count", 0)
             avg_duration = historical_stats.get("avg_duration", 0)
-            debug(f"历史分镜统计: 平均镜头数={avg_shot_count}, 平均时长={avg_duration}")
 
-            if avg_shot_count < 5:
+            if avg_shot_count:
+                debug(f"历史分镜统计: 平均镜头数={avg_shot_count}, 平均时长={avg_duration}")
+
+            if avg_shot_count and avg_shot_count < 5:
                 self._focus_on_shot_variety = True
                 debug("历史平均镜头数较少，将增加镜头数量")
 
-        # 4. 应用历史问题模式
+        # 使用基类方法安全获取历史问题
         historical_issues = self.current_historical_context.get("historical_issues")
         if historical_issues:
             debug(f"历史问题数量: {len(historical_issues)}条，将参考避免这些问题")
 
-    # shot_segmenter_agent.py - 修改 shot_process 方法
 
     def shot_process(self, structured_script: ParsedScript) -> Optional[ShotSequence]:
         """

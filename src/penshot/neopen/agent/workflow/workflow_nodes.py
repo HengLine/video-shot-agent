@@ -152,7 +152,7 @@ class WorkflowNodes:
                 )
 
                 # 长期记忆：更新常见问题模式
-                existing_common = self.memory.get("common_parse_issues", level=MemoryLevel.LONG_TERM, default=[])
+                existing_common = self._get_memory_list("common_parse_issues", level=MemoryLevel.LONG_TERM, default=[])
                 # 确保 existing_common 是列表
                 if not isinstance(existing_common, list):
                     # 如果是字符串，尝试解析为 JSON
@@ -207,7 +207,7 @@ class WorkflowNodes:
             )
 
             # ========== 9. 日志输出 ==========
-            stats = self.memory.get(f"stats_{PipelineNode.PARSE_SCRIPT.value}", level=MemoryLevel.MEDIUM_TERM)
+            stats = self._get_memory_dict(f"stats_{PipelineNode.PARSE_SCRIPT.value}", level=MemoryLevel.MEDIUM_TERM)
             info(f"剧本解析节点完成，统计: {stats}")
 
             # ========== 10. 节点成功完成，清理临时状态 ==========
@@ -353,7 +353,7 @@ class WorkflowNodes:
             )
 
             # ========== 9. 日志输出 ==========
-            stats = self.memory.get(f"stats_{PipelineNode.SEGMENT_SHOT.value}", level=MemoryLevel.MEDIUM_TERM)
+            stats = self._get_memory_dict(f"stats_{PipelineNode.SEGMENT_SHOT.value}", level=MemoryLevel.MEDIUM_TERM)
             info(f"分镜生成节点完成，统计: {stats}")
 
             # ========== 10. 节点成功完成，清理临时状态 ==========
@@ -505,7 +505,7 @@ class WorkflowNodes:
             )
 
             # ========== 9. 日志输出 ==========
-            stats = self.memory.get(f"stats_{PipelineNode.SPLIT_VIDEO.value}", level=MemoryLevel.MEDIUM_TERM)
+            stats = self._get_memory_dict(f"stats_{PipelineNode.SPLIT_VIDEO.value}", level=MemoryLevel.MEDIUM_TERM)
             info(f"视频分割节点完成，统计: {stats}")
 
             # ========== 10. 节点成功完成，清理临时状态 ==========
@@ -664,7 +664,7 @@ class WorkflowNodes:
             )
 
             # ========== 9. 日志输出 ==========
-            stats = self.memory.get(f"stats_{PipelineNode.CONVERT_PROMPT.value}", level=MemoryLevel.MEDIUM_TERM)
+            stats = self._get_memory_dict(f"stats_{PipelineNode.CONVERT_PROMPT.value}", level=MemoryLevel.MEDIUM_TERM)
             info(f"提示词转换节点完成，统计: {stats}")
 
             # ========== 10. 节点成功完成，清理临时状态 ==========
@@ -700,10 +700,10 @@ class WorkflowNodes:
 
         # 从记忆模块获取各阶段问题
         all_stage_issues = {
-            PipelineNode.PARSE_SCRIPT: self.memory.get(f"issues_{PipelineNode.PARSE_SCRIPT.value}", level=MemoryLevel.SHORT_TERM, default=[]),
-            PipelineNode.SEGMENT_SHOT: self.memory.get(f"issues_{PipelineNode.SEGMENT_SHOT.value}", level=MemoryLevel.SHORT_TERM, default=[]),
-            PipelineNode.SPLIT_VIDEO: self.memory.get(f"issues_{PipelineNode.SPLIT_VIDEO.value}", level=MemoryLevel.SHORT_TERM, default=[]),
-            PipelineNode.CONVERT_PROMPT: self.memory.get(f"issues_{PipelineNode.CONVERT_PROMPT.value}", level=MemoryLevel.SHORT_TERM, default=[]),
+            PipelineNode.PARSE_SCRIPT: self._get_memory_list(f"issues_{PipelineNode.PARSE_SCRIPT.value}", level=MemoryLevel.SHORT_TERM, default=[]),
+            PipelineNode.SEGMENT_SHOT: self._get_memory_list(f"issues_{PipelineNode.SEGMENT_SHOT.value}", level=MemoryLevel.SHORT_TERM, default=[]),
+            PipelineNode.SPLIT_VIDEO: self._get_memory_list(f"issues_{PipelineNode.SPLIT_VIDEO.value}", level=MemoryLevel.SHORT_TERM, default=[]),
+            PipelineNode.CONVERT_PROMPT: self._get_memory_list(f"issues_{PipelineNode.CONVERT_PROMPT.value}", level=MemoryLevel.SHORT_TERM, default=[]),
         }
 
         # 回忆历史审查经验
@@ -779,7 +779,7 @@ class WorkflowNodes:
             )
 
             # 更新审查历史（中期记忆）
-            audit_history = self.memory.get("audit_results_history", level=MemoryLevel.MEDIUM_TERM, default=[])
+            audit_history = self._get_memory_list("audit_results_history", level=MemoryLevel.MEDIUM_TERM, default=[])
             audit_history.append({
                 "timestamp": datetime.now().isoformat(),
                 "status": result.status.value,
@@ -967,7 +967,7 @@ class WorkflowNodes:
             issues_by_stage = self._analyze_continuity_issues(continuity_issues, continuity_context)
 
             # 更新连续性历史
-            continuity_history = self.memory.get("continuity_issues_history", level=MemoryLevel.MEDIUM_TERM, default=[])
+            continuity_history = self._get_memory_list("continuity_issues_history", level=MemoryLevel.MEDIUM_TERM, default=[])
             for issue in continuity_issues:
                 continuity_history.append({
                     "timestamp": datetime.now().isoformat(),

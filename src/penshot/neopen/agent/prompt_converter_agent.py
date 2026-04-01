@@ -91,7 +91,7 @@ class PromptConverterAgent(BaseRepairableAgent[AIVideoInstructions, FragmentSequ
 
         insights = self.get_historical_insights()
 
-        # 1. 根据高频问题调整策略
+        # 使用基类方法获取高频问题
         high_freq_issues = insights.get("high_freq_issues", {})
 
         if "prompt_too_long" in high_freq_issues:
@@ -114,19 +114,23 @@ class PromptConverterAgent(BaseRepairableAgent[AIVideoInstructions, FragmentSequ
             info("根据历史经验，音频提示词问题频繁，将加强音频生成质量")
             self._focus_on_audio_quality = True
 
-        # 2. 根据质量等级调整
+        # 根据质量等级调整
         if self.should_use_enhanced_validation():
             info("启用增强验证模式，将更严格检查提示词质量")
             self._need_extra_validation = True
 
-        # 3. 应用历史统计信息
+        # 使用基类方法安全获取统计信息
         historical_stats = self.current_historical_context.get("historical_stats")
-        if historical_stats:
+        if historical_stats and isinstance(historical_stats, dict):
             avg_prompt_length = historical_stats.get("avg_prompt_length", 0)
-            audio_count_ratio = historical_stats.get("audio_prompt_count", 0) / max(historical_stats.get("prompt_count", 1), 1)
-            debug(f"历史转换统计: 平均提示词长度={avg_prompt_length:.0f}, 音频覆盖率={audio_count_ratio:.0%}")
+            prompt_count = historical_stats.get("prompt_count", 1)
+            audio_count = historical_stats.get("audio_prompt_count", 0)
+            audio_count_ratio = audio_count / max(prompt_count, 1)
 
-            if avg_prompt_length > self.config.prompt_length_max_threshold * 0.8:
+            if avg_prompt_length:
+                debug(f"历史转换统计: 平均提示词长度={avg_prompt_length:.0f}, 音频覆盖率={audio_count_ratio:.0%}")
+
+            if avg_prompt_length and avg_prompt_length > self.config.prompt_length_max_threshold * 0.8:
                 self._focus_on_prompt_quality = True
                 debug("历史平均提示词长度偏高，将优先控制长度")
 
@@ -134,10 +138,11 @@ class PromptConverterAgent(BaseRepairableAgent[AIVideoInstructions, FragmentSequ
                 self._focus_on_audio_quality = True
                 debug("历史音频覆盖率偏低，将加强音频生成")
 
-        # 4. 应用成功模式
+        # 使用基类方法安全获取成功模式
         successful_patterns = self.current_historical_context.get("successful_patterns")
         if successful_patterns:
             debug(f"已加载 {len(successful_patterns) if isinstance(successful_patterns, list) else 1} 条成功模式")
+
 
     def prompt_process(self, fragment_sequence: FragmentSequence, parsed_script: ParsedScript) -> Optional[AIVideoInstructions]:
         """视频片段转换提示词"""

@@ -64,10 +64,14 @@ class ScriptParserAgent(BaseRepairableAgent[ParsedScript, str]):
 
     def _on_historical_context_applied(self) -> None:
         """历史上下文应用后的自定义处理"""
+        if not self.current_historical_context:
+            return
+
         insights = self.get_historical_insights()
 
-        # 根据高频问题调整策略
+        # 使用基类方法获取高频问题
         high_freq_issues = insights.get("high_freq_issues", {})
+
         if "scene_insufficient" in high_freq_issues:
             info("根据历史经验，将加强场景识别")
             # 可以设置内部标志或调整提示词
@@ -81,6 +85,13 @@ class ScriptParserAgent(BaseRepairableAgent[ParsedScript, str]):
         # 根据质量等级调整
         if self.should_use_enhanced_validation():
             info("启用增强验证模式")
+
+        # 使用基类方法安全获取统计信息
+        historical_stats = self.current_historical_context.get("historical_stats")
+        if historical_stats and isinstance(historical_stats, dict):
+            avg_completeness = historical_stats.get("completeness_score", 0)
+            if avg_completeness:
+                debug(f"历史解析平均完整度: {avg_completeness:.0%}")
 
     def _on_repair_params_applied(self) -> None:
         """修复参数应用后的回调方法"""

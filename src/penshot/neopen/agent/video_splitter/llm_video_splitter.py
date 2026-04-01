@@ -161,23 +161,9 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseLLMAgent):
         hints = []
 
         # 1. 常见问题模式
-        common_issues = historical_context.get("common_issues")
-        if common_issues and isinstance(common_issues, list):
-            issue_counts = {}
-            for issue in common_issues[-30:]:
-                if isinstance(issue, dict):
-                    issue_type = issue.get("issue_type", {}).get("value", "unknown")
-                else:
-                    issue_type = getattr(issue, "issue_type", "unknown")
-                    if hasattr(issue_type, "value"):
-                        issue_type = issue_type.value
-                issue_counts[issue_type] = issue_counts.get(issue_type, 0) + 1
-
-            sorted_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)
-            top_issues = [f"{t}({c}次)" for t, c in sorted_issues[:3]]
-
-            if top_issues:
-                hints.append(f"常见分割问题类型: {', '.join(top_issues)}，请特别注意避免这些问题。")
+        common_hint = self._get_common_issues_hint(historical_context, "分割问题")
+        if common_hint:
+            hints.append(common_hint)
 
         # 2. 历史统计信息
         historical_stats = historical_context.get("historical_stats")
@@ -194,19 +180,9 @@ class LLMVideoSplitter(BaseVideoSplitter, BaseLLMAgent):
                 hints.append("历史数据表明片段时长偏短，建议合并连续动作。")
 
         # 3. 历史问题模式
-        historical_issues = historical_context.get("historical_issues")
-        if historical_issues and isinstance(historical_issues, list):
-            issue_types = {}
-            for issue in historical_issues[-20:]:
-                if isinstance(issue, dict):
-                    issue_type = issue.get("issue_type", {}).get("value", "unknown")
-                else:
-                    issue_type = getattr(issue, "issue_type", "unknown")
-                issue_types[issue_type] = issue_types.get(issue_type, 0) + 1
-
-            if issue_types:
-                common = ", ".join([f"{t}({c}次)" for t, c in list(issue_types.items())[:3]])
-                hints.append(f"历史分割问题: {common}，请参考避免。")
+        issues_hint = self._get_historical_issues_hint(historical_context, "分割问题")
+        if issues_hint:
+            hints.append(issues_hint)
 
         if not hints:
             return ""

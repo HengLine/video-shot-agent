@@ -51,7 +51,6 @@ class VideoSplitterAgent(BaseRepairableAgent[FragmentSequence, ShotSequence]):
         self._focus_on_description_quality: bool = False
         self._need_extra_validation: bool = False
 
-    # video_splitter_agent.py - 修改 process 方法
 
     def process(self, shot_sequence: ShotSequence, parsed_script: ParsedScript) -> Optional[FragmentSequence]:
         """
@@ -89,7 +88,7 @@ class VideoSplitterAgent(BaseRepairableAgent[FragmentSequence, ShotSequence]):
 
         insights = self.get_historical_insights()
 
-        # 1. 根据高频问题调整策略
+        # 使用基类方法获取高频问题
         high_freq_issues = insights.get("high_freq_issues", {})
 
         if "fragment_duration_too_long" in high_freq_issues:
@@ -112,24 +111,26 @@ class VideoSplitterAgent(BaseRepairableAgent[FragmentSequence, ShotSequence]):
             info("根据历史经验，连续性注释缺失问题频繁，将自动添加注释")
             self._focus_on_continuity = True
 
-        # 2. 根据质量等级调整
+        # 根据质量等级调整
         if self.should_use_enhanced_validation():
             info("启用增强验证模式，将更严格检查分割质量")
             self._need_extra_validation = True
 
-        # 3. 应用历史统计信息
+        # 使用基类方法安全获取统计信息
         historical_stats = self.current_historical_context.get("historical_stats")
-        if historical_stats:
+        if historical_stats and isinstance(historical_stats, dict):
             avg_fragment_count = historical_stats.get("fragment_count", 0)
             avg_duration = historical_stats.get("avg_duration", 0)
             split_ratio = historical_stats.get("ai_split_count", 0) / max(historical_stats.get("fragment_count", 1), 1)
-            debug(f"历史分割统计: 平均片段数={avg_fragment_count}, 平均时长={avg_duration:.1f}s, AI分割比例={split_ratio:.0%}")
 
-            if avg_duration > 4.0:
+            if avg_fragment_count:
+                debug(f"历史分割统计: 平均片段数={avg_fragment_count}, 平均时长={avg_duration:.1f}s, AI分割比例={split_ratio:.0%}")
+
+            if avg_duration and avg_duration > 4.0:
                 self._focus_on_duration_control = True
                 debug("历史平均时长偏长，将优先使用更精细的分割")
 
-        # 4. 应用历史问题模式
+        # 使用基类方法安全获取历史问题
         historical_issues = self.current_historical_context.get("historical_issues")
         if historical_issues:
             debug(f"历史问题数量: {len(historical_issues)}条，将参考避免这些问题")
