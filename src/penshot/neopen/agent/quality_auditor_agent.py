@@ -385,7 +385,7 @@ class QualityAuditorAgent:
                 info(f"合并阶段 {node.value} 的问题: {len(issues)}个")
 
         if total_stage_issues > 0:
-            info(f"总共合并各阶段问题: {total_stage_issues}个")
+            debug(f"总共合并各阶段问题: {total_stage_issues}个")
             # 重新计算分数
             merged.score = self._calculate_weighted_score(merged.violations)
 

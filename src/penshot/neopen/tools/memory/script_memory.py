@@ -115,4 +115,3 @@ class ScriptMemory:
         if self.long_term:
             self.long_term.clear()
         self.metadata["cleared_at"] = datetime.now().isoformat()
-        info(f"清空任务记忆: {self.script_id}")

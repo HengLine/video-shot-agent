@@ -355,12 +355,11 @@ class MultiAgentPipeline:
             # )
 
             final_result = await self._enhanced_workflow_execution(initial_state)
-            info(f"工作流执行完成，最终状态类型: {type(final_result)}")
 
             # 处理返回结果
             success = final_result.get("success", False)
             data = final_result.get("data")
-            info(f"工作流执行结果: success={success}, has_data={data is not None}")
+            info(f"工作流执行完成，结果: success={success}, has_data={data is not None}")
 
             # 如果需要，可以添加额外的验证
             if success and data:
@@ -509,9 +508,7 @@ class MultiAgentPipeline:
             # )
 
             # 验证修复结果
-            if self._validate_fixed_result(final_result):
-                info("工作流输出修复验证通过")
-            else:
+            if not self._validate_fixed_result(final_result):
                 warning("工作流输出修复验证有问题，但继续返回结果")
 
             return self.output_fixer.parse_result_to_dict(final_result)
@@ -584,7 +581,7 @@ class MultiAgentPipeline:
             if len(fragments_with_audio_prompts) < len(fragments) * 0.5:  # 至少50%的片段应该有音频提示词
                 warning(f"片段中音频提示词缺失较多: {len(fragments_with_audio_prompts)}/{len(fragments)}个片段有音频提示词")
 
-            info(f"验证通过: {len(fragments)}个片段")
+            info(f"工作流输出修复验证通过: {len(fragments)}个片段")
             return True
 
         except Exception as e:

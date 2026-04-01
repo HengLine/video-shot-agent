@@ -262,7 +262,6 @@ class AsyncTaskProcessor:
                 result = await self._process_script_task_internal(task_id)
 
                 self._stats["total_completed"] += 1
-                info(f"任务完成: {task_id}")
 
                 # 触发回调
                 if queued_task.callback:

@@ -185,7 +185,7 @@ class PromptConverterAgent(BaseRepairableAgent[AIVideoInstructions, FragmentSequ
                 error("提示词转换失败")
                 return None
 
-            info(f"提示词转换完成，指令数: {len(instructions.fragments)}")
+            debug(f"提示词转换完成，指令数: {len(instructions.fragments)}")
 
             # 统计提示词长度
             prompt_lengths = [len(f.prompt) for f in instructions.fragments]

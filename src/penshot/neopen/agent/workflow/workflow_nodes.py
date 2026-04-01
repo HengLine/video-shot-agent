@@ -826,7 +826,7 @@ class WorkflowNodes:
                     if not params.fix_needed:
                         continue
 
-                    info(f"开始修复阶段 {node.value}，问题类型: {params.issue_types}")
+                    debug(f"开始修复阶段 {node.value}，问题类型: {params.issue_types}")
 
                     try:
                         if node == PipelineNode.PARSE_SCRIPT:
@@ -863,7 +863,7 @@ class WorkflowNodes:
                                 state.fragment_sequence
                             )
                             repair_count += 1
-                            info(f"提示词转换修复完成")
+                            debug(f"提示词转换修复完成")
 
                     except Exception as e:
                         error(f"修复阶段 {node.value} 时出错: {str(e)}")
@@ -954,7 +954,7 @@ class WorkflowNodes:
 
             # 3. 如果没有问题，通过检查
             if check_result.passed and check_result.total_issues == 0:
-                info("连续性检查通过")
+                debug("连续性检查通过")
                 state.continuity_passed = True
                 state.current_stage = AgentStage.CONTINUITY
                 return state
@@ -1095,7 +1095,7 @@ class WorkflowNodes:
         输入：所有阶段的结果
         输出：final_output (完整处理结果)
         """
-        info("进入生成输出节点")
+        debug("进入生成输出节点")
         # 更新状态：开始输出
         self._update_task_progress(state.task_id, TaskStage.OUTPUT_START, 0)
 
