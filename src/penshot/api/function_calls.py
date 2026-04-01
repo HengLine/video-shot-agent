@@ -14,7 +14,7 @@ from typing import Dict, Optional, List, Any, Callable
 
 from penshot.logger import log_with_context, info, error
 from penshot.neopen.shot_config import ShotConfig
-from penshot.neopen.shot_language import Language, set_language
+from penshot.neopen.shot_language import ShotLanguage, set_language
 from penshot.neopen.task.task_factory import create_task_factory, TaskFactory, TaskResponse, TaskPriority
 from penshot.neopen.task.task_models import TaskStatus
 from penshot.utils.log_utils import print_log_exception
@@ -52,7 +52,7 @@ class PenshotFunction:
     def __init__(
             self,
             config: Optional[ShotConfig] = None,
-            language: Language = Language.ZH,
+            language: ShotLanguage = ShotLanguage.ZH,
             max_concurrent: int = 10,
             queue_size: int = 1000
     ):
@@ -116,7 +116,7 @@ class PenshotFunction:
             self,
             script_text: str,
             task_id: Optional[str] = None,
-            language: Optional[Language] = None,
+            language: Optional[ShotLanguage] = None,
             wait_timeout: float = 300.0,
             priority: TaskPriority = TaskPriority.NORMAL
     ) -> PenshotResult:
@@ -145,7 +145,7 @@ class PenshotFunction:
             self,
             script_text: str,
             task_id: Optional[str] = None,
-            language: Optional[Language] = None,
+            language: Optional[ShotLanguage] = None,
             callback: Optional[Callable] = None,
             priority: TaskPriority = TaskPriority.NORMAL
     ) -> str:
@@ -348,7 +348,7 @@ class PenshotFunction:
     def batch_breakdown(
             self,
             scripts: List[str],
-            language: Optional[Language] = None,
+            language: Optional[ShotLanguage] = None,
             wait_timeout: float = 600.0,
             priority: TaskPriority = TaskPriority.NORMAL
     ) -> List[PenshotResult]:
@@ -380,7 +380,7 @@ class PenshotFunction:
     async def batch_breakdown_async(
             self,
             scripts: List[str],
-            language: Optional[Language] = None,
+            language: Optional[ShotLanguage] = None,
             max_concurrent: int = 3,
             priority: TaskPriority = TaskPriority.NORMAL
     ) -> List[PenshotResult]:
@@ -476,7 +476,7 @@ class PenshotFunction:
 
 def create_penshot_agent(
         config: Optional[ShotConfig] = None,
-        language: Language = Language.ZH,
+        language: ShotLanguage = ShotLanguage.ZH,
         max_concurrent: int = 10,
         queue_size: int = 1000
 ) -> PenshotFunction:

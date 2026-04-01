@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from penshot.api.function_calls import create_penshot_agent
-from penshot.neopen.shot_language import Language
+from penshot.neopen.shot_language import ShotLanguage
 from penshot.neopen.task.task_models import TaskStage
 
 app = FastAPI(title="Penshot MCP Server", version="1.0.0")
@@ -137,7 +137,7 @@ async def breakdown_script(request: BreakdownRequest):
             # 同步模式
             result = agent.breakdown_script(
                 script_text=request.script,
-                language=Language(request.language),
+                language=ShotLanguage.from_string(request.language),
                 wait_timeout=request.timeout
             )
             return {
@@ -152,7 +152,7 @@ async def breakdown_script(request: BreakdownRequest):
             # 异步模式
             task_id = agent.breakdown_script_async(
                 script_text=request.script,
-                language=Language(request.language),
+                language=ShotLanguage.from_string(request.language),
             )
             return {
                 "success": True,

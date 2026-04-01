@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from penshot.logger import info, error, log_with_context
 from penshot.neopen.shot_config import ShotConfig
 from penshot.neopen.shot_context import task_id_ctx
-from penshot.neopen.shot_language import set_language, Language
+from penshot.neopen.shot_language import set_language, ShotLanguage
 from penshot.neopen.task.task_init import get_task_factory
 from penshot.neopen.task.task_models import (
     ProcessingStatus, TaskStatus, TaskResponse, TaskStage
@@ -53,7 +53,7 @@ class SyncProcessRequest(BaseModel):
     """同步处理请求"""
     script: str
     task_id: Optional[str] = None
-    language: Language = Language.ZH
+    language: ShotLanguage = ShotLanguage.ZH
     config: Optional[ShotConfig] = None
     timeout: float = 300
 
@@ -69,11 +69,11 @@ class ProcessRequest(BaseModel):
     config: Optional[ShotConfig] = Field(default_factory=ShotConfig, description="处理配置（序列化形式）")
     callback_url: Optional[str] = Field(default=None, description="回调URL，处理完成后通知（可选）")
     task_id: str = Field(default_factory=_generate_task_id, description="外部请求ID（可选）")
-    language: Language = Field(default=Language.ZH, description='剧本语言，例如 "zh" 或 "en"')
+    language: ShotLanguage = Field(default=ShotLanguage.ZH, description='剧本语言，例如 "zh" 或 "en"')
 
     @field_validator("language")
     def validate_language(cls, v):
-        if v not in {Language.ZH, Language.EN}:
+        if v not in {ShotLanguage.ZH, ShotLanguage.EN}:
             raise ValueError("language must be one of: 'zh', 'en'")
         return v
 
@@ -107,11 +107,11 @@ class BatchProcessRequest(BaseModel):
     scripts: List[str] = Field(..., description="剧本列表")
     config: Optional[Dict[str, Any]] = Field(default_factory=dict)
     batch_id: Optional[str] = None
-    language: Language = Field(default=Language.ZH, description='剧本语言，例如 "zh" 或 "en"')
+    language: ShotLanguage = Field(default=ShotLanguage.ZH, description='剧本语言，例如 "zh" 或 "en"')
 
     @field_validator("language")
     def validate_language(cls, v):
-        if v not in {Language.ZH, Language.EN}:
+        if v not in {ShotLanguage.ZH, ShotLanguage.EN}:
             raise ValueError("language must be one of: 'zh', 'en'")
         return v
 

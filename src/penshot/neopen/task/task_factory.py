@@ -15,7 +15,7 @@ from concurrent.futures import Future, TimeoutError
 
 from penshot.logger import info, error, debug
 from penshot.neopen.shot_config import ShotConfig
-from penshot.neopen.shot_language import Language
+from penshot.neopen.shot_language import ShotLanguage
 from penshot.neopen.task.task_manager import TaskManager
 from penshot.neopen.task.task_models import ProcessingStatus, TaskStatus, TaskResponse, BatchTaskResponse, TaskStage
 from penshot.neopen.task.task_processor import AsyncTaskProcessor, TaskPriority
@@ -31,7 +31,7 @@ class TaskFactory:
             max_concurrent: int = 10,
             queue_size: int = 1000,
             default_config: Optional[ShotConfig] = None,
-            default_language: Language = Language.ZH,
+            default_language: ShotLanguage = ShotLanguage.ZH,
             max_cache_size: int = 64,
             task_ttl_seconds: int = 86400  # 新增参数，默认24小时
     ):
@@ -98,7 +98,7 @@ class TaskFactory:
             script: str,
             task_id: Optional[str] = None,
             config: Optional[ShotConfig] = None,
-            language: Language = None,
+            language: ShotLanguage = None,
             priority: TaskPriority = TaskPriority.NORMAL,
             callback: Optional[Callable] = None,
             callback_url: Optional[str] = None
@@ -162,7 +162,7 @@ class TaskFactory:
             script: str,
             task_id: Optional[str] = None,
             config: Optional[ShotConfig] = None,
-            language: Language = None,
+            language: ShotLanguage = None,
             priority: TaskPriority = TaskPriority.NORMAL,
             timeout: float = 300,
             callback_url: Optional[str] = None
@@ -183,7 +183,7 @@ class TaskFactory:
             script: str,
             task_id: Optional[str] = None,
             config: Optional[ShotConfig] = None,
-            language: Language = None,
+            language: ShotLanguage = None,
             priority: TaskPriority = TaskPriority.NORMAL,
             timeout: float = 300,
             callback_url: Optional[str] = None
@@ -454,7 +454,7 @@ class TaskFactory:
             self,
             scripts: List[str],
             config: Optional[ShotConfig] = None,
-            language: Language = None,
+            language: ShotLanguage = None,
             priority: TaskPriority = TaskPriority.NORMAL,
             timeout: float = 600,
             callback_url: Optional[str] = None
@@ -482,7 +482,7 @@ class TaskFactory:
             self,
             scripts: List[str],
             config: Optional[ShotConfig] = None,
-            language: Language = None,
+            language: ShotLanguage = None,
             priority: TaskPriority = TaskPriority.NORMAL,
             timeout: float = 600,
             callback_url: Optional[str] = None,
@@ -509,7 +509,7 @@ class TaskFactory:
             self,
             scripts: List[str],
             config: Optional[ShotConfig] = None,
-            language: Language = None,
+            language: ShotLanguage = None,
             priority: TaskPriority = TaskPriority.NORMAL,
             callback_url: Optional[str] = None
     ) -> BatchTaskResponse:
@@ -716,7 +716,7 @@ def create_task_factory(
         max_concurrent: int = 10,
         queue_size: int = 1000,
         default_config: Optional[ShotConfig] = None,
-        default_language: Language = Language.ZH,
+        default_language: ShotLanguage = ShotLanguage.ZH,
         task_ttl_seconds: int = 7 * 86400
 ) -> TaskFactory:
     """创建任务工厂实例"""

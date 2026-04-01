@@ -32,8 +32,8 @@ class PenshotMCPServer:
 
     def __init__(self, max_concurrent: int = 10, queue_size: int = 1000):
         # 延迟导入
-        from penshot.api.function_calls import create_penshot_agent
-        from penshot.neopen.shot_language import Language
+        from penshot.api import create_penshot_agent
+        from penshot import ShotLanguage
 
         setLog()
 
@@ -44,7 +44,7 @@ class PenshotMCPServer:
         self.penshot = create_penshot_agent(
             max_concurrent=max_concurrent,
             queue_size=queue_size,
-            language=Language.ZH
+            language=ShotLanguage.ZH
         )
         self.task_manager = self.penshot.task_manager
         self._tools: dict = {}
@@ -97,7 +97,7 @@ class PenshotMCPServer:
         ]
 
     def _handle_breakdown_script(self, arguments: dict) -> dict:
-        from penshot.neopen.shot_language import Language
+        from penshot.neopen.shot_language import ShotLanguage
         from penshot.neopen.task.task_models import TaskStatus
 
         script = arguments.get("script")
@@ -107,7 +107,7 @@ class PenshotMCPServer:
         language = arguments.get("language", "zh")
         wait = arguments.get("wait", False)
         timeout = arguments.get("timeout", 300)
-        lang = Language.ZH if language == "zh" else Language.EN
+        lang = ShotLanguage.ZH if language == "zh" else ShotLanguage.EN
 
         if wait:
             result = self.penshot.breakdown_script(script, lang, wait_timeout=timeout)

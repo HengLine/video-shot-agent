@@ -5,6 +5,7 @@
 @Time: 2026/3/31 12:46
 """
 import os
+import random
 from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
@@ -16,6 +17,7 @@ class LLMBaseConfig(BaseModel):
     api_key: SecretStr = Field(default=SecretStr(""))
     model_name: str = Field(default="") # gpt-4o
     timeout: int = Field(default=60, ge=1)
+    seed: int = Field(default=random.randint(1000000, 99999999999), ge=1)
     response_format: str = Field(default="json_object")
     temperature: float = Field(default=0.1, ge=0.0, le=1.0)
     max_tokens: int = Field(default=2000, ge=1)
