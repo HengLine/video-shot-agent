@@ -243,7 +243,6 @@ class AsyncTaskProcessor:
             new_avg = (current_avg * total + wait_ms) / (total + 1)
             self._stats["avg_wait_time_ms"] = new_avg
 
-    # task_processor.py - 修改 _execute_task 方法
 
     async def _execute_task(self, queued_task: QueuedTask):
         """执行单个任务"""
