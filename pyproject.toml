@@ -40,10 +40,11 @@ dependencies = [
 #    "httpx>=0.25.0",
 
     # 核心AI/LLM
-    "langchain==1.2.14",
+    "langchain>=1.0.0",
     "langchain-community",
-    "langchain-ollama>=0.1.0",
-    "langgraph==1.1.4",
+    "langchain-ollama>=1.0.0",
+    "langchain-chroma>=1.0.0",
+    "langgraph>=1.0.0",
 #    "langchain-deepseek>=0.1.0",
 #    "dashscope==1.23.9",
 
@@ -63,7 +64,6 @@ dependencies = [
     "numpy>=1.24.0",
     "jieba>=0.42.1",
     "redis",
-    "chromadb",
 
     # 工具库
 #    "requests>=2.31.0",

@@ -2,13 +2,14 @@ fastapi
 uvicorn
 langchain==1.2.14
 langchain-community==1.0.0a1
+langchain-chroma>=1.0.0
 dashscope==1.25.15
 langgraph==1.1.4
 # langchain-wenxin
 langchain-deepseek>=1.0.0
 langchain-ollama>=1.0.0
 langchain-openai>=1.0.0
-chromadb
+#chromadb
 #llama-index-core==0.14.4
 #llama-index-embeddings-openai
 #llama-index-embeddings-huggingface
