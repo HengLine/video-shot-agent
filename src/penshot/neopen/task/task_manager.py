@@ -76,11 +76,13 @@ class TaskManager:
 
     # ==================== 辅助方法 ====================
     def _generate_script_id(self, script: str) -> str:
-        return "HL" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + str(hash(script))
+        return "HL" + datetime.now(timezone.utc).strftime("%y%m%d") + str(hash(script))
 
     def _generate_task_id(self, script_id: str) -> str:
         """生成任务ID"""
-        return "TSK" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + str(random.randint(1000, 9999)) + str(hash(script_id))
+        #
+        # return "TSK" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + str(random.randint(10, 99)) + str(hash(script_id))
+        return "TSK" + str(hash(script_id)) + str(random.randint(100, 999))
 
 
     # ---------------------- serialization helpers ----------------------
