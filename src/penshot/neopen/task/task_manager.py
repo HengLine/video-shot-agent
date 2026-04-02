@@ -76,14 +76,16 @@ class TaskManager:
 
 
     # ==================== 辅助方法 ====================
-    def _generate_script_id(self, script: str) -> str:
-        return "HL" + datetime.now(timezone.utc).strftime("%y%m%d") + text_to_id(script)
+    def _generate_script_code(self, script: str) -> str:
+        return text_to_id(script)
 
-    def _generate_task_id(self, script_id: str) -> str:
+    def _generate_script_id(self, script_code: str) -> str:
+        return "HL" + datetime.now(timezone.utc).strftime("%y%m%d") + script_code
+
+    def _generate_task_id(self, script_code: str) -> str:
         """生成任务ID"""
-        #
         # return "TSK" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + str(random.randint(10, 99)) + str(hash(script_id))
-        return "TSK" + script_id + str(random.randint(1000, 9999))
+        return "TSK" + script_code + str(random.randint(1000, 9999))
 
 
     # ---------------------- serialization helpers ----------------------
@@ -165,8 +167,9 @@ class TaskManager:
                     style: Optional[VideoStyle] = None, config: Optional[ShotConfig] = None) -> (str, str):
         if not isinstance(script, str) or not script.strip():
             raise ValueError("script must be a non-empty string")
-        script_id = script_id or self._generate_script_id(script)
-        task_id = self._generate_task_id(script_id)
+        script_code = self._generate_script_code(script)
+        script_id = script_id or self._generate_script_id(script_code)
+        task_id = self._generate_task_id(script_code)
         shot_config = config or ShotConfig()
         if style:
             shot_config.default_style = style
