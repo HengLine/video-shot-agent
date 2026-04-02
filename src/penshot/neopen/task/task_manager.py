@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import copy
 import json
+import random
 import uuid
 from collections import OrderedDict
 from dataclasses import is_dataclass
@@ -70,6 +71,16 @@ class TaskManager:
             warning(f"Redis 不可用，将使用内存存储: {e}")
             self.redis = None
             self.use_redis = False
+
+
+    # ==================== 辅助方法 ====================
+    def _generate_script_id(self, script: str) -> str:
+        return "HL" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + str(hash(script))
+
+    def _generate_task_id(self, script_id: str) -> str:
+        """生成任务ID"""
+        return "TSK" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + str(random.randint(1000, 9999)) + str(hash(script_id))
+
 
     # ---------------------- serialization helpers ----------------------
     def _safe_serialize(self, value: Any) -> Any:
@@ -146,17 +157,20 @@ class TaskManager:
         return f"penshot:tasks:metrics:{name}"
 
     # ---------------------- core operations ----------------------
-    def create_task(self, script: str, config: Optional[ShotConfig] = None, task_id: str = None) -> str:
+    def create_task(self, script: str, script_id: Optional[str] = None, style: Optional[str] = None, config: Optional[ShotConfig] = None) -> str:
         if not isinstance(script, str) or not script.strip():
             raise ValueError("script must be a non-empty string")
-        task_id = task_id or str(uuid.uuid4())
+        script_id = script_id or self._generate_script_id(script)
+        task_id = self._generate_task_id(script_id)
 
         record = {
             "task_id": task_id,
+            "script_id": script_id,
+            "style": style,
             "script": script,
             "config": config,
             "status": TaskStatus.PENDING,
-            "stage": "initialized",
+            "stage": TaskStage.INIT.code,
             "progress": 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -757,7 +771,7 @@ class TaskManager:
         return True
 
     # keep get_workflow behavior similar to previous (in-memory pipeline cache)
-    def get_workflow(self, task_manager, task_id: Optional[str] = None, config: Optional[Any] = None) -> "Any":
+    def get_workflow(self, task_manager, script_id, task_id: str, config: Optional[Any] = None) -> "Any":
         # prefer local raw config when available
         if task_id is not None and (config is None or isinstance(config, dict)):
             with self._lock:
@@ -788,7 +802,7 @@ class TaskManager:
             if getattr(self, "pipeline_factory", None) is not None:
                 pipeline = self.pipeline_factory(task_id, config)
             else:
-                pipeline = MultiAgentPipeline(task_id, task_id, config, task_manager)
+                pipeline = MultiAgentPipeline(script_id, task_id, config, task_manager)
             info(f"创建新工作流: {key}")
         except Exception as e:
             error(f"创建工作流失败: {e}")
@@ -1142,8 +1156,6 @@ class TaskManager:
         return False
 
     #     ============================ 恢复任务 ================================
-
-    # task_manager.py - 添加 update_task_status 方法
 
     def update_task_status(self, task_id: str, status: TaskStatus) -> bool:
         """

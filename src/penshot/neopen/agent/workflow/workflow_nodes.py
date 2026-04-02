@@ -138,7 +138,7 @@ class WorkflowNodes:
             })
 
             # ========== 4. 保存结果 ==========
-            self.storage.save_obj_result(state.task_id, parsed_script, "script_parser_result.json")
+            self.storage.save_obj_result(state.script_id, state.task_id, parsed_script, "script_parser_result.json")
 
             # ========== 5. 问题检测与记忆存储 ==========
             parse_issues = self.script_parser.detect_issues(parsed_script, state.raw_script)
@@ -303,7 +303,7 @@ class WorkflowNodes:
             debug(f"镜头类型分布: {shot_types}")
 
             # ========== 4. 保存结果 ==========
-            self.storage.save_obj_result(state.task_id, shot_sequence, "shot_segmenter_result.json")
+            self.storage.save_obj_result(state.script_id, state.task_id, shot_sequence, "shot_segmenter_result.json")
 
             # ========== 5. 问题检测与记忆存储 ==========
             segment_issues = self.shot_segmenter.detect_issues(shot_sequence, state.parsed_script)
@@ -449,7 +449,7 @@ class WorkflowNodes:
             debug(f"时长分布: 最小={min(durations):.1f}s, 最大={max(durations):.1f}s, 平均={sum(durations) / len(durations):.1f}s")
 
             # ========== 4. 保存结果 ==========
-            self.storage.save_obj_result(state.task_id, fragment_sequence, "video_splitter_result.json")
+            self.storage.save_obj_result(state.script_id, state.task_id, fragment_sequence, "video_splitter_result.json")
 
             # ========== 5. 问题检测与记忆存储 ==========
             split_issues = self.video_splitter.detect_issues(fragment_sequence, state.shot_sequence)
@@ -612,7 +612,7 @@ class WorkflowNodes:
                 debug(f"风格分布: {styles}")
 
             # ========== 4. 保存结果 ==========
-            self.storage.save_obj_result(state.task_id, instructions, "prompt_converter_result.json")
+            self.storage.save_obj_result(state.script_id, state.task_id, instructions, "prompt_converter_result.json")
 
             # ========== 5. 问题检测与记忆存储 ==========
             convert_issues = self.prompt_converter.detect_issues(instructions, state.fragment_sequence)
@@ -871,10 +871,10 @@ class WorkflowNodes:
                         state.error_messages.append(f"修复{node.value}失败: {str(e)}")
 
             # 保存审查结果
-            self.storage.save_obj_result(state.task_id, result, "quality_auditor_result.json")
+            self.storage.save_obj_result(state.script_id, state.task_id, result, "quality_auditor_result.json")
 
             if hasattr(result, 'detailed_analysis'):
-                self.storage.save_obj_result(state.task_id, result.detailed_analysis, "quality_auditor_detailed_analysis.json")
+                self.storage.save_obj_result(state.script_id, state.task_id, result.detailed_analysis, "quality_auditor_detailed_analysis.json")
 
             state.audit_report = result
             state.current_stage = AgentStage.AUDITOR
@@ -1124,7 +1124,7 @@ class WorkflowNodes:
             self._update_task_progress(state.task_id, TaskStage.OUTPUT_GENERATING, 50)
 
             # ========== 异步保存各类报告（不阻塞） ==========
-            self.output_writer.save_all_reports(state, state.task_id)
+            self.output_writer.save_all_reports(state)
 
             # 更新状态：完成
             self._update_task_progress(state.task_id, TaskStage.COMPLETE, 100)

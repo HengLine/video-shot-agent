@@ -15,39 +15,9 @@ from penshot.logger import info, warning, error, debug
 from penshot.neopen.shot_config import ShotConfig
 from penshot.neopen.task.task_handler import CallbackHandler
 from penshot.neopen.task.task_manager import TaskManager
-from penshot.neopen.task.task_models import CallbackPayload, TaskPriority, TaskStatus, TaskResponse, TaskStage
+from penshot.neopen.task.task_models import CallbackPayload, TaskPriority, TaskStatus, TaskResponse, TaskStage, QueuedTask
 from penshot.utils.log_utils import print_log_exception
 from penshot.utils.obj_utils import dict_to_obj
-
-
-class QueuedTask:
-    """队列中的任务"""
-
-    def __init__(
-            self,
-            task_id: str,
-            priority: TaskPriority = TaskPriority.NORMAL,
-            callback: Optional[Callable] = None,
-            metadata: Optional[Dict] = None
-    ):
-        self.task_id = task_id
-        self.priority = priority
-        self.callback = callback
-        self.metadata = metadata or {}
-        self.created_at = datetime.now(timezone.utc)
-        self.enqueued_at = None
-        self.started_at = None
-
-    def to_dict(self) -> Dict:
-        return {
-            "task_id": self.task_id,
-            "priority": self.priority.value,
-            "priority_name": self.priority.name,
-            "metadata": self.metadata,
-            "created_at": self.created_at.isoformat(),
-            "enqueued_at": self.enqueued_at.isoformat() if self.enqueued_at else None,
-            "started_at": self.started_at.isoformat() if self.started_at else None
-        }
 
 
 class AsyncTaskProcessor:
@@ -312,7 +282,7 @@ class AsyncTaskProcessor:
             self.task_manager.update_task_progress_detail(task_id, TaskStage.INIT, 0)
 
             # 获取工作流实例
-            workflow = self.task_manager.get_workflow(self.task_manager, task_id, config)
+            workflow = self.task_manager.get_workflow(self.task_manager, task["script_id"], task_id, config)
 
             # 执行处理 - 工作流内部会更新详细进度
             self.task_manager.update_task_progress_detail(task_id, TaskStage.PARSING_START, 0)
@@ -438,6 +408,7 @@ class AsyncTaskProcessor:
             self,
             batch_id: str,
             scripts: List[str],
+            style: Optional[str] = None,
             config: Optional[ShotConfig] = None,
             priority: TaskPriority = TaskPriority.NORMAL
     ) -> Dict:
@@ -447,7 +418,7 @@ class AsyncTaskProcessor:
         task_ids = []
 
         for script in scripts:
-            task_id = self.task_manager.create_task(script, config)
+            task_id = self.task_manager.create_task(script=script, style=style, config=config)
             task_ids.append(task_id)
 
         for task_id in task_ids:

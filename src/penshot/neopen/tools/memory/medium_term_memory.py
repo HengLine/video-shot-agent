@@ -163,7 +163,7 @@ class MediumTermMemory:
                 "updated_at": datetime.now().isoformat(),
                 "max_tokens": self.max_token_limit
             }
-            self.storage.save_json_result(self.script_id, data, f"summary_{datetime.now().strftime('%Y%m%d%H')}.json")
+            self.storage.save_json_result(self.script_id, "", data, f"summary_{datetime.now().strftime('%Y%m%d%H')}.json")
 
         except Exception as e:
             error(f"持久化摘要失败: {e}")
