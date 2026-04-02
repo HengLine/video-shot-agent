@@ -27,6 +27,7 @@ from penshot.neopen.agent.base_models import VideoStyle
 from penshot.neopen.agent.workflow.workflow_pipeline import MultiAgentPipeline
 from penshot.neopen.shot_config import ShotConfig
 from penshot.neopen.task.task_models import TaskStatus, TaskStage
+from penshot.utils.hash_utils import text_to_id
 from penshot.utils.log_utils import print_log_exception
 from penshot.utils.obj_utils import obj_to_dict
 from penshot.utils.redis_utils import RedisClient
@@ -76,13 +77,13 @@ class TaskManager:
 
     # ==================== 辅助方法 ====================
     def _generate_script_id(self, script: str) -> str:
-        return "HL" + datetime.now(timezone.utc).strftime("%y%m%d") + str(hash(script))
+        return "HL" + datetime.now(timezone.utc).strftime("%y%m%d") + text_to_id(script)
 
     def _generate_task_id(self, script_id: str) -> str:
         """生成任务ID"""
         #
         # return "TSK" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S") + str(random.randint(10, 99)) + str(hash(script_id))
-        return "TSK" + str(hash(script_id)) + str(random.randint(100, 999))
+        return "TSK" + script_id + str(random.randint(1000, 9999))
 
 
     # ---------------------- serialization helpers ----------------------
