@@ -419,7 +419,7 @@ class AsyncTaskProcessor:
         task_ids = []
 
         for script in scripts:
-            task_id = self.task_manager.create_task(script=script, style=style, config=config)
+            script_id, task_id = self.task_manager.create_task(script=script, style=style, config=config)
             task_ids.append(task_id)
 
         for task_id in task_ids:

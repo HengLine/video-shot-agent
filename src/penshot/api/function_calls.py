@@ -203,7 +203,7 @@ class PenshotFunction:
                 print_log_exception()
 
         # 使用 TaskFactory 提交任务，TaskFactory 会在任务完成时调用上面的 _internal_callback
-        task_id = self.task_factory.submit(
+        script_id2, task_id = self.task_factory.submit(
             script_id=script_id,
             script=script_text,
             style=style,

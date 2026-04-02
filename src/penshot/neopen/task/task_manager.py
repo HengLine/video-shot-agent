@@ -160,7 +160,8 @@ class TaskManager:
         return f"penshot:tasks:metrics:{name}"
 
     # ---------------------- core operations ----------------------
-    def create_task(self, script: str, script_id: Optional[str] = None, style: Optional[VideoStyle] = None, config: Optional[ShotConfig] = None) -> str:
+    def create_task(self, script: str, script_id: Optional[str] = None,
+                    style: Optional[VideoStyle] = None, config: Optional[ShotConfig] = None) -> (str, str):
         if not isinstance(script, str) or not script.strip():
             raise ValueError("script must be a non-empty string")
         script_id = script_id or self._generate_script_id(script)
@@ -225,7 +226,7 @@ class TaskManager:
                 self._metrics["created"] += 1
 
         info(f"创建任务: {task_id}")
-        return task_id
+        return script_id, task_id
 
     def _read_record_local(self, task_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:

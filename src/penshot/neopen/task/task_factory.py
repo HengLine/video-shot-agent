@@ -104,12 +104,12 @@ class TaskFactory:
             priority: TaskPriority = TaskPriority.NORMAL,
             callback: Optional[Callable] = None,
             callback_url: Optional[str] = None
-    ) -> str:
+    ) -> tuple[str, str]:
         """提交任务（异步，立即返回task_id）"""
         config = config or self.default_config
         language = language or self.default_language
 
-        task_id = self.task_manager.create_task(
+        script_id, task_id = self.task_manager.create_task(
             script_id=script_id,
             script=script,
             style=style,
@@ -157,7 +157,7 @@ class TaskFactory:
         self._run_async_in_background(submit_task())
 
         info(f"任务已提交: {task_id}, 优先级: {priority.name}")
-        return task_id
+        return script_id, task_id
 
     def submit_and_wait(
             self,
@@ -170,7 +170,7 @@ class TaskFactory:
             callback_url: Optional[str] = None
     ) -> TaskResponse:
         """提交任务并等待完成（同步）"""
-        task_id = self.submit(
+        script_id2, task_id = self.submit(
             script=script,
             script_id=script_id,
             config=config,
@@ -206,7 +206,7 @@ class TaskFactory:
             TaskResponse: 任务结果
         """
         # 提交任务
-        task_id = self.submit(
+        script_id2, task_id = self.submit(
             script=script,
             script_id=script_id,
             config=config,
@@ -464,7 +464,7 @@ class TaskFactory:
         """批量处理（同步，等待全部完成）"""
         task_ids = []
         for script in scripts:
-            task_id = self.submit(
+            script_id, task_id = self.submit(
                 script=script,
                 config=config,
                 language=language,
@@ -522,7 +522,7 @@ class TaskFactory:
         task_ids = []
 
         for script in scripts:
-            task_id = self.submit(
+            script_id, task_id = self.submit(
                 script=script,
                 config=config,
                 language=language,

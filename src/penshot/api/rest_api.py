@@ -78,7 +78,7 @@ class ProcessRequest(BaseModel):
 class ProcessResult(BaseModel):
     """处理结果响应模型（用于回调和最终响应）"""
     task_id: str
-    script_id: str
+    script_id: Optional[str] = None
     status: TaskStatus = Field(..., description="success | failed")
     success: bool = False
     data: Optional[Dict[str, Any]] = None
@@ -169,7 +169,7 @@ def generate_storyboard(
         factory = get_task_factory()
 
         # 提交任务到工厂
-        task_id = factory.submit(
+        script_id, task_id = factory.submit(
             script=request.script,
             script_id=request.script_id,
             style=request.style,
@@ -183,7 +183,7 @@ def generate_storyboard(
         return ProcessResult(
             success=True,
             task_id=task_id,
-            script_id=request.script_id,
+            script_id=script_id,
             status=TaskStatus.PENDING,
             message="任务已提交，请使用任务ID查询状态",
             created_at=datetime.now(timezone.utc)
