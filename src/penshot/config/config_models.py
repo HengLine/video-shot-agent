@@ -16,7 +16,7 @@ from penshot.neopen.agent.base_models import VideoStyle
 class LLMBaseConfig(BaseModel):
     """LLM提供商配置"""
     base_url: str = Field(default="")  # https://api.openai.com/v1
-    api_key: SecretStr = Field(default=SecretStr(""))
+    api_key: Optional[SecretStr] = Field(default=SecretStr(""))
     model_name: str = Field(default="") # gpt-4o
     timeout: int = Field(default=60, ge=1)
     seed: int = Field(default=random.randint(1000000, 99999999999), ge=1)
@@ -44,7 +44,7 @@ class LLMBaseConfig(BaseModel):
 class EmbeddingBaseConfig(BaseModel):
     """嵌入模型提供商配置"""
     base_url: str = Field(default="")  # https://api.openai.com/v1
-    api_key: SecretStr = Field(default=SecretStr(""))
+    api_key: Optional[SecretStr] = Field(default=SecretStr(""))
     model_name: str = Field(default="text-embedding-3-small")
     device: str = Field(default="gpu")
     normalize_embeddings: bool = Field(default=True)
