@@ -2,7 +2,7 @@
 
 A multi-agent collaborative screenplay storyboarding system that splits scripts in various formats into script units optimized for AI text-to-video generation durations. It outputs high-quality storyboard fragment descriptions while ensuring narrative continuity. Built on LangChain and LangGraph, the system leverages LLMs to parse any script format into "Text-to-Video" prompt fragments compatible with mainstream AI video models. It supports task pool priority queuing, multi-level memory management, and Chroma vector retrieval.
 
-[Chinese](#) | English | [Architecture Documentation](https://pengline.cn/2026/02/7e6cd67dd5ee45248f2276ac145555f5/) | [PyPI](https://pypi.org/project/penshot/)
+[中文](../README.md) | English | [Architecture Documentation](https://pengline.cn/2026/02/7e6cd67dd5ee45248f2276ac145555f5/) | [PyPI](https://pypi.org/project/penshot/)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/) [![LangGraph](https://img.shields.io/badge/built_with-LangGraph-purple)](https://langchain-ai.github.io/langgraph/) [![PyPI](https://img.shields.io/pypi/v/penshot.svg)](https://pypi.org/project/penshot/) [![Downloads](https://static.pepy.tech/badge/penshot)](https://pepy.tech/project/penshot)
 
@@ -57,14 +57,12 @@ This system is a typical Natural Language Processing (NLP) application that achi
 ### 1. Environment Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/neopen/video-shot-agent.git
-cd video-shot-agent
-
 # Option A: Install via PyPI (Recommended)
 pip install penshot
 
 # Option B: Install in editable mode (from source)
+git clone https://github.com/neopen/video-shot-agent.git
+cd video-shot-agent
 pip install -e .
 ```
 
@@ -80,15 +78,15 @@ Edit the `.env` file to configure the required LLM and Embedding parameters:
 
 ```properties
 ########################## LLM Configuration #########################
-LLM__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
-LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-LLM__DEFAULT__MODEL_NAME=qwen-plus
-LLM__DEFAULT__TIMEOUT=30
+PENSHOT_LLM__DEFAULT__BASE_URL=https://api.openai.com/v1
+PENSHOT_LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PENSHOT_LLM__DEFAULT__MODEL_NAME=gpt-4o
+PENSHOT_LLM__DEFAULT__TIMEOUT=30
 
 ########################## Embedding Model Configuration #########################
-EMBED__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
-EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-EMBED__DEFAULT__MODEL_NAME=text-embedding-v4
+PENSHOT_EMBED__DEFAULT__BASE_URL=https://api.openai.com/v1
+PENSHOT_EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PENSHOT_EMBED__DEFAULT__MODEL_NAME=text-embedding-v4
 ```
 
 ### 3. Start the Service

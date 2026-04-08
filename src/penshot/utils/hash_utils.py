@@ -18,6 +18,9 @@ def text_to_id(text: str, n: int = 2) -> str:
     mid = (len(h) - n) // 2
     return str(int.from_bytes(h[:n] + h[mid:mid+n] + h[-n:], 'big'))
 
+def text_hash_id(text: str) -> str:
+    hash_str = text_to_256hash_str(text)
+    return text_to_hash_str(hash_str)
 
 def text_to_hash_str(text: str) -> str:
     hash_bytes = text_to_hash(text)
@@ -54,3 +57,7 @@ def hash_large_text_file(filepath: str) -> str:
         while chunk := f.read(8192):  # 每次读 8KB
             sha256.update(chunk.encode('utf-8'))
     return str(int.from_bytes(sha256.digest(), 'big'))
+
+
+if __name__ == '__main__':
+    print(text_hash_id("errrrrrrrrrrrrrrrrrrrrtvdfghfghgy789ty4u56tyu"))

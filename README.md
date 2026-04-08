@@ -1,4 +1,4 @@
-# video-shot-agent (Penshot)
+# 剧本分镜智能体 (Penshot)
 
 一个基于多智能体协作的剧本分镜系统，能够将多种格式的剧本拆分为符合 AI 文生视频时长的脚本单元，输出高质量分镜片段描述，并保证叙事连续性。系统基于 LangChain + LangGraph 构建，通过 LLM 将任意格式剧本解析转换为符合主流模型的“Text to Video”提示词片段，支持任务池优先级排队、多层级记忆管理与 Chroma 向量检索。
 
@@ -58,14 +58,12 @@ flowchart TD
 ### 1. 环境准备
 
 ```bash
-# 克隆项目
-git clone https://github.com/neopen/video-shot-agent.git
-cd video-shot-agent
-
 # 方式 A：直接安装 PyPI 包（推荐）
 pip install penshot
 
 # 方式 B：开发模式安装（源码）
+git clone https://github.com/neopen/video-shot-agent.git
+cd video-shot-agent
 pip install -e .
 ```
 
@@ -79,15 +77,15 @@ cp .env.example .env
 
 ```properties
 ########################## LLM 模型配置 #########################
-LLM__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
-LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-LLM__DEFAULT__MODEL_NAME=qwen-plus
-LLM__DEFAULT__TIMEOUT=30
+PENSHOT_LLM__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
+PENSHOT_LLM__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PENSHOT_LLM__DEFAULT__MODEL_NAME=qwen-plus
+PENSHOT_LLM__DEFAULT__TIMEOUT=30
 
 ########################## 嵌入模型配置 #########################
-EMBED__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
-EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-EMBED__DEFAULT__MODEL_NAME=text-embedding-v4
+PENSHOT_EMBED__DEFAULT__BASE_URL=https://dashscope-intl.aliyuncs.com/api/v1
+PENSHOT_EMBED__DEFAULT__API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PENSHOT_EMBED__DEFAULT__MODEL_NAME=text-embedding-v4
 ```
 
 ### 3. 启动服务
