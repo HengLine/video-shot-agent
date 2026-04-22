@@ -1,8 +1,8 @@
-# story-shot-agent (Penshot)
+# story-to-shot (PenShot)
 
 A multi-agent collaborative screenplay storyboarding system that splits scripts in various formats into script units optimized for AI text-to-video generation durations. It outputs high-quality storyboard fragment descriptions while ensuring narrative continuity. Built on LangChain and LangGraph, the system leverages LLMs to parse any script format into "Text-to-Video" prompt fragments compatible with mainstream AI video models. It supports task pool priority queuing, multi-level memory management, and Chroma vector retrieval.
 
-[中文](README_zh) | English | [Documentation](https://pengline.cn/2026/02/7e6cd67dd5ee45248f2276ac145555f5/) | [PyPI](https://pypi.org/project/penshot/) | [WebSite](https://shot.pengline.cn)
+[中文](README_zh.md) | English | [Documentation](https://pengline.cn/2026/02/7e6cd67dd5ee45248f2276ac145555f5/) | [PyPI](https://pypi.org/project/penshot/) | [WebSite](https://shot.pengline.cn)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/) [![LangGraph](https://img.shields.io/badge/built_with-LangGraph-purple)](https://langchain-ai.github.io/langgraph/) [![PyPI](https://img.shields.io/pypi/v/penshot.svg)](https://pypi.org/project/penshot/) [![Downloads](https://static.pepy.tech/badge/penshot)](https://pepy.tech/project/penshot) ![GitHub stars](https://img.shields.io/github/stars/neopen/story-shot-agent)
 
@@ -29,29 +29,66 @@ A multi-agent collaborative screenplay storyboarding system that splits scripts 
 
 ```mermaid
 flowchart TD
-    A[Client / Upstream Agent] -->|Raw Script Input| B[LLM Script Creation & Preprocessing]
-    B -->|Structured Text| C[Storyboard Agent Core]
-    
-    subgraph Agent_System [LangGraph-Based Multi-Agent Collaboration]
-        direction TB
-        C --> D[Task Pool & Priority Scheduler]
-        D --> E[Script Parsing & Scene Recognition]
-        E --> F[Precise Temporal Planning & Fragmentation]
-        F --> G[Prompt Generation & Model Adaptation]
-        G --> H[Continuity Guard & Consistency Check]
-        H --> I[Three-View Character Prompt Generation]
+    subgraph Input [Input Layer]
+        A1[Client / Upstream Agent] --> A2[REST API / MCP / A2A]
+        A2 --> A3[Task Manager]
     end
-    
-    J[(Multi-Level Memory Pool<br/>Short/Mid/Long-Term)] <-->|State Read/Write & RAG| E
-    J <-->|Character/Scene/Prop Vectors| K[(Chroma Vector DB)]
-    
-    H -->|Structured JSON Output| L[REST API / Python SDK / MCP / A2A]
-    L --> M[Downstream AI Text-to-Video Models<br/>Sora / Veo / Runway / Kling / SVD]
-    M -->|Video Clip Sequence| N[FFmpeg Composition & Rendering]
-    N --> O[Final Cut / Professional Timeline]
+
+    subgraph Core [LangGraph Multi-Agent Core Workflow]
+        direction TB
+        
+        P1[Script Parser Agent] --> P2[Shot Generator Agent]
+        P2 --> P3[Video Splitter Agent]
+        P3 --> P4[Prompt Converter Agent]
+        P4 --> P5[Quality Auditor Agent]
+        P5 --> P6[Continuity Guardian Agent]
+        P6 --> P7[Auxiliary Generator Agent<br/>Three-view/Background/Keyframe]
+        
+        subgraph Control [Control Nodes]
+            C1[Loop Check] --> C2[Error Handling]
+            C2 --> C3[Human Intervention]
+            C3 --> C4[Result Generation]
+        end
+        
+        P1 -.->|Retry/Fix| Control
+        P2 -.->|Retry/Fix| Control
+        P3 -.->|Retry/Fix| Control
+        P4 -.->|Retry/Fix| Control
+        P5 -.->|Retry/Fix| Control
+        P6 -.->|Retry/Fix| Control
+        Control -.->|Routing Decision| P1
+    end
+
+    subgraph Memory [Memory Layer]
+        M1[(Short-term Memory)]
+        M2[(Medium-term Memory)]
+        M3[(Long-term Memory)]
+        M4[(Vector Database<br/>Chroma)]
+        
+        M1 <--> Core
+        M2 <--> Core
+        M3 <--> Core
+        M4 <--> Core
+    end
+
+    subgraph Output [Output Layer]
+        O1[Workflow Output Fixer<br/>Segment Sequence Repair] --> O2[Result Formatting]
+        O2 --> O3[JSON / SDK / MCP / A2A]
+    end
+
+    subgraph Downstream [Downstream Rendering]
+        D1[Multi-model Adapter] --> D2[Sora/Veo/Runway/Keling/SVD]
+        D2 --> D3[FFmpeg Synthesis]
+        D3 --> D4[Final Video]
+    end
+
+    A3 --> P1
+    P7 --> O1
+    O3 --> D1
+
 ```
 
-This system is a typical Natural Language Processing (NLP) application that achieves end-to-end storyboard transcoding through multi-agent collaboration and memory mechanisms. For detailed architectural design, memory pool implementation, and continuity assurance, please refer to: [Storyboard Agent Architecture Design & Implementation (v1.0)](https://pengline.cn/2026/02/7e6cd67dd5ee45248f2276ac145555f5/)
+This system is a typical Natural Language Processing (NLP) application that achieves end-to-end storyboard transcoding through multi-agent collaboration and memory mechanisms. For detailed architectural design, memory pool implementation, and continuity assurance, please refer to: [Storyboard Agent Architecture Design](https://pengline.cn/2026/02/7e6cd67dd5ee45248f2276ac145555f5/)
 
 ------
 
