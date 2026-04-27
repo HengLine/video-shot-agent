@@ -540,22 +540,35 @@ class ScriptKnowledgeBase:
             error(f"添加文档到索引失败: {str(e)}")
             raise
 
+    # llama_index_knowledge.py - 修改 _load_storage 方法
+
     def _load_storage(self):
-        """
-        加载存储的索引和解析结果
-        """
+        """加载存储的索引和解析结果"""
         try:
             # 加载向量存储
             vector_store_path = os.path.join(self.storage_dir, "vector_store.json")
             if os.path.exists(vector_store_path):
-                self.vector_store = SimpleVectorStore.from_persist_path(vector_store_path)
-                self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
-                self.index = VectorStoreIndex.from_vector_store(
-                    self.vector_store,
-                    storage_context=self.storage_context,
-                    embed_model=self.embeddings
-                )
-                debug("已加载向量存储")
+                try:
+                    # 检查文件是否为空或无效
+                    if os.path.getsize(vector_store_path) > 0:
+                        self.vector_store = SimpleVectorStore.from_persist_path(vector_store_path)
+                        self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
+                        self.index = VectorStoreIndex.from_vector_store(
+                            self.vector_store,
+                            storage_context=self.storage_context,
+                            embed_model=self.embeddings
+                        )
+                        debug("已加载向量存储")
+                    else:
+                        debug(f"向量存储文件为空: {vector_store_path}")
+                except Exception as e:
+                    warning(f"加载向量存储失败（文件可能损坏）: {e}")
+                    # 删除损坏的文件，重新创建
+                    try:
+                        os.remove(vector_store_path)
+                        debug(f"已删除损坏的向量存储文件: {vector_store_path}")
+                    except:
+                        pass
 
             # 加载解析结果
             parsed_dir = os.path.join(self.storage_dir, "parsed_results")
@@ -564,8 +577,11 @@ class ScriptKnowledgeBase:
                     if file.endswith(".json"):
                         script_id = os.path.splitext(file)[0]
                         file_path = os.path.join(parsed_dir, file)
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            self.parsed_results[script_id] = json.load(f)
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                self.parsed_results[script_id] = json.load(f)
+                        except Exception as e:
+                            warning(f"加载解析结果失败: {file_path}, {e}")
                 debug(f"已加载{len(self.parsed_results)}个解析结果")
 
         except Exception as e:

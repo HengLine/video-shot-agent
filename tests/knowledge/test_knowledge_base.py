@@ -81,7 +81,7 @@ async def test_prompt_template_manager():
     return manager
 
 
-def test_script_knowledge_base():
+async def test_script_knowledge_base():
     """测试剧本知识库"""
     print("\n" + "=" * 50)
     print("测试剧本知识库")
