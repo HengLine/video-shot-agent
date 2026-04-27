@@ -5,15 +5,15 @@
 @Time: 2026/4/1
 """
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Any, Dict
-from datetime import datetime
 
-from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_core.language_models import BaseLLM
+from langchain_core.language_models import BaseLanguageModel
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda
+from langchain_core.runnables.history import RunnableWithMessageHistory
 
 from penshot.logger import debug, info, error
 from penshot.neopen.knowledge.memory.memory_models import MemoryConfig
@@ -35,9 +35,9 @@ class MediumTermMemory:
             {new_lines}
             
             请生成更新后的总结（保持简洁，突出重点）:"""
-        )
+    )
 
-    def __init__(self, llm: BaseLLM, config: MemoryConfig, script_id: str):
+    def __init__(self, llm: BaseLanguageModel, config: MemoryConfig, script_id: str):
         self.llm = llm
         self.config = config
         self.script_id = script_id
@@ -73,6 +73,7 @@ class MediumTermMemory:
 
     def _create_summary_chain(self):
         """创建摘要链"""
+
         def summarize(input_dict):
             """生成摘要"""
             summary = input_dict.get("summary", "")
