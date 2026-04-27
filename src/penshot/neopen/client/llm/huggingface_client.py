@@ -18,6 +18,7 @@ class HuggingFaceClient(BaseClient):
 
     def __init__(self, config: AIConfig):
         super().__init__(config)
+        # https://api-inference.huggingface.co
         # 常用中文嵌入模型
         self.MODEL_NAMES = {
             # 中文模型
@@ -54,7 +55,7 @@ class HuggingFaceClient(BaseClient):
                 "normalize_embeddings": True,  # 归一化嵌入向量
                 "batch_size": 32,  # 批量大小
             },
-            "cache_folder": "./models",  # 模型缓存目录
+            "cache_folder": "data/models",  # 模型缓存目录
             "multi_process": False,  # 是否启用多进程
         }
 

@@ -19,9 +19,10 @@ from penshot.neopen.agent.quality_auditor.quality_auditor_models import AuditSta
 from penshot.neopen.agent.workflow.workflow_models import AgentStage, PipelineNode
 from penshot.neopen.agent.workflow.workflow_output import WorkflowOutputWriter
 from penshot.neopen.agent.workflow.workflow_states import WorkflowState
+from penshot.neopen.knowledge.memory.memory_manager import MemoryManager
+from penshot.neopen.knowledge.memory.memory_models import MemoryConfig, MemoryLevel
+from penshot.neopen.prompts.prompt_template_manager import PromptTemplateManager
 from penshot.neopen.task.task_models import TaskStage, TaskStatus
-from penshot.neopen.tools.memory.memory_manager import MemoryManager
-from penshot.neopen.tools.memory.memory_models import MemoryConfig, MemoryLevel
 from penshot.neopen.tools.result_storage_tool import create_result_storage
 from penshot.utils.log_utils import print_log_exception
 
@@ -65,6 +66,14 @@ class WorkflowNodes:
             )
         )
 
+        # 初始化提示词模板管理器
+        self.knowledge_manager = PromptTemplateManager(
+            embedding_model=self.embeddings,
+            memory_manager=self.memory,
+            min_similarity_score=0.7,
+            top_k=3
+        )
+
         # 启动时恢复长期记忆中的常见问题模式
         self._load_common_patterns()
 
@@ -83,6 +92,7 @@ class WorkflowNodes:
         self.checker = ContinuityGuardianChecker()
         # 初始化输出写入器
         self.output_writer = WorkflowOutputWriter(self.storage, self.memory)
+
 
     def parse_script_node(self, state: WorkflowState) -> WorkflowState:
         """
@@ -124,7 +134,11 @@ class WorkflowNodes:
             self._update_task_progress(state.task_id, TaskStage.PARSING_SCRIPT, 30)
 
             # ========== 3. 执行解析 ==========
-            parsed_script = self.script_parser.process(state.raw_script)
+            parsed_script = self.script_parser.process(
+                state.raw_script,
+                knowledge_manager=self.knowledge_manager,
+                script_id=state.script_id
+            )
 
             debug(f"剧本解析完成，场景数: {len(parsed_script.scenes)}，角色数: {len(parsed_script.characters)}")
             debug(f"完整性评分: {parsed_script.stats.get('completeness_score', 0)}")
@@ -169,7 +183,7 @@ class WorkflowNodes:
                 if len(all_issues) > 100:
                     all_issues = all_issues[-100:]
                 self.memory.add("common_parse_issues", all_issues, level=MemoryLevel.LONG_TERM,
-                    metadata={"_serialized": True})
+                                metadata={"_serialized": True})
 
             # ========== 6. 更新状态 ==========
             state.parsed_script = parsed_script
@@ -594,6 +608,17 @@ class WorkflowNodes:
 
             debug(f"片段指令转换完成，指令片段数: {len(instructions.fragments)}")
 
+            # ========== 4. 使用知识库增强提示词 ==========
+            if self.knowledge_manager and self.knowledge_manager.is_available():
+                for fragment in instructions.fragments:
+                    enhanced_prompt = self.knowledge_manager.enhance_prompt(
+                        fragment.prompt,
+                        enhancement_mode="append"
+                    )
+                    if enhanced_prompt != fragment.prompt:
+                        fragment.prompt = enhanced_prompt
+                        debug(f"已使用知识库增强提示词: {fragment.fragment_id}")
+
             # 统计提示词信息
             prompt_lengths = [len(f.prompt) for f in instructions.fragments]
             debug(f"提示词长度统计: 平均={sum(prompt_lengths) / len(prompt_lengths):.0f}, "
@@ -789,9 +814,26 @@ class WorkflowNodes:
             if len(audit_history) > 50:
                 audit_history = audit_history[-50:]
             self.memory.add("audit_results_history", audit_history, level=MemoryLevel.MEDIUM_TERM,
-                metadata={"_serialized": True})
+                            metadata={"_serialized": True})
 
             info(f"审计结果汇总: 状态={result.status.value}, 分数={result.score}%, 问题统计={result.stats}")
+
+            # 审查通过后，保存成功的提示词
+            if result.status == AuditStatus.PASSED and state.instructions:
+                for fragment in state.instructions.fragments:
+                    self.knowledge_manager.save_successful_prompt(
+                        fragment_id=fragment.fragment_id,
+                        prompt_text=fragment.prompt,
+                        quality_score=result.score,
+                        additional_metadata={
+                            "scene": getattr(fragment, 'scene', ''),
+                            "style": getattr(fragment, 'style', ''),
+                            "duration": getattr(fragment, 'duration', 0),
+                            "task_id": state.task_id,
+                            "script_id": state.script_id
+                        }
+                    )
+                info(f"质量审查通过，已保存 {len(state.instructions.fragments)} 个成功提示词")
 
             # 记录错误来源（根据审查结果）
             if result.status in [AuditStatus.FAILED, AuditStatus.CRITICAL_ISSUES]:
@@ -971,6 +1013,20 @@ class WorkflowNodes:
             # 4. 获取问题列表
             continuity_issues = check_result.issues
             state.continuity_issues = continuity_issues
+
+            # ========== 使用知识库检索历史解决方案 ==========
+            if self.knowledge_manager and self.knowledge_manager.is_script_kb_available():
+                enhanced_issues = []
+                for issue in continuity_issues:
+                    issue_desc = getattr(issue, 'description', str(issue))
+                    similar_scenes = self.knowledge_manager.search_similar_scene(issue_desc, top_k=2)
+                    if similar_scenes:
+                        # 将检索结果附加到问题对象
+                        if hasattr(issue, 'historical_solutions'):
+                            issue.historical_solutions = similar_scenes
+                    enhanced_issues.append(issue)
+                state.continuity_issues = enhanced_issues
+                info("已使用知识库检索历史连续性解决方案")
 
             # 5. 分析问题来源
             issues_by_stage = self._analyze_continuity_issues(continuity_issues, continuity_context)
@@ -1376,7 +1432,7 @@ class WorkflowNodes:
             if elapsed_time > 1800:  # 30分钟 = 1800秒
                 warning(f"工作流执行超时: {elapsed_time:.1f}秒，超过30分钟限制")
                 return "abort"
-        
+
         # 检查循环限制
         if getattr(state, 'global_loop_exceeded', False):
             return "abort"

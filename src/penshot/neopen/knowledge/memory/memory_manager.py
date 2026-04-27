@@ -8,18 +8,18 @@
 import json
 from typing import Optional, Any, Dict, List
 
-from langchain_core.language_models import BaseLLM
+from langchain_core.language_models import BaseLanguageModel
 
 from penshot.logger import info, debug
-from penshot.neopen.tools.memory.memory_context import MemoryContext
-from penshot.neopen.tools.memory.memory_models import MemoryConfig, MemoryLevel
-from penshot.neopen.tools.memory.script_memory import ScriptMemory
+from penshot.neopen.knowledge.memory.memory_context import MemoryContext
+from penshot.neopen.knowledge.memory.memory_models import MemoryConfig, MemoryLevel
+from penshot.neopen.knowledge.memory.script_memory import ScriptMemory
 
 
 class MemoryManager:
     """全局记忆管理器 - 统一记忆检索接口"""
 
-    def __init__(self, script_id, llm: BaseLLM, config: Optional[MemoryConfig] = None):
+    def __init__(self, script_id, llm: BaseLanguageModel, config: Optional[MemoryConfig] = None):
         """
         初始化记忆管理器
 

@@ -19,7 +19,9 @@ from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.schema import Document
 from llama_index.core.vector_stores import SimpleVectorStore
 
+from penshot.config.config import settings
 from penshot.logger import debug, info, error, warning
+from penshot.neopen.agent.script_parser.script_parser_models import ParsedScript
 from penshot.neopen.tools.script_parser_tool import parse_script_to_documents, parse_script_file_to_documents
 
 
@@ -30,20 +32,20 @@ class ScriptKnowledgeBase:
     """
 
     def __init__(self,
-                 embedding_model: Optional[BaseEmbedding] = None,
-                 storage_dir: Optional[str] = None,
+                 embeddings: Optional[BaseEmbedding],
+                 storage_dir: str = settings.get_data_paths().get("data_embedding"),
                  chunk_size: int = 512,
                  chunk_overlap: int = 20):
         """
         初始化剧本知识库
         
         Args:
-            embedding_model: 嵌入模型
+            embeddings: 嵌入模型
             storage_dir: 存储目录
             chunk_size: 文本块大小
             chunk_overlap: 文本块重叠大小
         """
-        self.embedding_model = embedding_model
+        self.embeddings = embeddings
         self.storage_dir = storage_dir
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -58,12 +60,66 @@ class ScriptKnowledgeBase:
         self.parsed_results = {}
         self.document_cache = {}
 
+        self._parser_tool = None  # 缓存
+
         # 初始化存储
         if self.storage_dir:
             os.makedirs(self.storage_dir, exist_ok=True)
             self._load_storage()
 
         debug("剧本知识库初始化完成")
+
+
+    def add_parsed_script(self, parsed_script: ParsedScript, script_id: str = None) -> Dict[str, Any]:
+        """
+        直接添加已解析的剧本对象到知识库（推荐）
+
+        Args:
+            parsed_script: 已解析的 ParsedScript 对象
+            script_id: 剧本唯一标识
+
+        Returns:
+            添加结果信息
+        """
+        try:
+            if script_id is None:
+                script_id = f"script_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+            debug(f"添加已解析剧本: {script_id}")
+
+            # 直接从 ParsedScript 创建文档（避免重复解析）
+            documents = self._create_documents_from_parsed(parsed_script)
+
+            # 缓存解析结果
+            self.parsed_results[script_id] = parsed_script.model_dump()
+            self.document_cache[script_id] = documents
+
+            # 添加到索引
+            self._add_documents_to_index(documents, script_id)
+
+            # 保存存储
+            if self.storage_dir:
+                self._save_storage()
+                self._save_parsed_result(script_id, self.parsed_results[script_id])
+
+            info(f"成功添加已解析剧本: {script_id}, 包含{len(documents)}个文档")
+
+            return {
+                "status": "success",
+                "script_id": script_id,
+                "scene_count": len(parsed_script.scenes),
+                "character_count": len(parsed_script.characters),
+                "document_count": len(documents)
+            }
+
+        except Exception as e:
+            error(f"添加已解析剧本失败: {str(e)}")
+            raise
+
+    def _create_documents_from_parsed(self, parsed_script: ParsedScript) -> List[Document]:
+        """从 ParsedScript 对象创建文档（复用 ScriptParserTool 的逻辑）"""
+
+        return self._get_parser_tool().create_documents(parsed_script)
 
     def add_script_text(self, script_text: str, script_id: str = None) -> Dict[str, Any]:
         """
@@ -86,7 +142,7 @@ class ScriptKnowledgeBase:
             parsed_result, documents = parse_script_to_documents(script_text)
 
             # 缓存解析结果
-            self.parsed_results[script_id] = parsed_result
+            self.parsed_results[script_id] = parsed_result.model_dump()
             self.document_cache[script_id] = documents
 
             # 添加到索引
@@ -95,15 +151,15 @@ class ScriptKnowledgeBase:
             # 保存存储
             if self.storage_dir:
                 self._save_storage()
-                self._save_parsed_result(script_id, parsed_result)
+                self._save_parsed_result(script_id, self.parsed_results[script_id])
 
             info(f"成功添加剧本: {script_id}, 包含{len(documents)}个文档")
 
             return {
                 "status": "success",
                 "script_id": script_id,
-                "scene_count": parsed_result["stats"]["scene_count"],
-                "character_count": parsed_result["stats"]["character_count"],
+                "scene_count": parsed_result.stats["scene_count"],
+                "character_count": parsed_result.stats["character_count"],
                 "document_count": len(documents)
             }
 
@@ -137,7 +193,7 @@ class ScriptKnowledgeBase:
             parsed_result, documents = parse_script_file_to_documents(file_path)
 
             # 缓存解析结果
-            self.parsed_results[script_id] = parsed_result
+            self.parsed_results[script_id] = parsed_result.model_dump()
             self.document_cache[script_id] = documents
 
             # 添加到索引
@@ -146,7 +202,7 @@ class ScriptKnowledgeBase:
             # 保存存储
             if self.storage_dir:
                 self._save_storage()
-                self._save_parsed_result(script_id, parsed_result)
+                self._save_parsed_result(script_id, self.parsed_results[script_id])
 
             info(f"成功添加剧本文件: {file_path}, 包含{len(documents)}个文档")
 
@@ -154,8 +210,8 @@ class ScriptKnowledgeBase:
                 "status": "success",
                 "script_id": script_id,
                 "file_path": file_path,
-                "scene_count": parsed_result["stats"]["scene_count"],
-                "character_count": parsed_result["stats"]["character_count"],
+                "scene_count": parsed_result.stats["scene_count"],
+                "character_count": parsed_result.stats["character_count"],
                 "document_count": len(documents)
             }
 
@@ -332,25 +388,20 @@ class ScriptKnowledgeBase:
             error(f"查询失败: {str(e)}")
             raise
 
-    def query_scene(self, scene_number: int) -> Optional[Dict[str, Any]]:
+    def query_scene(self, scene_id: str) -> Optional[Dict[str, Any]]:
         """
-        根据场景编号查询场景信息
-        
+        根据场景ID查询场景信息
+
         Args:
-            scene_number: 场景编号
-            
-        Returns:
-            场景信息字典
+            scene_id: 场景ID (如 "scene_001")
         """
         try:
             for script_id, parsed_result in self.parsed_results.items():
                 for scene in parsed_result.get("scenes", []):
-                    if scene.get("number") == scene_number:
+                    if scene.get("id") == scene_id:
                         return scene
-
-            debug(f"未找到场景编号: {scene_number}")
+            debug(f"未找到场景: {scene_id}")
             return None
-
         except Exception as e:
             error(f"查询场景失败: {str(e)}")
             raise
@@ -403,7 +454,7 @@ class ScriptKnowledgeBase:
             "character_count": total_characters,
             "document_count": total_documents,
             "parsed_scripts": list(self.parsed_results.keys()),
-            "embedding_model": str(self.embedding_model) if self.embedding_model else None,
+            "embedding_model": str(self.embeddings) if self.embeddings else None,
             "storage_dir": self.storage_dir,
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap
@@ -475,7 +526,7 @@ class ScriptKnowledgeBase:
                     documents,
                     storage_context=self.storage_context,
                     transformations=[node_parser],
-                    embed_model=self.embedding_model,
+                    embed_model=self.embeddings,
                     show_progress=True
                 )
             else:
@@ -489,22 +540,35 @@ class ScriptKnowledgeBase:
             error(f"添加文档到索引失败: {str(e)}")
             raise
 
+    # llama_index_knowledge.py - 修改 _load_storage 方法
+
     def _load_storage(self):
-        """
-        加载存储的索引和解析结果
-        """
+        """加载存储的索引和解析结果"""
         try:
             # 加载向量存储
             vector_store_path = os.path.join(self.storage_dir, "vector_store.json")
             if os.path.exists(vector_store_path):
-                self.vector_store = SimpleVectorStore.from_persist_path(vector_store_path)
-                self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
-                self.index = VectorStoreIndex.from_vector_store(
-                    self.vector_store,
-                    storage_context=self.storage_context,
-                    embed_model=self.embedding_model
-                )
-                debug("已加载向量存储")
+                try:
+                    # 检查文件是否为空或无效
+                    if os.path.getsize(vector_store_path) > 0:
+                        self.vector_store = SimpleVectorStore.from_persist_path(vector_store_path)
+                        self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
+                        self.index = VectorStoreIndex.from_vector_store(
+                            self.vector_store,
+                            storage_context=self.storage_context,
+                            embed_model=self.embeddings
+                        )
+                        debug("已加载向量存储")
+                    else:
+                        debug(f"向量存储文件为空: {vector_store_path}")
+                except Exception as e:
+                    warning(f"加载向量存储失败（文件可能损坏）: {e}")
+                    # 删除损坏的文件，重新创建
+                    try:
+                        os.remove(vector_store_path)
+                        debug(f"已删除损坏的向量存储文件: {vector_store_path}")
+                    except:
+                        pass
 
             # 加载解析结果
             parsed_dir = os.path.join(self.storage_dir, "parsed_results")
@@ -513,8 +577,11 @@ class ScriptKnowledgeBase:
                     if file.endswith(".json"):
                         script_id = os.path.splitext(file)[0]
                         file_path = os.path.join(parsed_dir, file)
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            self.parsed_results[script_id] = json.load(f)
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                self.parsed_results[script_id] = json.load(f)
+                        except Exception as e:
+                            warning(f"加载解析结果失败: {file_path}, {e}")
                 debug(f"已加载{len(self.parsed_results)}个解析结果")
 
         except Exception as e:
@@ -535,10 +602,10 @@ class ScriptKnowledgeBase:
     def _save_parsed_result(self, script_id: str, parsed_result: Dict[str, Any]):
         """
         保存解析结果
-        
+
         Args:
             script_id: 剧本ID
-            parsed_result: 解析结果
+            parsed_result: 解析结果字典
         """
         try:
             if self.storage_dir:
@@ -568,16 +635,23 @@ class ScriptKnowledgeBase:
         # 简单检查，实际项目中可以更详细地检查检索器的配置
         return hasattr(self.retriever, '_retriever_mode') and self.retriever._retriever_mode == search_type
 
+    def _get_parser_tool(self):
+        """懒加载 ScriptParserTool"""
+        if self._parser_tool is None:
+            from penshot.neopen.tools.script_parser_tool import ScriptParserTool
+            self._parser_tool = ScriptParserTool()
+        return self._parser_tool
 
-def create_script_knowledge_base(embedding_model=None, storage_dir=None) -> ScriptKnowledgeBase:
+
+def create_script_knowledge_base(embeddings, storage_dir=None) -> ScriptKnowledgeBase:
     """
     创建剧本知识库实例
     
     Args:
-        embedding_model: 嵌入模型
+        embeddings: 嵌入模型
         storage_dir: 存储目录
-        
+
     Returns:
         剧本知识库实例
     """
-    return ScriptKnowledgeBase(embedding_model=embedding_model, storage_dir=storage_dir)
+    return ScriptKnowledgeBase(embeddings=embeddings, storage_dir=storage_dir)

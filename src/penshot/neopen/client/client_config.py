@@ -67,11 +67,15 @@ def detect_ai_provider_by_url(base_url: str) -> ClientType:
     if "deepseek.com" in url_lower:
         return ClientType.DEEPSEEK
 
-    # 4. Ollama - 两种识别方式：
+    # 4. HuggingFace
+    if "huggingface.co" in url_lower:
+        return ClientType.HUGGINGFACE
+
+    # 5. Ollama - 两种识别方式：
     #    a) 默认端口 11434（最可靠特征）
     #    b) URL 中包含 'ollama'（适应 Docker/自定义部署）
-    if ":11434" in url_lower or "ollama" in url_lower:
-        return ClientType.OLLAMA
+    # if ":11434" in url_lower or "ollama" in url_lower:
+    #     return ClientType.OLLAMA
 
     return ClientType.OLLAMA
 

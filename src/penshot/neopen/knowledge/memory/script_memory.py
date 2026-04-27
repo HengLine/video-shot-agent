@@ -8,20 +8,20 @@
 from datetime import datetime
 from typing import Optional, Any, Dict, List
 
-from langchain_core.language_models import BaseLLM
+from langchain_core.language_models import BaseLanguageModel
 
 from penshot.logger import info
-from penshot.neopen.tools.memory.long_term_memory import LongTermMemory
-from penshot.neopen.tools.memory.medium_term_memory import MediumTermMemory
-from penshot.neopen.tools.memory.memory_context import MemoryContext
-from penshot.neopen.tools.memory.memory_models import MemoryConfig, MemoryLevel
-from penshot.neopen.tools.memory.short_term_memory import ShortTermMemory
+from penshot.neopen.knowledge.memory.long_term_memory import LongTermMemory
+from penshot.neopen.knowledge.memory.medium_term_memory import MediumTermMemory
+from penshot.neopen.knowledge.memory.memory_context import MemoryContext
+from penshot.neopen.knowledge.memory.memory_models import MemoryConfig, MemoryLevel
+from penshot.neopen.knowledge.memory.short_term_memory import ShortTermMemory
 
 
 class ScriptMemory:
     """剧本级记忆（组合三种记忆）"""
 
-    def __init__(self, script_id: str, llm: BaseLLM, config: MemoryConfig):
+    def __init__(self, script_id: str, llm: BaseLanguageModel, config: MemoryConfig):
         self.script_id = script_id
         self.config = config
 
@@ -53,7 +53,6 @@ class ScriptMemory:
         else:
             self.short_term.add(input_text, output_text, metadata)
             self.medium_term.add(input_text, output_text, metadata)
-
 
     def add_stage(self, stage_name: str, content: str, metadata: Optional[Dict] = None):
         """添加阶段记忆（特殊处理）"""
